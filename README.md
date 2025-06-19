@@ -3,10 +3,10 @@
 ## 概述
 
 **PandaAI QuantFlow** 是一个集成的量化交易和机器学习工作流平台，旨在为量化研究人员提供完整的端到端解决方案，降低AI门槛，打破传统量化高门槛壁垒，让主观交易者、学生乃至普通投资者都能参与策略研发。
-![预览](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/d712ad04032a0d70ea468cc1bfd0d144.png?Expires=1750333018&OSSAccessKeyId=TMP.3KnkqSEePrTYmyW3wn1Q6rtmKzSTmKidn3CB1P6Usq4VTJ9fxL1iGqS8iM6ZNNUea34Vvhq78xrfa4Zc3L5jMSQ7vAkJUc&Signature=veK9Y6NZuWsqJvnYfbMC25%2Fg9XI%3D)
-![预览](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/127c169482041aa8bd619a074665d8e2.png?Expires=1750333006&OSSAccessKeyId=TMP.3KnkqSEePrTYmyW3wn1Q6rtmKzSTmKidn3CB1P6Usq4VTJ9fxL1iGqS8iM6ZNNUea34Vvhq78xrfa4Zc3L5jMSQ7vAkJUc&Signature=AyJlsH0tnENkpoC8wY8aA83vjd8%3D)
-![预览](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/47f670c2e1c1d45a593cb3f6b2d707ef.png?Expires=1750333033&OSSAccessKeyId=TMP.3KnkqSEePrTYmyW3wn1Q6rtmKzSTmKidn3CB1P6Usq4VTJ9fxL1iGqS8iM6ZNNUea34Vvhq78xrfa4Zc3L5jMSQ7vAkJUc&Signature=AgjCmaBQ%2F8lMngxMwoHg6CiRqxg%3D)
-![预览](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/a5a35c798f3138bdbd145d647abaedee.png?Expires=1750333067&OSSAccessKeyId=TMP.3KnkqSEePrTYmyW3wn1Q6rtmKzSTmKidn3CB1P6Usq4VTJ9fxL1iGqS8iM6ZNNUea34Vvhq78xrfa4Zc3L5jMSQ7vAkJUc&Signature=%2FsVQHaaFRWId8y0Sf5BF5HIz3Eg%3D)
+![预览](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/d712ad04032a0d70ea468cc1bfd0d144.png)
+![预览](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/127c169482041aa8bd619a074665d8e2.png)
+![预览](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/47f670c2e1c1d45a593cb3f6b2d707ef.png)
+![预览](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/a5a35c798f3138bdbd145d647abaedee.png)
 
 
 ### 🚀 核心功能
@@ -184,10 +184,10 @@ panda_workflow/
 ```
 
 ## 加群答疑
-![PandaAI 交流群](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/wechat_2025-06-19_194038_941_%E5%89%AF%E6%9C%AC.png?Expires=1750333498&OSSAccessKeyId=TMP.3KnkqSEePrTYmyW3wn1Q6rtmKzSTmKidn3CB1P6Usq4VTJ9fxL1iGqS8iM6ZNNUea34Vvhq78xrfa4Zc3L5jMSQ7vAkJUc&Signature=PFPf7eLAIPjWHtVLP%2B7bmrbeEP4%3D)
+![PandaAI 交流群](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/wechat_2025-06-19_194038_941_%E5%89%AF%E6%9C%AC.png)
 
 ## 商务合作
-![商务合作](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/68747470733a2f2f7a796e662d746573742e6f73732d636e2d7368616e676861692e616c6979756e63732e636f6d2f6769746875622f575832303235303431362d3233313931392e706e67_%E5%89%AF%E6%9C%AC.png?Expires=1750333577&OSSAccessKeyId=TMP.3KnkqSEePrTYmyW3wn1Q6rtmKzSTmKidn3CB1P6Usq4VTJ9fxL1iGqS8iM6ZNNUea34Vvhq78xrfa4Zc3L5jMSQ7vAkJUc&Signature=ZR5f93J1eKAAAuXGU5%2FYcb5XZ9s%3D)
+![商务合作](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/68747470733a2f2f7a796e662d746573742e6f73732d636e2d7368616e676861692e616c6979756e63732e636f6d2f6769746875622f575832303235303431362d3233313931392e706e67_%E5%89%AF%E6%9C%AC.png)
 
 ## 贡献
 欢迎贡献代码、提出 Issue 或 PR:
