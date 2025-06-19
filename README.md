@@ -71,7 +71,12 @@ QMT实盘交易
 ### 从源码安装（高度自定义，适合二次开发）
 #### 前置条件
 1. 安装 ANACONDA 环境 ([官网下载](https://www.anaconda.com/download))
-2. 安装 panda_factor 相关依赖，并且启动factor服务
+2. 下载并启动PandaAI提供的数据库(含有行情数据)<br>
+   请联系小助理从网盘下载最新的数据库
+   - **MacOS 系统**: 下载并解压后运行 `bin/mongod -replSet rs0 --dbpath data\db  --keyFile conf\mongo.key --port 27017 --quiet --auth`
+   - **Windows 系统**: 下载并解压后运行 `bin\mongod.exe --replSet rs0 --dbpath data\db  --keyFile conf\mongo.key --port 27017 --quiet --auth`
+   - 密码输入：panda
+3. 安装 panda_factor 相关依赖，并且启动factor服务
    ```bash
    git clone https://github.com/PandaAI-Tech/panda_factor.git
    cd panda_factor
@@ -79,11 +84,7 @@ QMT实盘交易
    python ./panda_server/panda_server/server.py
    ```
    panda_factor还有若干功能，例如数据自动更新等，具体请查看([PandaFactor](https://github.com/PandaAI-Tech/panda_factor))
-3. 下载并启动PandaAI提供的数据库(含有行情数据)<br>
-   请联系小助理从网盘下载最新的数据库
-   - **MacOS 系统**: 下载并解压后运行 `bin/mongod -replSet rs0 --dbpath data\db  --keyFile conf\mongo.key --port 27017 --quiet --auth`
-   - **Windows 系统**: 下载并解压后运行 `bin\mongod.exe --replSet rs0 --dbpath data\db  --keyFile conf\mongo.key --port 27017 --quiet --auth`
-   - 密码输入：panda
+
   
 #### 安装流程
 1. 安装 panda_quantflow
