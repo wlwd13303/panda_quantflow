@@ -60,10 +60,12 @@ QMT实盘交易
 
 ## 服务安装与运行
 
-### 安装包方式 (简单)
+### 安装包方式 (简单，快速体验)
 - 若是您不想花时间搭环境，可以用我们打包好的客户端，一键解压，可直接运行，因为内置数据库和行情数据，文件略大。
+![预览](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/2a1a5cbb2a997f0f143192dc083cd906.png)
+内含工作流、超级图表、因子模块。
 - **MacOS 系统**: [准备中]
-- **Windows 系统**: [下载 Windows 安装包](https://github.com/your-org/pandaai_workflow/releases/latest/download/pandaai-quantflow-windows.exe)（因为文件大小限制，做了分包，请下载全部文件再解压）
+- **Windows 系统**: [下载 Windows 安装包](https://github.com/PandaAI-Tech/panda_quantflow/releases)（因为文件大小限制，做了分包，请下载全部文件再解压）
 
 
 ### 从源码安装（高度自定义，适合二次开发）
@@ -79,8 +81,9 @@ QMT实盘交易
    panda_factor还有若干功能，例如数据自动更新等，具体请查看([PandaFactor](https://github.com/PandaAI-Tech/panda_factor))
 3. 下载并启动PandaAI提供的数据库(含有行情数据)<br>
    请联系小助理从网盘下载最新的数据库
-   - **MacOS 系统**: 下载并解压后运行 `bin/mongod`
-   - **Windows 系统**: 下载并解压后运行 `bin/mongod.exe`
+   - **MacOS 系统**: 下载并解压后运行 `bin/mongod -replSet rs0 --dbpath data\db  --keyFile conf\mongo.key --port 27017 --quiet --auth`
+   - **Windows 系统**: 下载并解压后运行 `bin\mongod.exe --replSet rs0 --dbpath data\db  --keyFile conf\mongo.key --port 27017 --quiet --auth`
+   - 密码输入：panda
   
 #### 安装流程
 1. 安装 panda_quantflow
