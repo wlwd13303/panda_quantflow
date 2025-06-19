@@ -80,8 +80,9 @@ QMT实盘交易
    ```bash
    git clone https://github.com/PandaAI-Tech/panda_factor.git
    cd panda_factor
-   pip install -e panda_factor ./panda_common ./panda_data_hub ./panda_data
-   python ./panda_server/panda_server/server.py
+   pip install -r requirements.txt
+   pip install -e  ./panda_common ./panda_data ./panda_data_hub ./panda_llm ./panda_factor_server 
+   python ./panda_factor_server/panda_factor_server/__main__.py
    ```
    panda_factor还有若干功能，例如数据自动更新等，具体请查看([PandaFactor](https://github.com/PandaAI-Tech/panda_factor))
 
