@@ -93,9 +93,10 @@ QMT实盘交易
    ```bash
    python src/panda_server/main.py
    ```
-3. 运行 UI 图形界面
+3. 打开 UI 图形界面
    ```bash
-   open src/panda_web/index.html
+   超级图表：http://127.0.0.1:8000/charts/
+   工作流：http://127.0.0.1:8000/quantflow/
    ```
 
 ## 编写自定义插件
