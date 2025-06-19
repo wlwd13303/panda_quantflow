@@ -90,7 +90,7 @@ QMT实盘交易
 1. 安装 panda_quantflow
    ```bash
    git clone https://github.com/PandaAI-Tech/panda_quantflow.git
-   cd panda_workflow
+   cd panda_quantflow
    pip install -e .
    ```
 2. 启动 panda_quantflow 服务
