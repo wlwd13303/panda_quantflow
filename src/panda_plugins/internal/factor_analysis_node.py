@@ -77,7 +77,7 @@ class FactorAnalysisControl(BaseWorkNode):
     # Node running logic
     # 节点运行逻辑
     def run(self, input: BaseModel) -> BaseModel:
-        df_factor_pro=input.df_factor.reset_index()
+        df_factor_pro=input.df_factor
         task_id = factor_analysis_workflow(df_factor_pro, int(input.adjustment_cycle), int(input.group_number),
                                            int(input.factor_direction))
         return FactorAnalysisOutputModel(task_id=str(task_id))
