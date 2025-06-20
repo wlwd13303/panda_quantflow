@@ -64,7 +64,7 @@ class FactorBuildProControl(BaseWorkNode):
                 end_date=input.end_date,
                 symbol_type=symbol_type,
             )
-        return FactorBuildProOutputModel(factor=factor_values)
+        return FactorBuildProOutputModel(factor=factor_values.reset_index())
 
 if __name__ == "__main__":
     node = FactorBuildProControl()
