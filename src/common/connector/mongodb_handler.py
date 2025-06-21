@@ -117,41 +117,6 @@ class DatabaseHandler:
     def get_mongo_collection(self, db_name, collection_name):
         return self.mongo_client[db_name][collection_name]
 
-    # def mysql_query(self, query, params=None):
-    #     cursor = self.mysql_conn.cursor()
-    #     cursor.execute(query, params)
-    #     return cursor.fetchall()
-
-    # def redis_set(self, key, value):
-    #     self.redis_client.py.set(key, value)
-
-    # def redis_get(self, key):
-    #     return self.redis_client.py.get(key)
-
-    # def mysql_insert(self, table, data):
-    #     cursor = self.mysql_conn.cursor()
-    #     placeholders = ', '.join(['%s'] * len(data))
-    #     columns = ', '.join(data.keys())
-    #     sql = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
-    #     cursor.execute(sql, list(data.values()))
-    #     self.mysql_conn.commit()
-    #     return cursor.lastrowid
-
-    # def mysql_update(self, table, data, condition):
-    #     cursor = self.mysql_conn.cursor()
-    #     set_clause = ', '.join([f"{key} = %s" for key in data.keys()])
-    #     sql = f"UPDATE {table} SET {set_clause} WHERE {condition}"
-    #     cursor.execute(sql, list(data.values()))
-    #     self.mysql_conn.commit()
-    #     return cursor.rowcount
-
-    # def mysql_delete(self, table, condition):
-    #     cursor = self.mysql_conn.cursor()
-    #     sql = f"DELETE FROM {table} WHERE {condition}"
-    #     cursor.execute(sql)
-    #     self.mysql_conn.commit()
-    #     return cursor.rowcount
-
     def mongo_insert_many(self, db_name, collection_name, documents):
         collection = self.get_mongo_collection(db_name, collection_name)
         return collection.insert_many(documents).inserted_ids
@@ -164,24 +129,6 @@ class DatabaseHandler:
         """Get distinct values for a field"""
         collection = self.get_mongo_collection(db_name, collection_name)
         return collection.distinct(field)
-
-    # def mongo_find_one(self, db_name, collection_name, query, hint=None):
-    #     """
-    #     Find a single document in MongoDB collection
-    #
-    #     Args:
-    #         db_name: Database name
-    #         collection_name: Collection name
-    #         query: Query dictionary
-    #         hint: Optional index hint
-    #
-    #     Returns:
-    #         Single document or None if not found
-    #     """
-    #     collection = self.get_mongo_collection(db_name, collection_name)
-    #     if hint:
-    #         return collection.find_one(query, hint=hint)
-    #     return collection.find_one(query)
 
     def mongo_find_one(self, db_name, collection_name, query, hint=None, project=None, sort=None):
         """

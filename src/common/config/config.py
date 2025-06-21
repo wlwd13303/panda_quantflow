@@ -2,15 +2,15 @@
 配置模块，用于加载和管理配置信息
 支持从配置文件和环境变量导入，环境变量优先级更高
 """
+
 import os
 import logging
-import sys
-import yaml
 
 logger = logging.getLogger(__name__)
 
 # 初始化配置变量
 config = None
+
 
 def load_config():
     """加载配置文件，并从环境变量更新配置"""
@@ -49,10 +49,11 @@ def load_config():
 
     return config
 
+
 def get_config():
     """
     获取配置对象，如果配置未加载则先加载配置
-    
+
     Returns:
         dict: 配置信息字典
     """
@@ -60,6 +61,7 @@ def get_config():
     if config is None:
         config = load_config()
     return config
+
 
 # 初始加载配置
 try:

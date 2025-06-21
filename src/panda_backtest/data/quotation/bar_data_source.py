@@ -98,7 +98,7 @@ class BarDataSource(BaseBarDataSource):
         elif stock_type == 2:
             collection = "etf_daily_quotation_v2"
         else:
-            collection = "stock_market_2"
+            collection = "stock_market"
 
         bar_dict = None  # ✅ 先初始化，避免 try 异常后 bar_dict 未定义
 
@@ -264,7 +264,7 @@ class BarDataSource(BaseBarDataSource):
             if len(stock_list) > 0:
                 # start = time.time()
                 # collection = "stock_daily_quotation"
-                collection = "stock_market_2"
+                collection = "stock_market"
                 self.init_stock_list_daily_quotation_by_collection(stock_list, trade_date, freq, collection)
                 # print('股票初始化查询耗时：' + str(time.time() - start))
 

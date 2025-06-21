@@ -34,7 +34,7 @@ def stock_api_pre_close(df_stock_code: pd.DataFrame, date: str):
     bar_dict = quotation_mongo_db.mongo_find(
         db_name=config["MONGO_DB"],
         # collection_name='stock_daily_quotation',
-        collection_name='stock_market_2',
+        collection_name='stock_market',
         query=query,
         projection={'_id': 0, 'symbol': 1, 'pre_close': 1}
     )
