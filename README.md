@@ -190,10 +190,7 @@ panda_workflow/
 ```
 
 ## 加群答疑
-![PandaAI 交流群](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/wechat_2025-06-19_194038_941_%E5%89%AF%E6%9C%AC.png)
-
-## 商务合作
-![商务合作](https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/68747470733a2f2f7a796e662d746573742e6f73732d636e2d7368616e676861692e616c6979756e63732e636f6d2f6769746875622f575832303235303431362d3233313931392e706e67_%E5%89%AF%E6%9C%AC.png)
+![PandaAI 交流群]([https://lyzj-ai.oss-cn-shanghai.aliyuncs.com/wechat_2025-06-19_194038_941_%E5%89%AF%E6%9C%AC.png](https://zynf-test.oss-cn-shanghai.aliyuncs.com/github/wechat_2025-06-27_102633_614.png))
 
 ## 贡献
 欢迎贡献代码、提出 Issue 或 PR:
