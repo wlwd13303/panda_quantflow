@@ -190,7 +190,7 @@ panda_workflow/
 ```
 
 ## 加群答疑
-![PandaAI 交流群](https://zynf-test.oss-cn-shanghai.aliyuncs.com/github/wechat_2025-06-27_102633_614.png)
+![PandaAI 交流群](https://zynf-test.oss-cn-shanghai.aliyuncs.com/github/wechat_2025-06-27_102633_615.png)
 
 ## 贡献
 欢迎贡献代码、提出 Issue 或 PR:
