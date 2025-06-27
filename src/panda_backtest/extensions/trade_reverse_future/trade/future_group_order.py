@@ -23,7 +23,7 @@ class FutureGroupOrder(object):
 
     def start_order(self, long_symbol_dict, short_symbol_dict):
         sr_logger = RemoteLogFactory.get_sr_logger()
-        sr_logger.info('开始进行批量下单')
+        # sr_logger.info('开始进行批量下单')
         self.handle_start_group_order(long_symbol_dict, short_symbol_dict)
 
     def handle_start_group_order(self, long_symbol_dict, short_symbol_dict):

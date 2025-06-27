@@ -9,12 +9,12 @@ from panda_backtest.backtest_common.system.compile.strategy import Strategy
 from panda_backtest.backtest_common.system.compile.strategy_utils import FileStrategyLoader
 import traceback
 from panda_backtest.system.panda_log import SRLogger
-
+import logging
 import os
 import time
 import json
 from bson import ObjectId
-def start(code:str,start_future_capital:int,future_account_id:str,start_date:str,end_date:str):
+def start(code:str,start_future_capital:int,future_account_id:str,start_date:str,end_date:str,commission_rate:int,margin_rate:int,frequency:str,df_factor:pd.DataFrame):
     strategy_risk_control_list = []
     back_test_id = str(ObjectId())
     # strategy_risk_control_list = [{
@@ -22,16 +22,18 @@ def start(code:str,start_future_capital:int,future_account_id:str,start_date:str
     #     'risk_control_name': '本地风控',
     #     'risk_control_id': 332,
     # }]
+    df_factor_pro = df_factor.reset_index()
     handle_message = {'code': code,
     # handle_message = {'file': '/Users/peiqi/code/python/panda_workflow/src/panda_backtest/strategy/ase.py',
+                      'df_factor': df_factor_pro,
                       'run_params': 'no_opz',
                       'start_capital': 10000000,
                       'start_date': start_date,
                       'end_date': end_date,
                       'standard_symbol': '000001.SH',
-                      'commission_rate': 1,
+                      'commission_rate': commission_rate,
                       'slippage': 0,
-                      'frequency': '1d',
+                      'frequency': frequency,
                       'matching_type': 1,       # 0：bar收盘，1：bar开盘
                       'run_type': 1,
                       'back_test_id': back_test_id,
@@ -40,7 +42,7 @@ def start(code:str,start_future_capital:int,future_account_id:str,start_date:str
                       'future_account_id': future_account_id,
                       # 'fund_account_id': '2233',
                       'account_type': 1,  # 0:股票，1：期货，2：股票、期货，3：基金，4：股票基金，5：期货基金，6：所有
-                      'margin_rate': 1,
+                      'margin_rate': margin_rate,
                       'start_future_capital': start_future_capital,
                       'start_fund_capital': 1000000,
                       # 'date_type': 0,
@@ -50,6 +52,7 @@ def start(code:str,start_future_capital:int,future_account_id:str,start_date:str
 
     # 系统核心上下文 创建q
     strategy_context = StrategyContext()
+    strategy_context.init_factor_params(df_factor)
     param_dict = dict()
     run_params = handle_message['run_params']
     if run_params is None or run_params == 'no_run_params' or run_params == '' or run_params =='no_opz':
@@ -98,15 +101,17 @@ def start(code:str,start_future_capital:int,future_account_id:str,start_date:str
 
     # SRLogger.info(str(handle_message))
     # 项目启动
+    # 项目启动
     try:
         Engine(_context).run(handle_message)
     except Exception as e:
+        # 打印异常的堆栈信息
         print(traceback.format_exc())
-        print(str(e))
-
-    SRLogger.end()
+        raise
+    finally:
+        # 无论是否有异常，确保结束日志
+        SRLogger.end()
     return back_test_id
-
 if __name__ == '__main__':
     strategy_code_default = '''
     from panda_backtest.system.panda_log import SRLogger
@@ -122,7 +127,7 @@ if __name__ == '__main__':
     def initialize(context):
         SRLogger.info("策略初始化")
         context.account = '5588'
-        context.trading_code="AG2509.SHF"
+        context.trading_code="AG2509.SHFE"
 
     def before_trading(context):
         SRLogger.info("交易前")

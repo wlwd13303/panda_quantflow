@@ -41,7 +41,7 @@ class FeatureInputModel(BaseModel):
 class FeatureOutputModel(BaseModel):
     feature_model: FeatureModel = Field(default="",title="特征工程",)
 
-@work_node(name="特征工程构建", group="02-特征工程", type="general", box_color="brown")
+@work_node(name="特征工程构建（旧）", group="02-特征工程", type="general", box_color="brown")
 class FeatureEngineeringNode(BaseWorkNode):
 
     @classmethod

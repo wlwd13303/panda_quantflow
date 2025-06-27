@@ -1,7 +1,9 @@
 import logging
+import urllib.parse
+
 from motor.motor_asyncio import AsyncIOMotorClient
 from panda_server.config.env import (
-    MONGODB_URL,
+    MONGO_URI,
     DATABASE_NAME,
     RUN_MODE,
     MONGO_USER,
@@ -47,8 +49,31 @@ class MongoDB:
             client_kwargs["authSource"] = MONGO_AUTH_DB
         # 测试连接
         try:
-            cls.client = AsyncIOMotorClient(MONGODB_URL, **client_kwargs)
-            cls.db = cls.client[DATABASE_NAME]
+            logger.info(f"Connecting to MongoDB database...{MONGO_URI}")
+            # 构建连接字符串
+            # 对密码进行URL编码，避免特殊字符导致的认证问题
+            encoded_password = urllib.parse.quote_plus(MONGO_PASSWORD)
+            mongo_connection_string = MONGO_URI
+            # 构建正确的连接字符串
+            if mongo_connection_string is None:
+                CleanURI = MONGO_URI.replace('=', ':')
+
+                if MONGO_TYPE == "replica_set" and MONGO_REPLICA_SET:
+                    mongo_connection_string = (
+                        f'mongodb://{MONGO_USER}:{encoded_password}@{CleanURI}'
+                        f'/{DATABASE_NAME}'
+                        f'?authSource={MONGO_AUTH_DB}'
+                        f'&replicaSet={MONGO_REPLICA_SET}'
+                    )
+                else:
+                    mongo_connection_string = (
+                        f'mongodb://{MONGO_USER}:{encoded_password}@{CleanURI}'
+                        f'/{DATABASE_NAME}'
+                        f'?authSource={MONGO_AUTH_DB}'
+                    )
+            cls.client = AsyncIOMotorClient(mongo_connection_string, **client_kwargs)
+            logger.info(f"Connected to MongoDB database...{mongo_connection_string}")
+            cls.db = cls.client.get_database(DATABASE_NAME)
             await asyncio.wait_for(cls.db.command("ping"), timeout=3)
         except Exception as e:
             raise Exception(f"MongoDB Connection Error: {e}")

@@ -56,7 +56,7 @@ class FactorWeightCalculationOutputModel(BaseModel):
             raise ValueError('df_factor must be a pandas DataFrame')
         return v
 
-@work_node(name="因子权重组合", group="04-因子相关",type="general", box_color="blue")
+@work_node(name="因子权重组合", group="06-线下课专属",type="general", box_color="blue")
 class FactorWeightCalculationControl(BaseWorkNode):
     """
     Implement a example node, which can add two numbers and return the result.

@@ -22,7 +22,7 @@ class BarQuotationData:
     turnover = EMPTY_FLOAT             # bar内成交金额
     vwap = EMPTY_FLOAT                 # bar内成交均价
     oi = EMPTY_FLOAT                   # 当前持仓量
-    settle = EMPTY_FLOAT               # 结算价
+    settlement = EMPTY_FLOAT               # 结算价
     last = EMPTY_FLOAT
     preclose = EMPTY_FLOAT
     limit_up = EMPTY_FLOAT

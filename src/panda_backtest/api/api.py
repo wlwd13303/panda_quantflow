@@ -225,16 +225,18 @@ def buy_open(account_id, id_or_ins, amount, style=MarketOrderStyle, retry_num=No
     ticker = idandins[0]
     market_name = idandins[1]
 
-    if market_name == 'CFE':
+    if market_name == 'CFFEX':
         market = 'CFFEX'
-    elif market_name == 'CZC':
+    elif market_name == 'CZCE':
         market = 'CZCE'
     elif market_name == 'DCE':
         market = 'DCE'
-    elif market_name == 'SHF':
+    elif market_name == 'SHFE':
         market = 'SHFE'
     elif market_name == 'INE':
         market = 'INE'
+    elif market_name == 'GFEX':
+        market = 'GFEX'
     else:
         SRLogger.error(str(id_or_ins) + '下单失败：交易所输入有误')
         return
@@ -284,16 +286,18 @@ def sell_open(account_id, id_or_ins, amount, style=MarketOrderStyle, retry_num=N
     ticker = idandins[0]
     market_name = idandins[1]
 
-    if market_name == 'CFE':
+    if market_name == 'CFFEX':
         market = 'CFFEX'
-    elif market_name == 'CZC':
+    elif market_name == 'CZCE':
         market = 'CZCE'
     elif market_name == 'DCE':
         market = 'DCE'
-    elif market_name == 'SHF':
+    elif market_name == 'SHFE':
         market = 'SHFE'
     elif market_name == 'INE':
         market = 'INE'
+    elif market_name == 'GFEX':
+        market = 'GFEX'
     else:
         SRLogger.error(str(id_or_ins) + '下单失败：交易所输入有误')
         return
@@ -352,16 +356,18 @@ def sell_close(account_id, id_or_ins, amount, style=MarketOrderStyle, close_toda
     ticker = idandins[0]
     market_name = idandins[1]
 
-    if market_name == 'CFE':
+    if market_name == 'CFFEX':
         market = 'CFFEX'
-    elif market_name == 'CZC':
+    elif market_name == 'CZCE':
         market = 'CZCE'
     elif market_name == 'DCE':
         market = 'DCE'
-    elif market_name == 'SHF':
+    elif market_name == 'SHFE':
         market = 'SHFE'
     elif market_name == 'INE':
         market = 'INE'
+    elif market_name == 'GFEX':
+        market = 'GFEX'
     else:
         SRLogger.error(str(id_or_ins) + '下单失败：交易所输入有误')
         return
@@ -436,16 +442,18 @@ def buy_close(account_id, id_or_ins, amount, style=MarketOrderStyle, close_today
     ticker = idandins[0]
     market_name = idandins[1]
 
-    if market_name == 'CFE':
+    if market_name == 'CFFEX':
         market = 'CFFEX'
-    elif market_name == 'CZC':
+    elif market_name == 'CZCE':
         market = 'CZCE'
     elif market_name == 'DCE':
         market = 'DCE'
-    elif market_name == 'SHF':
+    elif market_name == 'SHFE':
         market = 'SHFE'
     elif market_name == 'INE':
         market = 'INE'
+    elif market_name == 'GFEX':
+        market = 'GFEX'
     else:
         SRLogger.error(str(id_or_ins) + '下单失败：交易所输入有误')
         return all_order_list
@@ -654,12 +662,12 @@ def draw(data):
     return context.operation_proxy.draw(data)
 
 @append_to_api_list
-def insert_future_group_order(account, long_symbol_dict, short_symbol_dict):
+def target_future_group_order(account, long_symbol_dict, short_symbol_dict):
     context = CoreContext.get_instance()
     context.operation_proxy.insert_future_group_order(account, long_symbol_dict, short_symbol_dict)
 
 @append_to_api_list
-def insert_stock_group_order(account, symbol_dict, price_type=0):
+def target_stock_group_order(account, symbol_dict, price_type=0):
     context = CoreContext.get_instance()
     context.operation_proxy.insert_stock_group_order(account, symbol_dict, price_type)
 

@@ -8,16 +8,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from panda_server.config.database import mongodb
 from panda_server.config.env import *
 from panda_plugins.utils.work_node_loader import load_all_nodes
-from panda_server.queue.workflow_runner import WorkflowRunner
-from panda_server.utils.rabbitmq_utils import AsyncRabbitMQ
+from panda_server.messaging.consumer_manager import QueueConsumerManager
+from panda_server.messaging.rabbitmq_client import AsyncRabbitMQ
 from panda_server.routes import (
     base_routes,
     plugins_routes,
     workflow_routes,
     backtest_route,
+    chat_routes,
 )
 from starlette.staticfiles import StaticFiles
 from pathlib import Path
+
+from panda_server.routes.trading import (
+    trading_routes,
+    trading_report_routes
+)
+
+import sys
 import os
 # Add project root path to python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))  
@@ -53,16 +61,20 @@ async def lifespan(app: FastAPI):
     logger.info("Work nodes loading completed")
 
     # RabbitMQ connection logic
+    # CLOUD模式使用RabbitMQ队列，LOCAL模式直接操作数据库
     if RUN_MODE == "CLOUD":
         # Test RabbitMQ connection
         rabbitmq_client = AsyncRabbitMQ()
-        logger.info(f"Connecting to RabbitMQ...")
+        logger.info(f"CLOUD mode: Connecting to RabbitMQ...")
         await rabbitmq_client.test_connect()
         logger.info("RabbitMQ connection successful")
 
-        # strat workers
-        workflow_runner = WorkflowRunner()
-        workflow_runner.start(rabbitmq_client)
+        # start queue consumers
+        consumer_manager = QueueConsumerManager()
+        await consumer_manager.start_all_consumers(rabbitmq_client)
+    else:
+        logger.info(f"LOCAL mode: RabbitMQ not required, will use direct database operations")
+        rabbitmq_client = None
 
     # Application runtime
     yield
@@ -71,7 +83,8 @@ async def lifespan(app: FastAPI):
     logger.info("Closing MongoDB connection...")
     await mongodb.close_db()
     logger.info("MongoDB connection closed")
-    if RUN_MODE == "CLOUD":
+    # CLOUD模式需要关闭RabbitMQ连接
+    if RUN_MODE == "CLOUD" and rabbitmq_client is not None:
         logger.info("Closing RabbitMQ connection...")
         await rabbitmq_client.close()
         logger.info("RabbitMQ connection closed")
@@ -111,7 +124,11 @@ app.include_router(base_routes.router)
 app.include_router(plugins_routes.router)
 app.include_router(workflow_routes.router)
 app.include_router(backtest_route.router)
+app.include_router(chat_routes.router)
 
+app.include_router(trading_routes.router)
+
+app.include_router(trading_report_routes.router)
 
 if __name__ == "__main__":
     # Deliberately repeated once to prevent other project modules from overriding logging configuration

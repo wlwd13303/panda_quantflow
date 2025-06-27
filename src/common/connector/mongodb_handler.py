@@ -6,7 +6,7 @@ import os
 
 class DatabaseHandler:
     _instance = None
-
+    DEFAULT_MONGO_DB = None
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(DatabaseHandler, cls).__new__(cls)
@@ -14,7 +14,7 @@ class DatabaseHandler:
 
     def __init__(self, config):
         if not hasattr(self, 'initialized'):  # Prevent re-initialization
-
+            self.DEFAULT_MONGO_DB = config['MONGO_DB']
             # 对密码进行URL编码，避免特殊字符导致的认证问题
             encoded_password = urllib.parse.quote_plus(config["MONGO_PASSWORD"])
 
@@ -116,6 +116,9 @@ class DatabaseHandler:
 
     def get_mongo_collection(self, db_name, collection_name):
         return self.mongo_client[db_name][collection_name]
+
+    def get_mongo_db(self,db_name=DEFAULT_MONGO_DB or "panda"):
+        return self.mongo_client[db_name]
 
     def mongo_insert_many(self, db_name, collection_name, documents):
         collection = self.get_mongo_collection(db_name, collection_name)

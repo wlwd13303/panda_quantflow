@@ -12,11 +12,15 @@ SIDE_SELL = 1
 # 交易所
 MKT_SZ = 'SZ'
 MKT_SH = 'SH'
-MKT_CFE = 'CFE'
-MKT_CZC = 'CZC'
+# MKT_CFE = 'CFE'
+MKT_CFE = 'CFFEX'
+# MKT_CZC = 'CZC'
+MKT_CZC = 'CZCE'
 MKT_DCE = 'DCE'
-MKT_SHF = 'SHF'
+# MKT_SHF = 'SHF'
+MKT_SHF = 'SHFE'
 MKT_INE = 'INE'
+MKT_GFE = 'GFEX'
 MKT_UNKNOWN = '未知'
 
 # 订单类型

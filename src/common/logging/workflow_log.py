@@ -1,12 +1,19 @@
 from datetime import datetime
 import logging
-from typing import Optional, Any
+from typing import Optional, Any, Dict
 from pydantic import Field
 from bson import ObjectId
 import asyncio
-
+import json
 from .user_log import UserLog
 from panda_server.config.database import mongodb
+from panda_server.config.env import (
+    RUN_MODE,
+    WORKFLOW_EXCHANGE_NAME,
+    WORKFLOW_LOG_ROUTING_KEY,
+)
+from panda_server.messaging.rabbitmq_client import AsyncRabbitMQ
+
 
 class WorkflowLog(UserLog):
     """
@@ -24,15 +31,31 @@ class WorkflowLog(UserLog):
     workflow_id: Optional[str] = None
     type: str = "workflow_run"  # 覆盖父类的默认值
 
-class WorkflowLogRepository:
-    """工作流日志仓库类"""
-    def __init__(self, db):
-        self.collection = db["workflow_logs"]
+class WorkflowLogger:
+    """工作流日志记录器（统一处理日志记录和存储）"""
     
-    async def get_next_sequence(self, workflow_run_id: str) -> int:
+    # 类级别的共享RabbitMQ实例，避免频繁创建连接
+    _shared_rabbitmq = None
+    
+    def __init__(self, user_id: str, workflow_run_id: Optional[str] = None, work_node_id: Optional[str] = None):
+        self.user_id = user_id
+        self.workflow_run_id = workflow_run_id
+        self.work_node_id = work_node_id
+        self.sys_logger = logging.getLogger(__name__)
+    
+    @classmethod
+    async def _get_rabbitmq_instance(cls):
+        """获取共享的RabbitMQ实例（仅在CLOUD模式下创建）"""
+        # 只有在CLOUD模式下才创建RabbitMQ连接
+        if RUN_MODE == "CLOUD" and cls._shared_rabbitmq is None and AsyncRabbitMQ is not None:
+            cls._shared_rabbitmq = AsyncRabbitMQ()
+        return cls._shared_rabbitmq
+    
+    async def _get_next_sequence(self, workflow_run_id: str) -> int:
         """获取指定workflow的下一个序列号（使用原子操作确保并发安全）"""
-        # 使用 findOneAndUpdate 原子操作来获取并递增序列号（直接 upsert）
-        counter_collection = self.collection.database["workflow_sequence_counters"]
+        if mongodb.db is None:
+            return 0
+        counter_collection = mongodb.db["workflow_sequence_counters"]
         result = await counter_collection.find_one_and_update(
             {"workflow_run_id": workflow_run_id},
             {"$inc": {"sequence": 1}},  # 原子递增，第一次会从0变成1
@@ -41,139 +64,59 @@ class WorkflowLogRepository:
         )
         return result["sequence"]
     
-    async def insert_workflow_log(self, workflow_log: WorkflowLog):
-        """插入一条工作流日志"""
-        # 如果有workflow_run_id且sequence为0，自动生成序列号
-        if workflow_log.workflow_run_id and workflow_log.sequence == 0:
-            workflow_log.sequence = await self.get_next_sequence(workflow_log.workflow_run_id)
-        
-        return await self.collection.insert_one(workflow_log.dict(by_alias=True))
-    
-    async def get_workflow_logs_by_filters(
-        self,
-        user_id: str,
-        workflow_run_id: Optional[str] = None,
-        work_node_id: Optional[str] = None,
-        log_level: Optional[str] = None,
-        last_sequence: Optional[int] = None,
-        limit: int = 5
-    ):
-        """根据筛选条件获取工作流日志（基于sequence分页）"""
-        query = {"user_id": user_id}
-        
-        # 添加可选筛选条件
-        if workflow_run_id:
-            query["workflow_run_id"] = workflow_run_id
-        if work_node_id:
-            query["work_node_id"] = work_node_id
-        if log_level:
-            query["level"] = log_level
-        
-        # 分页逻辑：基于sequence字段
-        if last_sequence is not None:
-            # 从指定序列号开始（包含该序列号）：获取序列号大于等于last_sequence的日志
-            query["sequence"] = {"$gte": last_sequence}
-        
-        # 排序逻辑：如果有workflow_run_id，按sequence排序；否则按timestamp排序
-        if workflow_run_id:
-            # 同一个workflow内，按sequence升序排序确保日志顺序正确
-            sort_criteria = [("sequence", 1)]
-        else:
-            # 跨workflow查询时，按时间戳排序，同时考虑sequence作为次要排序
-            sort_criteria = [("timestamp", 1), ("sequence", 1)]
-        
-        cursor = self.collection.find(
-            query,
-            sort=sort_criteria,
-            limit=limit
-        )
-        
-        return await cursor.to_list(length=limit)
-    
-    async def get_workflow_logs_by_filters_legacy(
-        self,
-        user_id: str,
-        workflow_run_id: Optional[str] = None,
-        work_node_id: Optional[str] = None,
-        log_level: Optional[str] = None,
-        last_log_id: Optional[str] = None,
-        limit: int = 5
-    ):
-        """根据筛选条件获取工作流日志（兼容原有的基于ObjectId分页）"""
-        query = {"user_id": user_id}
-        
-        # 添加可选筛选条件
-        if workflow_run_id:
-            query["workflow_run_id"] = workflow_run_id
-        if work_node_id:
-            query["work_node_id"] = work_node_id
-        if log_level:
-            query["level"] = log_level
-        
-        # 分页逻辑：配合前端升序显示
-        if last_log_id:
-            # 向后分页：获取比 last_log_id 更新的日志
-            query["_id"] = {"$gt": ObjectId(last_log_id)}
-        
-        cursor = self.collection.find(
-            query,
-            sort=[("_id", 1)],  # 按 ID 升序排序（从旧到新），配合前端升序显示
-            limit=limit
-        )
-        
-        return await cursor.to_list(length=limit)
-    
-    async def get_recent_workflow_logs(self, user_id: str, workflow_run_id: Optional[str] = None, limit: int = 5):
-        """获取工作流最近的日志"""
-        query = {"user_id": user_id}
-        
-        if workflow_run_id:
-            query["workflow_run_id"] = workflow_run_id
-            # 同一个workflow内，按sequence降序排序获取最新日志
-            sort_criteria = [("sequence", -1)]
-        else:
-            # 跨workflow查询时，按时间戳降序排序获取最新日志
-            sort_criteria = [("timestamp", -1), ("sequence", -1)]
-        
-        cursor = self.collection.find(
-            query,
-            sort=sort_criteria,
-            limit=limit
-        )
-        return await cursor.to_list(length=limit)
-
-class WorkflowLogger:
-    """工作流日志记录器"""
-    
-    def __init__(self, user_id: str, workflow_run_id: Optional[str] = None, work_node_id: Optional[str] = None):
-        self.user_id = user_id
-        self.workflow_run_id = workflow_run_id
-        self.work_node_id = work_node_id
-        self.repository = None  # 延迟初始化
-        self.sys_logger = logging.getLogger(__name__)
-    
-    def _get_repository(self):
-        """获取仓库实例，支持延迟初始化"""
-        if self.repository is None:
+    async def _publish_to_queue(self, workflow_log: WorkflowLog):
+        """将workflow_log发送到队列"""
+        try:
+            # 使用共享的RabbitMQ实例，避免频繁创建连接
+            rabbit_mq = await self._get_rabbitmq_instance()
+            if rabbit_mq is None:
+                raise Exception("AsyncRabbitMQ not available")
+                
+            message = json.dumps({
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "type": "insert_workflow_log",
+                "user_id": workflow_log.user_id,
+                "content": workflow_log.model_dump(by_alias=True, mode="json")
+            })
+            
+            self.sys_logger.info(f"将workflow_log消息加入rabbitMQ队列: {workflow_log.workflow_run_id}")
+            
+            await rabbit_mq.publish(
+                exchange_name=WORKFLOW_EXCHANGE_NAME,
+                routing_key=WORKFLOW_LOG_ROUTING_KEY,
+                message=message,
+            )
+            
+            self.sys_logger.debug(f"Workflow log published to queue successfully: {workflow_log.workflow_run_id}")
+            
+        except Exception as e:
+            # 如果队列发送失败，降级到直接插入数据库
+            self.sys_logger.error(f"Failed to publish workflow_log to queue, fallback to direct insert: {e}")
             try:
                 if mongodb.db is not None:
-                    self.repository = WorkflowLogRepository(mongodb.db)
-                else:
-                    # 数据库未连接，记录警告但不抛出异常
-                    self.sys_logger.warning("MongoDB not connected, workflow logs will not be stored")
-                    return None
-            except Exception as e:
-                self.sys_logger.error(f"Failed to create WorkflowLogRepository: {e}")
-                return None
-        return self.repository
+                    collection = mongodb.db["workflow_logs"]
+                    await collection.insert_one(workflow_log.model_dump(by_alias=True, exclude_unset=True))
+                    self.sys_logger.debug(f"Workflow log inserted to database directly as fallback")
+            except Exception as db_error:
+                self.sys_logger.error(f"Failed to insert workflow_log to database as fallback: {db_error}")
+        # 不关闭连接，让共享实例保持连接复用
+    
+    async def _insert_to_database(self, workflow_log: WorkflowLog):
+        """直接插入数据库"""
+        if mongodb.db is None:
+            self.sys_logger.warning("MongoDB not connected, cannot insert workflow log")
+            return
+        collection = mongodb.db["workflow_logs"]
+        return await collection.insert_one(workflow_log.model_dump(by_alias=True, exclude_unset=True))
     
     async def _log(self, level: str, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, **kwargs):
-        """内部日志记录方法"""
-        repository = self._get_repository()
-        if repository is None:
+        """内部日志记录方法（直接处理所有逻辑）"""
+        if mongodb.db is None:
             # 数据库不可用，只记录到系统日志
             self.sys_logger.info(f"[WORKFLOW_LOG] {level} - {message} (workflow_id: {workflow_id}, work_node_id: {work_node_id}, kwargs: {kwargs})")
             return
+        
+        # 创建WorkflowLog对象
         workflow_log = WorkflowLog(
             user_id=self.user_id,
             workflow_run_id=self.workflow_run_id,
@@ -183,50 +126,58 @@ class WorkflowLogger:
             type="workflow_run",
             workflow_id=workflow_id
         )
-        # 异步插入日志
+        
+        # 如果有workflow_run_id且sequence为0，自动生成序列号
+        if workflow_log.workflow_run_id and workflow_log.sequence == 0:
+            workflow_log.sequence = await self._get_next_sequence(workflow_log.workflow_run_id)
+        
         try:
-            await repository.insert_workflow_log(workflow_log)
+            # 添加调试日志
+            self.sys_logger.info(f"Current RUN_MODE: {RUN_MODE}, workflow_run_id: {workflow_log.workflow_run_id}")
+            
+            # 根据运行模式选择处理方式
+            if RUN_MODE == "CLOUD":
+                # CLOUD模式：通过队列存储到数据库
+                self.sys_logger.info(f"CLOUD mode: publishing to queue")
+                await self._publish_to_queue(workflow_log)
+            elif RUN_MODE == "LOCAL":
+                # LOCAL模式：直接存储到数据库
+                self.sys_logger.info(f"LOCAL mode: inserting to database directly")
+                await self._insert_to_database(workflow_log)
+            else:
+                # 其他模式：直接存数据库（fallback）
+                self.sys_logger.info(f"Other mode ({RUN_MODE}): inserting to database directly")
+                await self._insert_to_database(workflow_log)
         except Exception as e:
             # 日志记录失败不应该影响主流程，记录到系统日志
             self.sys_logger.error(f"Failed to insert workflow log: {e}")
     
-    def _sync_log(self, level: str, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, **kwargs):
-        """同步日志记录（在异步上下文中使用）"""
-        try:
-            # 获取当前事件循环
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(self._log(level, message, workflow_id, work_node_id, **kwargs))
-            else:
-                loop.run_until_complete(self._log(level, message, workflow_id, work_node_id, **kwargs))
-        except RuntimeError:
+    # 简单的async日志API，直接存储到数据库
+    async def debug(self, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, **kwargs):
+        await self._log("DEBUG", message, workflow_id, work_node_id, **kwargs)
+    
+    async def info(self, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, **kwargs):
+        await self._log("INFO", message, workflow_id, work_node_id, **kwargs)
+    
+    async def warning(self, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, **kwargs):
+        await self._log("WARNING", message, workflow_id, work_node_id, **kwargs)
+    
+    async def error(self, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, **kwargs):
+        await self._log("ERROR", message, workflow_id, work_node_id, **kwargs)
+    
+    async def critical(self, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, **kwargs):
+        await self._log("CRITICAL", message, workflow_id, work_node_id, **kwargs)
+    
+    @classmethod
+    async def shutdown(cls):
+        """关闭共享的RabbitMQ连接（应用退出时调用）"""
+        if cls._shared_rabbitmq is not None:
             try:
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                new_loop.run_until_complete(self._log(level, message, workflow_id, work_node_id, **kwargs))
+                await cls._shared_rabbitmq.close()
+                cls._shared_rabbitmq = None
+                logging.getLogger(__name__).info("Shared RabbitMQ connection closed")
             except Exception as e:
-                self.sys_logger.error(f"Failed to log workflow message in new loop: {e}")
-            finally:
-                try:
-                    new_loop.close()
-                except Exception:
-                    pass
-        except Exception as e:
-            self.sys_logger.error(f"Failed to sync log: {e}")
-    
-    def debug(self, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, **kwargs):
-        self._sync_log("DEBUG", message, workflow_id, work_node_id, **kwargs)
-    
-    def info(self, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, **kwargs):
-        self._sync_log("INFO", message, workflow_id, work_node_id, **kwargs)
-    
-    def warning(self, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, **kwargs):
-        self._sync_log("WARNING", message, workflow_id, work_node_id, **kwargs)
-    
-    def error(self, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, **kwargs):
-        self._sync_log("ERROR", message, workflow_id, work_node_id, **kwargs)
-    
-    def critical(self, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, **kwargs):
-        self._sync_log("CRITICAL", message, workflow_id, work_node_id, **kwargs)
+                logging.getLogger(__name__).error(f"Failed to close shared RabbitMQ connection: {e}")
 
-# 注意：UserLogger 现在位于 user_log.py 中，专门用于通用用户日志 
+# 注意：UserLogger 现在位于 user_log.py 中，专门用于通用用户日志
+# WorkflowLogQueueConsumer 已移至 panda_server.messaging.log_processor 模块以避免循环导入 

@@ -23,7 +23,7 @@ class StockGroupOrder(object):
 
     def start_order(self, symbol_dict):
         sr_logger = RemoteLogFactory.get_sr_logger()
-        sr_logger.info('开始进行批量下单')
+        # sr_logger.info('开始进行批量下单')
         self.handle_start_group_order(symbol_dict)
 
     def handle_start_group_order(self, symbol_dict):
@@ -76,8 +76,8 @@ class StockGroupOrder(object):
             position = int(order[3])
             retry_num = order[4]
             order_time = order[5]
-            bar_dict = QuotationData.get_instance().bar_dict
-            bar = bar_dict[symbol]
+            # bar_dict = QuotationData.get_instance().bar_dict
+            # bar = bar_dict[symbol]
             if time.time() >= order_time:
                 if side == SIDE_BUY:
                     order_list = order_shares(self.account, symbol, position, retry_num=retry_num,

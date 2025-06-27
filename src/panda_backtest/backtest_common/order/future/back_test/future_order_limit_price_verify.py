@@ -58,28 +58,27 @@ class FutureOrderLimitPriceVerify(object):
         if bar.high >= jz_price >= bar.low:
             pass
         else:
-            if jz_price >= limit_price_obj.presettle * (1 + limit_rate) and order_result.side == SIDE_BUY:
+            if jz_price >= limit_price_obj.prev_settlement * (1 + limit_rate) and order_result.side == SIDE_BUY:
                 order_result.message = FUTURE_ORDER_FAILED_MESSAGE % (
                     order_result.order_book_id, str(order_result.quantity),
                     account, order_effect, order_side, order_result.order_id,
                     SYMBOL_LIMIT_HIGH)
                 return False
-            elif jz_price <= bar.presettle * (1 - limit_rate) and order_result.side == SIDE_SELL:
+            elif jz_price <= bar.prev_settlement * (1 - limit_rate) and order_result.side == SIDE_SELL:
                 order_result.message = FUTURE_ORDER_FAILED_MESSAGE % (
                     order_result.order_book_id, str(order_result.quantity),
                     account, order_effect, order_side, order_result.order_id,
                     SYMBOL_LIMIT_LOW)
                 return False
-
-        if jz_price >= limit_price_obj.presettle * (1 + limit_rate):
+        if jz_price >= limit_price_obj.prev_settlement * (1 + limit_rate):
             limit_high_price = jz_price
         else:
-            limit_high_price = limit_price_obj.presettle * (1 + limit_rate)
+            limit_high_price = limit_price_obj.prev_settlement * (1 + limit_rate)
 
-        if jz_price <= limit_price_obj.presettle * (1 - limit_rate):
+        if jz_price <= limit_price_obj.prev_settlement * (1 - limit_rate):
             limit_low_price = jz_price
         else:
-            limit_low_price = limit_price_obj.presettle * (1 - limit_rate)
+            limit_low_price = limit_price_obj.prev_settlement * (1 - limit_rate)
 
         if bar.high >= trad_price >= bar.low:
             return True

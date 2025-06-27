@@ -1,13 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-File: time_util.py
-Author: peiqi
-Date: 2025/5/14
-Description: 
-"""
 import calendar
-import logging
-
 import time
 from dateutil import relativedelta
 import datetime
@@ -29,6 +20,7 @@ class TimeUtil:
                     return datetime.datetime.strptime(date, "%Y%m%d")
             elif isinstance(date, int):
                 return datetime.datetime.strptime(str(date), "%Y%m%d")
+            return None
         except Exception as e:
             print(e)
             return None
@@ -140,6 +132,6 @@ class TimeUtil:
         os.system('time {}'.format(to_time))
         os.system('date {}'.format(_date))
 
-if __name__ == '__main__':
-    res = TimeUtil.in_time_range('093000-113000,130000-150000')
-    print(res)
+# if __name__ == '__main__':
+#     res = TimeUtil.in_time_range('093000-113000,130000-150000')
+#     print(res)

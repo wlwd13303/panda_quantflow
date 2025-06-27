@@ -3,7 +3,7 @@ from typing import Optional
 from bson import ObjectId
 from fastapi import HTTPException, status
 from panda_server.config.database import mongodb
-from common.logging.workflow_log import WorkflowLog, WorkflowLogRepository
+from common.logging.workflow_log import WorkflowLog
 from panda_server.models.query_logs_response import (
     QueryWorkflowLogsResponse,
     QueryWorkflowLogsResponseData,
@@ -84,17 +84,15 @@ async def workflow_logs_get_logic(
             detail="You don't have permission to access this workflow run logs",
         )
 
-    # 创建工作流日志仓库实例
-    log_repository = WorkflowLogRepository(mongodb.db)
-
     # 基于序列号的分页查询
-    logs = await log_repository.get_workflow_logs_by_filters(
-        user_id=user_id,
-        workflow_run_id=workflow_run_id,
-        work_node_id=work_node_id,
-        log_level=log_level,
-        last_sequence=last_sequence,
-        limit=limit + 1,  # 多查询一条来判断是否还有更多
+    logs = await query_workflow_logs_with_filters(
+        mongodb.db,
+        user_id,
+        workflow_run_id,
+        work_node_id,
+        log_level,
+        last_sequence,
+        limit + 1,  # 多查询一条来判断是否还有更多
     )
 
     # 判断是否还有更多日志
@@ -118,3 +116,67 @@ async def workflow_logs_get_logic(
     )
 
     return QueryWorkflowLogsResponse(data=response_data)
+
+
+async def query_workflow_logs_with_filters(
+    db,
+    user_id: str,
+    workflow_run_id: Optional[str] = None,
+    work_node_id: Optional[str] = None,
+    log_level: Optional[str] = None,
+    last_sequence: Optional[int] = None,
+    limit: int = 5
+):
+    """
+    根据筛选条件查询工作流日志（支持基于sequence的分页）
+    
+    Args:
+        db: 数据库实例
+        user_id: 用户ID
+        workflow_run_id: 工作流运行ID（可选）
+        work_node_id: 工作节点ID（可选）
+        log_level: 日志等级过滤（可选）
+        last_sequence: 起始序列号，从该序列号开始获取日志（包含该序列号，可选）
+        limit: 返回数量限制，默认5条
+        
+    Returns:
+        List[Dict]: 工作流日志列表
+    """
+    collection = db["workflow_logs"]
+    query = {"user_id": user_id}
+    
+    # 添加可选筛选条件
+    if workflow_run_id:
+        query["workflow_run_id"] = workflow_run_id
+    if work_node_id:
+        query["work_node_id"] = work_node_id
+    if log_level:
+        query["level"] = log_level
+    
+    # 分页逻辑：基于sequence字段
+    if last_sequence is not None:
+        # 从指定序列号开始（包含该序列号）：获取序列号大于等于last_sequence的日志
+        query["sequence"] = {"$gte": last_sequence}
+    
+    # 排序逻辑：如果有workflow_run_id，按sequence排序；否则按timestamp排序
+    if workflow_run_id:
+        # 同一个workflow内，按sequence升序排序确保日志顺序正确
+        sort_criteria = [("sequence", 1)]
+    else:
+        # 跨workflow查询时，按时间戳排序，同时考虑sequence作为次要排序
+        sort_criteria = [("timestamp", 1), ("sequence", 1)]
+    
+    cursor = collection.find(
+        query,
+        sort=sort_criteria,
+        limit=limit
+    )
+    
+    logs = await cursor.to_list(length=limit)
+    
+    # 转换 ObjectId 为字符串
+    for log in logs:
+        if "_id" in log and isinstance(log["_id"], ObjectId):
+            log["_id"] = str(log["_id"])
+    
+    return logs

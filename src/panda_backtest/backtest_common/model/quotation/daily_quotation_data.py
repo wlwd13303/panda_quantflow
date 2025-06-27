@@ -18,7 +18,7 @@ class DailyQuotationData:
     volume = EMPTY_FLOAT                   # 成交量
     turnover = EMPTY_FLOAT                 # 成交金额
     vwap = EMPTY_FLOAT                     # 成交均价
-    settle = EMPTY_FLOAT                   # 结算价
+    settlement = EMPTY_FLOAT                   # 结算价
     oi = EMPTY_FLOAT                       # 持仓量
     trade_status = EMPTY_STRING            # 交易状态（”停牌”或者”交易”）
     last = EMPTY_FLOAT

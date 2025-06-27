@@ -16,6 +16,8 @@ from panda_plugins.base import ui
 from panda_factor.generate.macro_factor import MacroFactor
 from panda_plugins.internal.models.common_models import MLModel, MLOutputModel, FeatureModel
 
+logger = logging.getLogger(__name__)
+
 """
 SVM节点
 """

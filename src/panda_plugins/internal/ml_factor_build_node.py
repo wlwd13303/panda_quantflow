@@ -1,5 +1,5 @@
 from typing import Optional, Type, Union, Annotated, Any
-from common.untils.index_calculate import get_factors
+from common.utils.index_calculate import get_factors
 from panda_plugins.base import BaseWorkNode, work_node, ui
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 import pandas as pd
@@ -34,11 +34,11 @@ logger = logging.getLogger(__name__)
 class MLFactorBuildInputModel(BaseModel):
     model: MLModel = Field(title="机器学习模型",)
     feature: FeatureModel = Field(title="特征工程",)
-    start_date: str = Field(default="20250101",title="因子回测开始时间",)
-    end_date: str = Field(default="20250301",title="因子回测结束时间",)
+    start_date: str = Field(default="20250101",title="开始时间",)
+    end_date: str = Field(default="20250301",title="结束时间",)
 
 class MLFactorBuildOutputModel(BaseModel):
-    factor: Any = Field(default=None)
+    factor: Any = Field(default=None,title="因子值")
     
     model_config = ConfigDict(arbitrary_types_allowed=True)
     

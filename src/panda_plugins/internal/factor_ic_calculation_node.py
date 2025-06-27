@@ -54,7 +54,7 @@ class FactorICCalculationOutputModel(BaseModel):
     """
     ic_value: str = Field(default="[0.1,0.2,0.3]",title="因子权重列表")
 
-@work_node(name="因子IC计算", group="04-因子相关",type="general", box_color="blue")
+@work_node(name="因子IC计算", group="06-线下课专属",type="general", box_color="blue")
 class FactorICCalculationControl(BaseWorkNode):
     """
     Implement a example node, which can add two numbers and return the result.

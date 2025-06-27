@@ -18,10 +18,22 @@ class FutureMarginMap(BaseFutureMarginMap):
         self._cache = {}
         self.quotation_mongo_db = DatabaseHandler(config)
 
+    def process_symbol(self,symbol: str) -> str:
+        if symbol.endswith(".SHFE"):
+            return symbol.replace(".SHFE", ".SHF")
+        elif symbol.endswith(".CFFEX"):
+            return symbol.replace(".CFFEX", ".CFE")
+        elif symbol.endswith(".CZCE"):
+            return symbol.replace(".CZCE", ".CZC")
+        elif symbol.endswith(".GFEX"):
+            return symbol.replace(".GFEX", ".GFE")
+        else:
+            return symbol  # 如果没有匹配的后缀，返回原始符号
     def get_future_margin_info(self, symbol, trade_date):
         # collection = self.quotation_mongo_db.future_margin
+        process_symbol=self.process_symbol(symbol)
         instrument_info = self.quotation_mongo_db.mongo_find_one(db_name="panda",collection_name="future_margin",query=
-            {'symbol': str(symbol), 'trade_date': trade_date}, project={'long_margin': 1, 'short_margin': 1, 'margin': 1})
+            {'symbol': str(process_symbol), 'trade_date': trade_date}, project={'long_margin': 1, 'short_margin': 1, 'margin': 1})
         if instrument_info:
             instrument_info['name'] = symbol
             return instrument_info

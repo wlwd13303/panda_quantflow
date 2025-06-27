@@ -181,7 +181,7 @@ async def run_workflow_in_background(workflow_run_id):
             workflow_run_id=workflow_run_id,
             work_node_id=None,  # None表示工作流级别
         )
-        workflow_logger.info("工作流开始执行", workflow_id=workflow_id)
+        await workflow_logger.info("工作流开始执行", workflow_id=workflow_id)
     except Exception as e:
         logger.error(f"Failed to create workflow logger, terminating workflow: {e}")
         return
@@ -192,7 +192,7 @@ async def run_workflow_in_background(workflow_run_id):
     if not query_result:
         logger.error(f"No workflow found, id: {workflow_id}")
         if workflow_logger:
-            workflow_logger.error("未找到工作流定义", workflow_id=workflow_id)
+            await workflow_logger.error("未找到工作流定义", workflow_id=workflow_id)
         return
 
     workflow = WorkflowModel(**query_result)
@@ -200,7 +200,7 @@ async def run_workflow_in_background(workflow_run_id):
     # 得到分层排序好的节点列表
     try:
         execution_layers = determine_workflow_execution_order(workflow)
-        workflow_logger.info(
+        await workflow_logger.info(
             "工作流执行顺序确定完成",
             workflow_id=workflow_id,
             layers_count=len(execution_layers),
@@ -210,7 +210,7 @@ async def run_workflow_in_background(workflow_run_id):
         logger.error(
             f"Error determining workflow execution order, id: {workflow_run_id}, error: {e}"
         )
-        workflow_logger.error(
+        await workflow_logger.error(
             "工作流执行顺序确定失败", workflow_id=workflow_id, error=str(e)
         )
         await mark_workflow_run_failed(workflow_run_id, str(e), traceback.format_exc())
@@ -234,12 +234,12 @@ async def run_workflow_in_background(workflow_run_id):
     for layer_index, layer in enumerate(execution_layers):
         if await is_workflow_run_terminated(workflow_run_id):
             logger.info(f"Workflow run terminated, id: {workflow_run_id}")
-            workflow_logger.warning("工作流执行被手动终止", workflow_id=workflow_id)
+            await workflow_logger.warning("工作流执行被手动终止", workflow_id=workflow_id)
             return
         logger.info(
             f"⚡ [EXEC:{execution_id}] run_workflow_logic: running layer: {layer}"
         )
-        workflow_logger.info(
+        await workflow_logger.info(
             f"开始执行第 {layer_index + 1} 层节点",
             workflow_id=workflow_id,
             layer_index=layer_index + 1,
@@ -267,7 +267,7 @@ async def run_workflow_in_background(workflow_run_id):
         for node_id in layer:
             if await is_workflow_run_terminated(workflow_run_id):
                 logger.info(f"Workflow run terminated, id: {workflow_run_id}")
-                workflow_logger.warning(
+                await workflow_logger.warning(
                     "工作流执行被手动终止", workflow_id=workflow_id, work_node_id=node_id
                 )
                 return
@@ -279,6 +279,13 @@ async def run_workflow_in_background(workflow_run_id):
                 )
                 node_class = ALL_WORK_NODES.get(node.name)
                 node_instance = node_class()
+                # 设置节点的日志上下文，使用户在节点中调用 self.log_info 等方法时能存储到数据库
+                node_instance._setup_logging_context(
+                    user_id=workflow_run.owner,
+                    workflow_run_id=workflow_run_id,
+                    work_node_id=node_id,
+                    workflow_id=workflow_id
+                )
                 node_input_model = node_class.input_model()
                 # 注入静态的输入字段
                 input_data = node.static_input_data.copy()
@@ -304,13 +311,15 @@ async def run_workflow_in_background(workflow_run_id):
                     f"▶️ [EXEC:{execution_id}] run_workflow_logic: running work node id: {node_id}, name: {node.name}, got input_data: {input_data}"
                 )
                 node_input = node_input_model(**input_data)
-                workflow_logger.debug(
+                await workflow_logger.debug(
                     "节点输入数据", workflow_id=workflow_id, work_node_id=node_id, input_fields=list(input_data.keys())
                 )
                 node_output = await run_in_threadpool(
                     lambda: run_without_stdout(node_instance.run, node_input)
                 )
-                workflow_logger.info(
+                # 处理节点执行期间产生的队列日志
+                await node_instance._process_queued_logs()
+                await workflow_logger.info(
                     f"节点 {node.name} 执行成功", workflow_id=workflow_id, work_node_id=node_id, has_output=node_output is not None
                 )
                 node_outputs[node_id] = node_output
@@ -327,6 +336,12 @@ async def run_workflow_in_background(workflow_run_id):
                 failed_node_ids.append(node_id)
                 stack_trace = traceback.format_exc()
 
+                # 处理节点执行期间产生的队列日志（即使节点失败）
+                try:
+                    await node_instance._process_queued_logs()
+                except Exception as log_error:
+                    logger.warning(f"Failed to process queued logs for failed node {node_id}: {log_error}")
+
                 # 生成友好的错误信息
                 friendly_error = generate_friendly_error_message(
                     e, node, node_input_model, input_data
@@ -337,7 +352,7 @@ async def run_workflow_in_background(workflow_run_id):
                 await mark_workflow_run_failed(
                     workflow_run_id, str(e), stack_trace, failed_node_ids
                 )
-                workflow_logger.error(
+                await workflow_logger.error(
                     "节点执行失败",
                     workflow_id=workflow_id,
                     work_node_id=node_id,
@@ -361,7 +376,7 @@ async def run_workflow_in_background(workflow_run_id):
     logger.info(
         f"run_workflow_logic: all nodes executed successfully, workflow_run_id: {workflow_run_id}"
     )
-    workflow_logger.info(
+    await workflow_logger.info(
         "工作流执行完成", workflow_id=workflow_id, total_nodes=len(success_node_ids)
     )
     workflow_run_update_data = WorkflowRunUpdateModel(
@@ -497,9 +512,9 @@ async def mark_workflow_run_failed(
 
 # 禁用控制台输出运行某段逻辑
 def run_without_stdout(func, *args, **kwargs):
-    with open(os.devnull, "w") as devnull:
-        with contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull):
-            return func(*args, **kwargs)
+    # with open(os.devnull, "w") as devnull:
+    #     with contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull):
+    return func(*args, **kwargs)
 
 
 # TODO 待完善, 完整的多线程工作流执行+每一步存储状态的方法

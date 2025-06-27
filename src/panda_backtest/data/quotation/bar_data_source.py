@@ -162,16 +162,20 @@ class BarDataSource(BaseBarDataSource):
             return BarQuotationData()
 
     def get_future_daily_bar(self, symbol, date):
-        # start = time.time()
+        start = time.time()
         # print('期货日线查询1====》合约：%s 日期：%s' % (symbol, date))
+
         if symbol in self.future_daily_bar.keys():
             bar = self.future_daily_bar[symbol]
             # print(bar)
             bar.last = getattr(bar, self.last_field)
             return bar
 
-        collection = "daily_future_quotation"
-        bar_dict = self.quotation_mongo_db.mongo_find_one(db_name="panda",collection_name=collection,query={"trade_date": int(date), "symbol": symbol})
+        # collection = "daily_future_quotation"
+        collection = "future_1d_market"
+
+        # bar_dict = self.quotation_mongo_db.mongo_find_one(db_name="panda",collection_name=collection,query={"trade_date": int(date), "symbol": symbol})
+        bar_dict = self.quotation_mongo_db.mongo_find_one(db_name="panda",collection_name=collection,query={"date": str(date), "symbol": symbol.split(".")[0]})
         bar = DailyQuotationData()
         if bar_dict:
             bar.__dict__ = bar_dict
@@ -199,14 +203,14 @@ class BarDataSource(BaseBarDataSource):
         collection = self.quotation_mongo_db.future_quotation_min_data_v2
         bar_dict = collection.find({"trade_date": int(trade_date), "symbol": symbol}, {'_id': 0})
         bar_obj_dict = dict()
-        settle = self.get_future_daily_bar(symbol, trade_date).settle
+        settlement = self.get_future_daily_bar(symbol, trade_date).settlement
         for bar in bar_dict:
             bar_obj = BarQuotationData()
             bar_obj.__dict__ = bar
             bar_obj.last = bar['close']
-            bar_obj.settle = settle
-            if bar_obj.settle == 0:
-                bar_obj.settle = bar_obj.close
+            bar_obj.settlement = settlement
+            if bar_obj.settlement == 0:
+                bar_obj.settlement = bar_obj.close
             bar_obj_dict[bar_obj.time] = bar_obj
 
         self.future_all_minute_bar[symbol] = bar_obj_dict
@@ -333,12 +337,14 @@ class BarDataSource(BaseBarDataSource):
 
     def init_future_daily_quotation(self, symbol_list, trade_date):
         # collection = self.quotation_mongo_db.daily_future_quotation
-        bar_cur = self.quotation_mongo_db.mongo_find(db_name="panda",collection_name="daily_future_quotation",query={"trade_date": int(trade_date), "symbol": {'$in': symbol_list}})
-        print('期货初始化日线查询====》trade_date：%s ' % trade_date)
+        if symbol_list:
+            processed_symbol_list = [symbol.split(".")[0] for symbol in symbol_list]
+        bar_cur = self.quotation_mongo_db.mongo_find(db_name="panda",collection_name="future_1d_market",query={"date": str(trade_date), "symbol": {'$in': processed_symbol_list}})
+        # print('期货初始化日线查询====》trade_date：%s ' % trade_date)
         for bar_dict in bar_cur:
             bar = DailyQuotationData()
             if bar_dict:
-                print('期货初始化日线查询====》symbol：%s' % (bar_dict['symbol']))
+                # print('期货初始化日线查询====》symbol：%s' % (bar_dict['symbol']))
                 bar.__dict__ = bar_dict
                 # bar.last = bar_dict[self.last_field]
                 bar_dict.get(self.last_field, 1)
@@ -360,12 +366,12 @@ class BarDataSource(BaseBarDataSource):
                 bar.__dict__ = bar_dict
                 bar.last = bar_dict[self.last_field]
                 if bar.symbol != cur_symbol:
-                    cur_settle = self.get_future_daily_bar(bar_dict['symbol'], trade_date).settle
+                    cur_settle = self.get_future_daily_bar(bar_dict['symbol'], trade_date).settlement
                     cur_symbol = bar.symbol
-                settle = cur_settle
-                bar.settle = settle
-                if bar.settle == 0:
-                    bar.settle = bar.close
+                settlement = cur_settle
+                bar.settlement = settlement
+                if bar.settlement == 0:
+                    bar.settlement = bar.close
                 self.future_all_minute_bar[bar_dict['symbol']][bar_dict['time']] = bar
         # print('期货分钟初始化查询====》合约：%s,耗时：%s' % (str(symbol_list), str(time.time() - start)))
 

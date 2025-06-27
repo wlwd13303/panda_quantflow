@@ -16,7 +16,7 @@ from panda_server.models.run_workflow_response import (
 )
 from panda_server.models.workflow_run_model import WorkflowRunCreateModel
 from panda_server.enums.workflow_run_status import WorkflowStatus
-from panda_server.utils.rabbitmq_utils import AsyncRabbitMQ
+from panda_server.messaging.rabbitmq_client import AsyncRabbitMQ
 from panda_server.utils.run_workflow_utils import run_workflow_in_background
 
 logger = logging.getLogger(__name__)
@@ -113,7 +113,7 @@ async def workflow_run_logic(
 
     # 确定运行模式
     if RUN_MODE == "CLOUD":
-        # 调用 RabbitMQ 加入队列
+        # CLOUD模式：使用RabbitMQ队列
         rabbitMq = AsyncRabbitMQ()
         message = json.dumps(
             {
@@ -123,16 +123,16 @@ async def workflow_run_logic(
                 "content": workflow_run_id,
             }
         )
-        logger.info(f"将工作流任务{workflow_run_id}加入rabbitMQ队列")
+        logger.info(f"CLOUD mode: 将工作流任务{workflow_run_id}加入rabbitMQ队列")
         logger.info(message)
         await rabbitMq.publish(
             exchange_name=WORKFLOW_EXCHANGE_NAME,
             routing_key=WORKFLOW_ROUTING_KEY,
             message=message,
         )
-
     elif RUN_MODE == "LOCAL":
-        # 使用 BackgroundTasks 调度协程 run_workflow_logic
+        # LOCAL模式：直接执行工作流
+        logger.info(f"LOCAL mode: 直接执行工作流任务{workflow_run_id}")
         background_tasks.add_task(run_workflow_in_background, workflow_run_id)
 
     return RunWorkflowResponse(

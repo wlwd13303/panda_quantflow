@@ -83,7 +83,6 @@ instance/
 **/*.onnx
 **/*.tflite
 **/*.mlmodel
-**/*.json
 **/*.params
 **/checkpoints/
 **/weights/

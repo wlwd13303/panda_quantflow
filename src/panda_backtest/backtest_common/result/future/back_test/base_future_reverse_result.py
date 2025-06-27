@@ -23,7 +23,29 @@ from panda_backtest.backtest_common.model.result.panda_backtest_profit import Pa
 from panda_backtest.backtest_common.model.result.panda_backtest_account import PandaBacktestAccount
 from panda_backtest.backtest_common.system.context.core_context import CoreContext
 
-class BaseFutureReverseResult(object):
+class _MarginRateCacheMixin:
+    """Lightweight cache that mimics the subset of Redis features we used."""
+
+    _margin_rate_cache: dict[str, float] = {}
+
+    @staticmethod
+    def _cache_key(trade_date: int | str, symbol: str) -> str:
+        return f"margin_rate_{trade_date}_{symbol}"
+
+    # --- Public helpers used by business logic -----------------------------------
+
+    def _cache_set(self, trade_date: int | str, symbol: str, value: float) -> None:
+        """Store *value* under the composed cache key."""
+        self._margin_rate_cache[self._cache_key(trade_date, symbol)] = value
+
+    def _cache_get(self, trade_date: int | str, symbol: str):
+        """Retrieve a value or ``None`` if it does not exist."""
+        return self._margin_rate_cache.get(self._cache_key(trade_date, symbol))
+
+    def _cache_delete(self, trade_date: int | str, symbol: str) -> None:
+        """Remove a cached entry if it exists (no‑op otherwise)."""
+        self._margin_rate_cache.pop(self._cache_key(trade_date, symbol), None)
+class BaseFutureReverseResult(_MarginRateCacheMixin):
 
     def __init__(self, account, quotation_mongo_db):
         self.account = account
@@ -37,7 +59,6 @@ class BaseFutureReverseResult(object):
         self.future_margin_map = FutureMarginMap()
         self.today_long_symbol_list = defaultdict(list)
         self.today_short_symbol_list = defaultdict(list)
-        self.redis_client = RedisClient()
 
     def init_data(self):
         strategy_context = self.context.strategy_context
@@ -117,7 +138,7 @@ class BaseFutureReverseResult(object):
                 xb_back_test_position.position * xb_back_test_position.round_lot * \
                 (xb_back_test_position.last_price - xb_back_test_position.hold_price)
 
-            xb_back_test_position.settlement = bar_data.settle
+            xb_back_test_position.settlement = bar_data.settlement
             old_market_value = xb_back_test_position.market_value
             xb_back_test_position.market_value = \
                 xb_back_test_position.last_price * xb_back_test_position.position * xb_back_test_position.round_lot
@@ -145,7 +166,7 @@ class BaseFutureReverseResult(object):
                 xb_back_test_position.position * xb_back_test_position.round_lot * \
                 (xb_back_test_position.hold_price - xb_back_test_position.last_price)
 
-            xb_back_test_position.settlement = bar_data.settle
+            xb_back_test_position.settlement = bar_data.settlement
             old_market_value = xb_back_test_position.market_value
             xb_back_test_position.market_value = \
                 xb_back_test_position.last_price * xb_back_test_position.position * xb_back_test_position.round_lot
@@ -172,7 +193,7 @@ class BaseFutureReverseResult(object):
 
     def future_symbol_settle(self):
         sr_logger = RemoteLogFactory.get_sr_logger()
-        sr_logger.info('进行期货结算')
+        # sr_logger.info('进行期货结算')
         self.xb_back_test_account.no_settle_total_capital = self.xb_back_test_account.total_profit
         sell_margin = 0
         buy_margin = 0
@@ -201,11 +222,14 @@ class BaseFutureReverseResult(object):
                 margin_rate = margin_info['long_margin'] / 100
                 if margin_rate == 0:
                     margin_rate = margin_info['margin'] / 100
-            self.redis_client.set('margin_rate_' + str(trade_date) + "_" + symbol, margin_rate, int(120))
+            self._cache_set(trade_date, symbol, margin_rate)
+            pre_margin_rate = self._cache_get(pre_trade_date, symbol)
+            self._cache_delete(pre_trade_date, symbol)
             # 获取上一交易日的保证金比率
             # 抵消掉保证金增长
-            pre_margin_rate = self.redis_client.get('margin_rate_' + str(pre_trade_date) + "_" + symbol)
-            self.redis_client.delete('margin_rate_' + str(pre_trade_date) + "_" + symbol)
+            # self.redis_client.set('margin_rate_' + str(trade_date) + "_" + symbol, margin_rate, int(120))
+            # pre_margin_rate = self.redis_client.get('margin_rate_' + str(pre_trade_date) + "_" + symbol)
+            # self.redis_client.delete('margin_rate_' + str(pre_trade_date) + "_" + symbol)
             if pre_margin_rate is not None:
                 pre_margin_rate = float(pre_margin_rate)
                 if pre_margin_rate != margin_rate:
@@ -213,21 +237,7 @@ class BaseFutureReverseResult(object):
                     buy_margin_wanting += position.hold_price * position.position * position.round_lot * margin_wanting_rate
                     print('保证金差异1', str(trade_date), symbol, margin_rate,
                           pre_margin_rate, buy_margin_wanting)
-            # else:
-            #     if order_dict_change and symbol in order_dict_change:
-            #         pre_margin_rate = self.redis_client.getRedis(
-            #             'margin_rate_' + str(pre_trade_date) + "_" + order_dict_change[symbol])
-            #         self.redis_client.delRedis('margin_rate_' + str(pre_trade_date) + "_" + order_dict_change[symbol])
-            #
-            #         if pre_margin_rate is not None:
-            #             pre_margin_rate = float(pre_margin_rate)
-            #             if pre_margin_rate != margin_rate:
-            #                 margin_wanting_rate = margin_rate - pre_margin_rate
-            #                 buy_margin_wanting += position.hold_price * position.position * position.round_lot * margin_wanting_rate
-            #                 print('保证金差异2', str(trade_date), symbol, order_dict_change[symbol], margin_rate,
-            #                       pre_margin_rate, buy_margin_wanting)
-            # （平均价-收盘价)*数量*(1-保证金比率)
-            # 再抵消掉保证金增长
+
             capital_change += (position.settlement - position.hold_price) * \
                               position.position * position.round_lot * (1 - margin_rate)
             position.pre_settlement = position.settlement
@@ -254,11 +264,14 @@ class BaseFutureReverseResult(object):
                 if margin_rate == 0:
                     margin_rate = margin_info['margin'] / 100
 
-            self.redis_client.set('margin_rate_' + str(trade_date) + "_" + symbol, margin_rate, 300)
+            # self.redis_client.set('margin_rate_' + str(trade_date) + "_" + symbol, margin_rate, 300)
+            self._cache_set(trade_date, symbol, margin_rate)
+            pre_margin_rate = self._cache_get(pre_trade_date, symbol)
+            self._cache_delete(pre_trade_date, symbol)
             # 获取上一交易日的保证金比率
             # 抵消掉保证金增长
-            pre_margin_rate = self.redis_client.get('margin_rate_' + str(pre_trade_date) + "_" + symbol)
-            self.redis_client.delete('margin_rate_' + str(pre_trade_date) + "_" + symbol)
+            # pre_margin_rate = self.redis_client.get('margin_rate_' + str(pre_trade_date) + "_" + symbol)
+            # self.redis_client.delete('margin_rate_' + str(pre_trade_date) + "_" + symbol)
             if pre_margin_rate is not None:
                 pre_margin_rate = float(pre_margin_rate)
                 if pre_margin_rate != margin_rate:
@@ -266,19 +279,6 @@ class BaseFutureReverseResult(object):
                     sell_margin_wanting += position.hold_price * position.position * position.round_lot * margin_wanting_rate
                     print('保证金差异3', str(trade_date), symbol, margin_rate, pre_margin_rate, sell_margin_wanting)
 
-            # else:
-            #     if order_dict_change and symbol in order_dict_change:
-            #         pre_margin_rate = self.redis_client.getRedis(
-            #             'margin_rate_' + str(pre_trade_date) + "_" + order_dict_change[symbol])
-            #         self.redis_client.delRedis('margin_rate_' + str(pre_trade_date) + "_" + order_dict_change[symbol])
-            #         if pre_margin_rate is not None:
-            #             pre_margin_rate = float(pre_margin_rate)
-            #             if pre_margin_rate != margin_rate:
-            #                 margin_wanting_rate = margin_rate - pre_margin_rate
-            #                 sell_margin_wanting += position.hold_price * position.position * position.round_lot * margin_wanting_rate
-            #                 print('保证金差异4', str(trade_date), symbol, order_dict_change[symbol], margin_rate,
-            #                       pre_margin_rate,sell_margin_wanting)
-            # （平均价-收盘价)*数量*(1-保证金比率)
             capital_change += (position.hold_price - position.settlement) * position.position * \
                               position.round_lot * (1 + margin_rate)
             position.pre_settlement = position.settlement
@@ -442,7 +442,7 @@ class BaseFutureReverseResult(object):
                     xb_back_test_position.type = 1
                     xb_back_test_position.direction = trade.business
                     xb_back_test_position.price = trade.price
-                    xb_back_test_position.settlement = bar_dict[trade.contract_code].settle
+                    xb_back_test_position.settlement = bar_dict[trade.contract_code].settlement
                     xb_back_test_position.hold_price = trade.price
                     xb_back_test_position.position = trade.volume
                     xb_back_test_position.td_position = trade.volume
@@ -487,7 +487,7 @@ class BaseFutureReverseResult(object):
                     xb_back_test_position.type = 1
                     xb_back_test_position.direction = trade.business
                     xb_back_test_position.price = trade.price
-                    xb_back_test_position.settlement = bar_dict[trade.contract_code].settle
+                    xb_back_test_position.settlement = bar_dict[trade.contract_code].settlement
                     xb_back_test_position.hold_price = trade.price
                     xb_back_test_position.position = trade.volume
                     xb_back_test_position.td_position = trade.volume
@@ -523,8 +523,8 @@ class BaseFutureReverseResult(object):
                     margin_rate = margin_info['margin'] / 100
                 # print('平仓每日保证金比例，日期：【%s】，代码：【%s】，保证金比例：【%s】,old_margin_rate:【%s】,差：【%s】' % (
                 #     str(trade_date), str(symbol), str(margin_rate),old_margin_rate,margin_rate-old_margin_rate))
-            self.redis_client.setRedis('margin_rate_' + str(trade_date) + "_" + symbol, margin_rate, 120)
-
+            # self.redis_client.setRedis('margin_rate_' + str(trade_date) + "_" + symbol, margin_rate, 120)
+            self._cache_set(trade_date, symbol, margin_rate)
             if trade.business == SIDE_BUY:
                 # 平空仓
                 self.xb_back_test_profit.day_purchase += trade.price

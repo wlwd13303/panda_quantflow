@@ -44,7 +44,7 @@ class SpearmanFactorBuildOutputModel(BaseModel):
             raise ValueError('factor must be a pandas DataFrame')
         return v
 
-@work_node(name="Spearman因子构建", group="04-因子相关", type="general", box_color="blue")
+@work_node(name="Spearman因子构建", group="06-线下课专属", type="general", box_color="blue")
 class SpearmanFactorBuildControl(BaseWorkNode):
     @classmethod
     def input_model(cls) -> Optional[Type[BaseModel]]:

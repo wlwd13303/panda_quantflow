@@ -12,8 +12,8 @@ from panda_backtest.system.panda_log import SRLogger
 
 import json
 from bson import ObjectId
-def start(code:str,start_date:str,end_date:str,adjustment_cycle: str, group_number: str, factor_direction: str, start_capital: int, standard_symbol: str,
-          commission_rate: int, account_id: str, df_factor: pd.DataFrame):
+def start(code:str,start_date:str,end_date:str, start_capital: int, standard_symbol: str,
+          commission_rate: int, account_id: str, df_factor: pd.DataFrame,frequency:str):
     back_test_id = str(ObjectId())
 
     symbol_map = {
@@ -25,20 +25,16 @@ def start(code:str,start_date:str,end_date:str,adjustment_cycle: str, group_numb
     standard_symbol_pro = symbol_map.get(standard_symbol)
     df_factor_pro = df_factor.reset_index()
     handle_message = {'code': code,
-                      # 'file':'/Users/peiqi/code/python/panda_workflow/src/panda_backtest/strategy/factor02.py',
+                      'file':'/Users/peiqi/code/python/panda_workflow/src/panda_backtest/strategy/stock01.py',
                       'df_factor': df_factor_pro,
-                      'run_params': json.dumps([
-                          [0, "adjustment_cycle", adjustment_cycle],
-                          [0, "group_number",group_number],
-                          [0, "factor_direction", factor_direction]
-                      ]),
+                      'run_params': 'no_opz',
                       'start_capital': start_capital,
                       'start_date': start_date,
                       'end_date': end_date,
                       'standard_symbol': standard_symbol_pro,
                       'commission_rate': commission_rate,
                       'slippage': 0,
-                      'frequency': '1d',
+                      'frequency': frequency,
                       'matching_type': 1,  # 0：bar收盘，1：bar开盘
                       'run_type': 1,
                       'back_test_id': back_test_id,
@@ -58,12 +54,23 @@ def start(code:str,start_date:str,end_date:str,adjustment_cycle: str, group_numb
     strategy_context = StrategyContext()
     strategy_context.init_factor_params(df_factor)
     param_dict = dict()
-    run_params_list = json.loads(handle_message['run_params'])
-    for run_params_item in run_params_list:
-        if run_params_item[0] == 0:
-            param_dict[run_params_item[1]] = float(run_params_item[2])
-        elif run_params_item[0] == 1:
-            param_dict[run_params_item[1]] = run_params_item[2]
+    run_params = handle_message['run_params']
+    if run_params is None or run_params == 'no_run_params' or run_params == '' or run_params == 'no_opz':
+        pass
+    else:
+        print('运行时参数', handle_message['run_params'])
+        param_dict = dict()
+        run_params_list = json.loads(run_params)
+        for run_params_item in run_params_list:
+            # if run_params_item[0] == 0:
+            #     param_dict[run_params_item[1]] = float(run_params_item[2])
+            # else:
+            #     param_dict[run_params_item[1]] = run_params_item[2]
+            if run_params_item[0] == 0:
+                param_dict[run_params_item[1]] = float(run_params_item[2])
+            elif run_params_item[0] == 1:
+                param_dict[run_params_item[1]] = run_params_item[2]
+
     strategy_context.init_opz_params(param_dict)
     _context = CoreContext(strategy_context)
 
@@ -87,10 +94,12 @@ def start(code:str,start_date:str,end_date:str,adjustment_cycle: str, group_numb
     try:
         Engine(_context).run(handle_message)
     except Exception as e:
+        # 打印异常的堆栈信息
         print(traceback.format_exc())
-        print(str(e))
-
-    SRLogger.end()
+        raise
+    finally:
+        # 无论是否有异常，确保结束日志
+        SRLogger.end()
     return back_test_id
 if __name__ == '__main__':
     strategy_code_default = '''
@@ -198,5 +207,17 @@ def calculate_rebalance_table(df_target: pd.DataFrame, df_current: pd.DataFrame)
         dtype={"date": str}  # 明确指定date列为字符串类型
     )
     print(df.head())
-    id=start(code=strategy_code_default,start_date="20250101",end_date="20250110",adjustment_cycle="1", group_number="20", factor_direction="0",start_capital=10000000, standard_symbol="上证指数",commission_rate=1,account_id="8888",df_factor=df)
+
+    from pathlib import Path
+    import os
+    import sys
+    # Add project root path to python path
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+    # Load .env file if exsits
+    import dotenv
+
+    dotenv.load_dotenv()
+
+    id=start(code=strategy_code_default,start_date="20250101", frequency="1d",end_date="20250301",start_capital=10000000, standard_symbol="上证指数",commission_rate=1,account_id="8888",df_factor=df)
     print(id)

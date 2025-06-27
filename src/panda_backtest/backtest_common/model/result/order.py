@@ -4,11 +4,12 @@
 # @Author : wlb
 # @File   : xtp_order_data.py
 # @desc   : 订单实体类
+import dataclasses
 import json
 import logging
 
 from panda_backtest.backtest_common.constant.strategy_constant import *
-
+@dataclasses.dataclass
 class Order:
 
     def __init__(self):

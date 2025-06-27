@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
     formulas={
         "input_type": "text_field",
         "min_lines": 1,
-        "max_lines": 10,
+        "max_lines": 50,
+        "width": "300",
         "allow_link": False,
         "placeholder": "Please enter factors",
     }
@@ -23,7 +24,7 @@ class FormulaInputModel(BaseModel):
 class FormulaOutputModel(BaseModel):
     formulas: str= Field(default="",title="公式",)
 
-@work_node(name="公式输入", group="01-基础工具", type="general",box_color="green")
+@work_node(name="公式输入", group="02-特征工程", type="general",box_color="green")
 class FormulaControl(BaseWorkNode):
     @classmethod
     def input_model(cls) -> Optional[Type[BaseModel]]:

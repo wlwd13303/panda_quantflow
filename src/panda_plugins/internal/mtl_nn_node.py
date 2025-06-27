@@ -13,7 +13,7 @@ from panda_plugins.base.work_node_registery import work_node
 from panda_plugins.base import ui
 from panda_factor.generate.macro_factor import MacroFactor
 from panda_plugins.internal.models.common_models import MLModel, MLOutputModel,FeatureModel
-from common.untils.index_calculate import get_factors_mutil
+from common.utils.index_calculate import get_factors_mutil
 
 class MTLNet(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dim=64):

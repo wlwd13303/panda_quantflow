@@ -13,10 +13,10 @@ from panda_factor.generate.macro_factor import MacroFactor
 @ui(
     start_date={"input_type": "date_picker","allow_link": False},
     end_date={"input_type": "date_picker","allow_link": False},
-    code={"input_type": "text_field"},
+    code={"input_type": "None"},
     market={"input_type": "combobox","options": ["股票", "期货"],"placeholder": "因子类型","allow_link": False},
     type={"input_type": "combobox","options": ["Python", "公式"],"placeholder": "编码方式","allow_link": False},
-
+    direction={"input_type": "combobox","options": ["正向", "负向"],"placeholder": "因子方向","allow_link": False}
 )
 class FactorBuildProInputModel(BaseModel):
     start_date: str = Field(default="20250101",title="开始时间",)
@@ -24,14 +24,14 @@ class FactorBuildProInputModel(BaseModel):
     code: str = Field(default="",title="因子代码",)
     market: str = Field(default="股票",title="因子类型",)
     type: str = Field(default="Python",title="编码方式",)
-
+    direction:str = Field(default="正向",title="因子方向",)
 
 class FactorBuildProOutputModel(BaseModel):
     factor: DataFrame = Field(..., title="因子值")
     class Config:
         arbitrary_types_allowed = True
 
-@work_node(name="因子构建节点", group="04-因子相关", type="general", box_color="blue")
+@work_node(name="综合因子构建节点", group="04-因子相关", type="general", box_color="blue")
 class FactorBuildProControl(BaseWorkNode):
     @classmethod
     def input_model(cls) -> Optional[Type[BaseModel]]:
@@ -64,6 +64,10 @@ class FactorBuildProControl(BaseWorkNode):
                 end_date=input.end_date,
                 symbol_type=symbol_type,
             )
+        if input.direction == "负向":
+            factor_values.iloc[:, -1] = factor_values.iloc[:, -1] * -1
+
+        print(factor_values)
         return FactorBuildProOutputModel(factor=factor_values.reset_index())
 
 if __name__ == "__main__":

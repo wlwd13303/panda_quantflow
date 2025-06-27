@@ -1,4 +1,4 @@
-from redis import Redis, ConnectionPool
+from redis import Redis, ConnectionPool, StrictRedis
 from redis.exceptions import RedisError
 import logging
 from common.config.config import config
@@ -17,21 +17,22 @@ class RedisClient:
 
     def __init__(self):
         if not hasattr(self, 'client'):
-            self.client = Redis(connection_pool=self._pool)
+            self.client = StrictRedis(connection_pool=self._pool)
 
     @classmethod
     def _init_pool(cls):
         try:
             conf = cls.get_config()
             cls._pool = ConnectionPool(
+                health_check_interval=3,
                 host=conf['host'],
                 port=conf['port'],
-                db=conf['db'],
+                db=conf['db'] or 0,
                 password=conf['password'],
-                decode_responses=conf['decode_responses'],
                 max_connections=conf['max_connections'],
-                socket_timeout=conf['socket_timeout'],
-                socket_connect_timeout=conf['socket_connect_timeout']
+                # socket_timeout=conf['socket_timeout'],
+                # socket_connect_timeout=conf['socket_connect_timeout'],
+                # decode_responses=conf['decode_responses']
             )
             logger.info("Redis连接池初始化成功")
         except Exception as e:
@@ -45,7 +46,7 @@ class RedisClient:
             'port': config['REDIS_PORT'],
             'db': config['REDIS_DB'],
             'password': config['REDIS_PASSWORD'],
-            'decode_responses': True,
+            # 'decode_responses': True,
             'max_connections': config['REDIS_MAX_CONNECTIONS'],
             'socket_timeout': config['REDIS_SOCKET_TIMEOUT'],
             'socket_connect_timeout': config['REDIS_CONNECT_TIMEOUT']
@@ -88,7 +89,7 @@ class RedisClient:
         # Hash helpers  ——  新增的三种 Hash 方法
         # ------------------------------------------------------------------
 
-    def setHashRedis(self, name: str, key: str, value):
+    def setHashRedis(self, name: str, key, value):
         """Equivalent to ``HSET name key value``.
 
         :param name: top‑level Redis key that stores the hash
@@ -132,3 +133,64 @@ class RedisClient:
             logger.error(f"Redis hdel/DEL 操作失败: {e}")
             return None
 
+    """
+    string类型 {'key':'value'} redis操作
+    """
+
+    def setRedis(self, key, value, time=None):
+        # 非空即真非0即真
+        if time:
+            res = self.client.setex(key, time, value)
+        else:
+            res = self.client.set(key, value)
+        return res
+
+    def getRedis(self, key):
+        res = self.client.get(key)
+        return res
+
+    def delRedis(self, key):
+        res = self.client.delete(key)
+        return res
+
+    def existsRedis(self, key):
+        return self.client.exists(key)
+
+    def incrRedis(self, key, amount):
+        res = self.client.incr(key, amount)
+        return res
+
+
+    def get_keys(self, pattern):
+        return self.client.keys(pattern=pattern)
+
+
+    def public(self, chan_pub, msg):
+        self.client.publish(chan_pub, msg)
+        return True
+
+    def subscribe(self, chan_pub):
+        pub = self.client.pubsub()
+        pub.subscribe(chan_pub)
+        pub.parse_response()
+        return pub
+
+    def subscribe_multiple(self, chan_pubs):
+        pub = self.client.pubsub()
+        pub.psubscribe(chan_pubs)
+        pub.parse_response()
+        return pub
+
+    def unsubscribe_multiple(self, chan_pubs):
+        pub = self.client.pubsub()
+        pub.punsubscribe(chan_pubs)
+        pub.parse_response()
+        return pub
+
+    def unsubscribe(self, chan_pub):
+        pub = self.client.pubsub()
+        pub.unsubscribe(chan_pub)
+        return pub
+
+    def expire(self, name, time_sec):
+        self.client.expire(name, time_sec)

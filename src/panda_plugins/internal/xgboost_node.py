@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 from typing import Optional, Type, Union
 import uuid
-from common.untils.index_calculate import get_factors
+from common.utils.index_calculate import get_factors
 from panda_plugins.base import BaseWorkNode, work_node, ui
 from pydantic import BaseModel, Field
 import pandas as pd
@@ -47,7 +47,7 @@ class XgboostInputModel(BaseModel):
     reg_alpha: float = Field(default=0, title="L1正则化",description="越大越容易欠拟合")
     reg_lambda: float = Field(default=1, title="L2正则化",description="越大越容易欠拟合")
 
-@work_node(name="Xgboost模型", group="03-机器学习", type="general", box_color="red")
+@work_node(name="Xgboost模型(旧)", group="03-机器学习", type="general", box_color="red")
 class XgboostControl(BaseWorkNode):
 
     @classmethod

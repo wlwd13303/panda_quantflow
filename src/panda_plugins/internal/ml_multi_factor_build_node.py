@@ -1,5 +1,5 @@
 from typing import Optional, Type, Union, Annotated, Any
-from common.untils.index_calculate import get_factors
+from common.utils.index_calculate import get_factors
 from panda_plugins.base import BaseWorkNode, work_node, ui
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 import pandas as pd
@@ -55,7 +55,7 @@ class MLMultiFactorBuildOutputModel(BaseModel):
             raise ValueError('factor must be a pandas DataFrame')
         return v
 
-@work_node(name="多因子构建(机器学习)", group="04-因子相关", type="general", box_color="blue")
+@work_node(name="多因子构建(机器学习)", group="06-线下课专属", type="general", box_color="blue")
 class MLMultiFactorBuildControl(BaseWorkNode):
     @classmethod
     def input_model(cls) -> Optional[Type[BaseModel]]:

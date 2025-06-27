@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from bson import ObjectId
+from pydantic import BaseModel, Field, field_serializer
 import logging
 
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, Optional
 
 T = TypeVar("T")
 
@@ -23,3 +24,11 @@ class BaseAPIResponse(BaseModel, Generic[T]):
     code: int = Field(default=0)
     message: str = Field(default="success")
     data: T = Field(default={})
+
+    @classmethod
+    def success(cls, data: Optional[T] = None, message: str = "Success") -> "BaseAPIResponse":
+        return cls(code=200, message=message, data=data)
+
+    @classmethod
+    def error(cls, code: int = 500, message: str = "Error", data: Optional[T] = None) -> "BaseAPIResponse":
+        return cls(code=code, message=message, data=data)

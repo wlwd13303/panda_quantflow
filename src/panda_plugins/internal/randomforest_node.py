@@ -13,6 +13,8 @@ from panda_plugins.base import ui
 from panda_factor.generate.macro_factor import MacroFactor
 from panda_plugins.internal.models.common_models import FeatureModel, MLModel, MLOutputModel
 
+logger = logging.getLogger(__name__)
+
 """
 随机森林节点
 """

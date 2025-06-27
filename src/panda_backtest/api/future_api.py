@@ -8,7 +8,8 @@ Description:
 import pandas as pd
 from common.connector.mongodb_handler import DatabaseHandler
 from common.config.config import config
-
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
 api_list = []
 
 
@@ -40,8 +41,9 @@ def future_api_domain_symbol(symbol: str, date: str):
         db_name=config["MONGO_DB"],
         collection_name='future_market',
         query=query,
-        project={'_id': 0, 'symbol': 1, 'exchange': 1, 'trading_code': 1}
+        projection={'_id': 0, 'symbol': 1, 'exchange': 1, 'trading_code': 1}
     )
+
     return bar_dict
 
 
@@ -50,6 +52,8 @@ def future_api_domain_symbol(symbol: str, date: str):
 """
 @append_to_api_list
 def future_api_quotation(symbol_list=None, start_date=None, end_date=None, fields=None, period=None):
+    if symbol_list:
+        processed_symbol_list = [symbol.split(".")[0] for symbol in symbol_list]
     # 根据 period 确定集合名称
     collection_map = {
         "1m": "future_1m_market",
@@ -57,7 +61,7 @@ def future_api_quotation(symbol_list=None, start_date=None, end_date=None, field
         "15m": "future_15m_market",
         "30m": "future_30m_market",
         "1h": "future_60m_market",
-        "1d": "future_market"
+        "1d": "future_1d_market"
     }
     collection_name = collection_map.get(period)
     if not collection_name:
@@ -72,7 +76,7 @@ def future_api_quotation(symbol_list=None, start_date=None, end_date=None, field
 
     # 构造 Mongo 查询条件
     query = {
-        "symbol": {"$in": symbol_list},
+        "symbol": {"$in": processed_symbol_list},
         "date": {"$gte": start_date, "$lte": end_date}
     }
 
@@ -87,17 +91,72 @@ def future_api_quotation(symbol_list=None, start_date=None, end_date=None, field
     # 处理查询结果为空的情况
     if not bar_dict:
         return pd.DataFrame()
+        # 如果请求的字段中包含exchange，则对每个文档的exchange字段进行截取
 
     # 转换查询结果为 DataFrame
     df_bar = pd.DataFrame(bar_dict)
+    df_bar['symbol'] = df_bar['symbol'].str.cat(df_bar['exchange'], sep='.')
     return df_bar
 
 
+"""
+获取合约最小乘数
+"""
+
+
+@append_to_api_list
+def future_api_symbol_contractmul(symbol_list=None):
+    #对symbol进行处理
+    if symbol_list:
+        exchange_mapping = {
+            'CFFEX': 'CFE',
+            'CZCE': 'CZC',
+            'DCE': 'DCE',
+            'SHFE': 'SHF',
+            'INE': 'INE',
+            'GFEX': 'GFE',
+            # 可以继续添加其他交易所的映射
+        }
+        processed_symbol_list = []
+        for symbol in symbol_list:
+            for old, new in exchange_mapping.items():
+                symbol = symbol.replace(old, new)
+            processed_symbol_list.append(symbol)
+    # 构造 Mongo 查询条件
+    query = {
+        "symbol": {"$in": processed_symbol_list},
+    }
+    bar_dict = quotation_mongo_db.mongo_find(
+        db_name=config["MONGO_DB"],
+        collection_name='future_info',
+        query=query,
+        projection={'_id': 0,  "symbol": 1,'contractmul': 1}
+    )
+    # 处理查询结果为空的情况
+    if not bar_dict:
+        return pd.DataFrame()
+
+    # 转换查询结果为 DataFrame
+    df_bar = pd.DataFrame(bar_dict)
+
+    replacement_map = {
+        r'\.SHF$': '.SHFE',
+        r'\.CFE$': '.CFFEX',
+        r'\.CZC$': '.CZCE',
+        r'\.GFE$': '.GFEX'
+    }
+    for pattern, repl in replacement_map.items():
+        df_bar['symbol'] = df_bar['symbol'].str.replace(pattern, repl, regex=True)
+
+    # 定义替换规则
+    return df_bar
+
 if __name__ == '__main__':
     # 测试查询主力合约
-    result = future_api_domain_symbol(symbol="AG88", date="20250605")
+    # result = future_api_domain_symbol(symbol="AG88", date="20250605")
+    # print(result)
+    result =future_api_symbol_contractmul(symbol_list=["IC2501.CFFEX","AG2504.SHFE","RI1907.CZC","V2502.DCE","BC2511.INE","LC2505.GFEX"])
     print(result)
-
     # 测试查询期货行情
-    # result = future_api_quotation(symbol_list=["AG2509","AG2508"],start_date="20250420",end_date="20250430",period="1d")
+    # result = future_api_quotation(symbol_list=["IC88","AG2508.SHFE"],start_date="20250420",end_date="20250430",period="1d")
     # print(result)
