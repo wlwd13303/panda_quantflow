@@ -73,9 +73,10 @@ QMT实盘交易
 1. 安装 ANACONDA 环境 ([官网下载](https://www.anaconda.com/download))
 2. 下载并启动PandaAI提供的数据库(含有行情数据)<br>
    请联系小助理从网盘下载最新的数据库
-   - **MacOS 系统**: 下载并解压后运行 `bin/mongod -replSet rs0 --dbpath data\db  --keyFile conf\mongo.key --port 27017 --quiet --auth`
+   - **MacOS 系统**: 下载并解压后运行
+`chmod 600 conf\mongo.key`
+`bin/mongod -replSet rs0 --dbpath data\db  --keyFile conf\mongo.key --port 27017 --quiet --auth`
    - **Windows 系统**: 下载并解压后运行 `bin\mongod.exe --replSet rs0 --dbpath data\db  --keyFile conf\mongo.key --port 27017 --quiet --auth`
-   - 密码输入：panda
 3. 安装 panda_factor 相关依赖，并且启动factor服务
    ```bash
    git clone https://github.com/PandaAI-Tech/panda_factor.git
