@@ -59,7 +59,7 @@ if __name__ == '__main__':
     LogFactory.init_logger()
     LogFactory.init_logger()
     logger = LogFactory.get_logger()
-    logger.error('主进程启动')
+    # logger.error('主进程启动')
     # for i in range(1, 10):
     #     p = Process(target=test_print, args=(i,))
     #     p.start()

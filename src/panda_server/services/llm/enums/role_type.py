@@ -11,5 +11,4 @@ class RoleType(str, Enum):
     USER = "user"
     SYSTEM = "system"
     ASSISTANT = "assistant"
-    DEVELOPER = "developer"
     TOOL = "tool"

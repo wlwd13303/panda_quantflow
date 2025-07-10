@@ -42,9 +42,9 @@ class LogConsumer:
         """单个日志处理worker"""
         try:
             logger.info(
-                f"📋 workflow log worker {worker_id} started listening to queue: {WORKFLOW_LOG_QUEUE}"
+                f"workflow log worker {worker_id} started listening to queue: {WORKFLOW_LOG_QUEUE}"
             )
-            logger.info(f"📋 workflow log worker {worker_id} config: exchange={WORKFLOW_EXCHANGE_NAME}, routing_key={WORKFLOW_LOG_ROUTING_KEY}")
+            logger.info(f"workflow log worker {worker_id} config: exchange={WORKFLOW_EXCHANGE_NAME}, routing_key={WORKFLOW_LOG_ROUTING_KEY}")
             await client.consume_full_message(
                 queue_name=WORKFLOW_LOG_QUEUE,
                 exchange_name=WORKFLOW_EXCHANGE_NAME,
@@ -56,7 +56,7 @@ class LogConsumer:
 
     async def start_workers(self, client: AsyncRabbitMQ, worker_count: int):
         """启动多个日志处理worker"""
-        logger.info(f"🚀 Creating {worker_count} workflow log workers")
-        logger.info(f"🚀 WorkflowLog queue config: exchange={WORKFLOW_EXCHANGE_NAME}, routing_key={WORKFLOW_LOG_ROUTING_KEY}, queue={WORKFLOW_LOG_QUEUE}")
+        logger.info(f"Creating {worker_count} workflow log workers")
+        logger.info(f"WorkflowLog queue config: exchange={WORKFLOW_EXCHANGE_NAME}, routing_key={WORKFLOW_LOG_ROUTING_KEY}, queue={WORKFLOW_LOG_QUEUE}")
         for i in range(worker_count):
             asyncio.create_task(self.single_worker(i, client)) 

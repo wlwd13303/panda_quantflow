@@ -33,6 +33,14 @@ class FactorBuildProOutputModel(BaseModel):
 
 @work_node(name="综合因子构建节点", group="04-因子相关", type="general", box_color="blue")
 class FactorBuildProControl(BaseWorkNode):
+    def __init__(self):
+        super().__init__()
+        # 添加适配器方法
+        self.info = self.log_info
+        self.error = self.log_error
+        self.warning = self.log_warning
+        self.debug = self.log_debug
+
     @classmethod
     def input_model(cls) -> Optional[Type[BaseModel]]:
         return FactorBuildProInputModel
@@ -50,20 +58,26 @@ class FactorBuildProControl(BaseWorkNode):
             
         if input.type == "Python":
             factor_values = macro_factor.create_factor_from_class(
-                factor_logger=logger,
+                factor_logger=self,
                 class_code=input.code,
                 start_date=input.start_date,
                 end_date=input.end_date,
                 symbol_type=symbol_type,
             )
         elif input.type == "公式":
-            factor_values = macro_factor.create_factor_from_formula_pro(
-                factor_logger=logger,
-                formulas=input.code.split("\n"),
-                start_date=input.start_date,
-                end_date=input.end_date,
-                symbol_type=symbol_type,
-            )
+            try:
+                factor_values = macro_factor.create_factor_from_formula_pro(
+                    factor_logger=self._user_logger,
+                    formulas=input.code.split("\n"),
+                    start_date=input.start_date,
+                    end_date=input.end_date,
+                    symbol_type=symbol_type,
+                )
+            except Exception as e:
+                error_message = str(e)
+                self.error(f"异常信息：{error_message}")
+                raise
+                
         if input.direction == "负向":
             factor_values.iloc[:, -1] = factor_values.iloc[:, -1] * -1
 

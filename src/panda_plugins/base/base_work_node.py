@@ -1,13 +1,12 @@
 from abc import ABC, abstractmethod
 import logging
-import asyncio
-import threading
 import queue
 import time
-
 from pydantic import BaseModel
-from typing import Type, Optional, Dict, Any
+from typing import Type, Optional
 import panda_plugins.base.jsonschema_patches  # 必须保留
+from common.logging.user_logger import UserLogger
+
 
 class BaseWorkNode(ABC):
     """
@@ -29,22 +28,66 @@ class BaseWorkNode(ABC):
         self._sys_logger = logging.getLogger(self.__class__.__name__)
         self._log_queue = queue.Queue()  # 用于缓存日志消息
 
-    def _setup_logging_context(self, user_id: str, workflow_run_id: str, work_node_id: str, workflow_id: str = None):
+        # 创建标准 logger 接口
+        self.logger = self.LoggerWrapper(self)
+
+    class LoggerWrapper:
+        """
+        Logger wrapper class that provides standard logger interface
+        """
+
+        def __init__(self, work_node):
+            self._work_node = work_node
+
+        def debug(self, message: str, **kwargs):
+            """记录调试级别日志"""
+            self._work_node.log_debug(message, **kwargs)
+
+        def info(self, message: str, **kwargs):
+            """记录信息级别日志"""
+            self._work_node.log_info(message, **kwargs)
+
+        def warning(self, message: str, **kwargs):
+            """记录警告级别日志"""
+            self._work_node.log_warning(message, **kwargs)
+
+        def warn(self, message: str, **kwargs):
+            """记录警告级别日志 (别名)"""
+            self._work_node.log_warning(message, **kwargs)
+
+        def error(self, message: str, **kwargs):
+            """记录错误级别日志"""
+            self._work_node.log_error(message, **kwargs)
+
+        def critical(self, message: str, **kwargs):
+            """记录严重错误级别日志"""
+            self._work_node.log_critical(message, **kwargs)
+
+        def fatal(self, message: str, **kwargs):
+            """记录严重错误级别日志 (别名)"""
+            self._work_node.log_critical(message, **kwargs)
+
+    def _setup_logging_context(
+        self,
+        user_id: str,
+        workflow_run_id: str,
+        work_node_id: str,
+        workflow_id: str = None,
+    ):
         """
         设置日志上下文，由工作流执行器调用
-        
+
         Args:
             user_id: 用户ID
-            workflow_run_id: 工作流运行ID  
+            workflow_run_id: 工作流运行ID
             work_node_id: 工作节点ID
             workflow_id: 工作流ID
         """
         try:
-            from common.logging.workflow_log import WorkflowLogger
-            self._user_logger = WorkflowLogger(
+            self._user_logger = UserLogger(
                 user_id=user_id,
                 workflow_run_id=workflow_run_id,
-                work_node_id=work_node_id
+                work_node_id=work_node_id,
             )
             self._workflow_id = workflow_id  # 存储workflow_id以备后用
         except Exception as e:
@@ -57,11 +100,11 @@ class BaseWorkNode(ABC):
         if self._user_logger:
             # 将日志信息放入队列
             log_entry = {
-                'level': level,
-                'message': message,
-                'workflow_id': self._workflow_id,
-                'timestamp': time.time(),
-                'kwargs': kwargs
+                "level": level,
+                "message": message,
+                "workflow_id": self._workflow_id,
+                "timestamp": time.time(),
+                "kwargs": kwargs,
             }
             try:
                 self._log_queue.put_nowait(log_entry)
@@ -72,27 +115,27 @@ class BaseWorkNode(ABC):
             getattr(self._sys_logger, level.lower(), self._sys_logger.info)(
                 f"[USER_LOG] {message} (metadata: {kwargs})"
             )
-    
+
     async def _process_queued_logs(self):
         """
         处理队列中的日志消息（异步方法，由工作流执行器调用）
         """
         if not self._user_logger:
             return
-            
+
         while not self._log_queue.empty():
             try:
                 log_entry = self._log_queue.get_nowait()
-                level = log_entry['level']
-                message = log_entry['message']
-                workflow_id = log_entry['workflow_id']
-                kwargs = log_entry['kwargs']
-                
+                level = log_entry["level"]
+                message = log_entry["message"]
+                workflow_id = log_entry["workflow_id"]
+                kwargs = log_entry["kwargs"]
+
                 # 调用对应的异步日志方法
                 if hasattr(self._user_logger, level.lower()):
                     log_method = getattr(self._user_logger, level.lower())
                     await log_method(message, workflow_id=workflow_id, **kwargs)
-                    
+
             except queue.Empty:
                 break
             except Exception as e:
@@ -101,7 +144,7 @@ class BaseWorkNode(ABC):
     def log_debug(self, message: str, **kwargs):
         """
         记录调试级别日志
-        
+
         Args:
             message: 日志消息
             **kwargs: 额外的元数据
@@ -111,7 +154,7 @@ class BaseWorkNode(ABC):
     def log_info(self, message: str, **kwargs):
         """
         记录信息级别日志
-        
+
         Args:
             message: 日志消息
             **kwargs: 额外的元数据
@@ -121,7 +164,7 @@ class BaseWorkNode(ABC):
     def log_warning(self, message: str, **kwargs):
         """
         记录警告级别日志
-        
+
         Args:
             message: 日志消息
             **kwargs: 额外的元数据
@@ -131,7 +174,7 @@ class BaseWorkNode(ABC):
     def log_error(self, message: str, **kwargs):
         """
         记录错误级别日志
-        
+
         Args:
             message: 日志消息
             **kwargs: 额外的元数据
@@ -141,7 +184,7 @@ class BaseWorkNode(ABC):
     def log_critical(self, message: str, **kwargs):
         """
         记录严重错误级别日志
-        
+
         Args:
             message: 日志消息
             **kwargs: 额外的元数据
@@ -171,7 +214,7 @@ class BaseWorkNode(ABC):
         """
         Executes node logic, receives input model as parameter and returns output model.
         IMPORTANT: Plugin developers must implement this method.
-        
+
         Example usage in plugin:
             def run(self, input: InputModel) -> OutputModel:
                 self.log_info("开始处理数据", input_size=len(input.data))

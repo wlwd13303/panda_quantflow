@@ -37,17 +37,21 @@ async def get_session_list_logic(
     skip = (page - 1) * limit
 
     # 简单查询，在应用层处理
-    cursor = chat_session_collection.find(query).sort("updated_at", -1).skip(skip).limit(limit)
+    cursor = chat_session_collection.find(query).sort("update_at", -1).skip(skip).limit(limit)
 
-    # 处理查询结果并在应用层过滤用户消息
+    # 处理查询结果并在应用层过滤内部消息
     sessions = []
     async for doc in cursor:
         # 转换 ObjectId 为字符串
         doc["_id"] = str(doc["_id"])
         
-        # 在应用层过滤最后一条用户消息
-        user_messages = [msg for msg in doc.get("messages", []) if msg.get("role") == "user"]
-        doc["messages"] = [user_messages[-1]] if user_messages else []
+        # 直接倒序查找最后一条用户消息（用户消息永远可见）
+        last_user_message = None
+        for msg in reversed(doc.get("messages", [])):
+            if msg.get("role") == "user":
+                last_user_message = msg
+                break
+        doc["messages"] = [last_user_message] if last_user_message else []
         
         # 直接使用ChatSessionModel
         session = ChatSessionModel(**doc)

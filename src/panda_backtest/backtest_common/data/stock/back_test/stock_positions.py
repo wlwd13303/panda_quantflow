@@ -19,6 +19,10 @@ class StockPositions(object):
             self.account).xb_back_test_position_dict
 
         return StockPositionsItems(self.account, key, position_dict, None)
+    
+    def __contains__(self, key):
+        """检查股票代码是否在持仓中"""
+        return key in self.keys()
 
     def items(self):
 

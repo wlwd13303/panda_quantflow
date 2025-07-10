@@ -45,7 +45,7 @@ def main_run(kwargs=None):
     print('进程id' + str(os.getpid()))
     print('线程id' + str(threading.current_thread()))
     logger = logging.getLogger(__name__)
-    logger.info('日志系统已初始化')
+    # logger.info('日志系统已初始化')
 
     # 判断是否参数调优
     strategy_context = StrategyContext()

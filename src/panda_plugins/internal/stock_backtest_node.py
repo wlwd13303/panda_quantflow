@@ -3,7 +3,7 @@ from typing import Optional, Type
 from panda_plugins.base import BaseWorkNode, work_node, ui
 from pydantic import BaseModel, Field, field_validator
 import pandas as pd
-from panda_backtest.main_workflow import start
+from panda_backtest.main_workflow import start, get_backtest_id
 
 
 @ui(
@@ -56,23 +56,27 @@ class StockBacktestControl(BaseWorkNode):
     # Node running logic
     # 节点运行逻辑
     def run(self, input: BaseModel) -> BaseModel:
+        print("StockBacktestControl")
+        back_test_id = get_backtest_id()
         try:
-            backtest_id = start(
-                            code=input.code,
-                            start_date=input.start_date,
-                            end_date=input.end_date,
-                            frequency=input.frequency,
-                            start_capital=input.start_capital,
-                            standard_symbol=input.standard_symbol,
-                            commission_rate=input.commission_rate,
-                            account_id="8888",
-                            df_factor=input.factors,
-                            )
+            start(
+                back_test_id=back_test_id,
+                code=input.code,
+                start_date=input.start_date,
+                end_date=input.end_date,
+                frequency=input.frequency,
+                start_capital=input.start_capital,
+                standard_symbol=input.standard_symbol,
+                commission_rate=input.commission_rate,
+                account_id="8888",
+                df_factor=input.factors,
+            )
         except Exception as e:
             # 提取前两行和最后一行
             error_lines = e.message.splitlines()
             self.log_error(error_lines[0]+"\n"+error_lines[1]+"\n异常信息："+error_lines[2])
-        return StockBacktestOutputModel(backtest_id=str(backtest_id))
+            return StockBacktestOutputModel(backtest_id=str(back_test_id))
+        return StockBacktestOutputModel(backtest_id=str(back_test_id))
 
 
 if __name__ == "__main__":

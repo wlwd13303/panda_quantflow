@@ -50,7 +50,7 @@ def init(context):
 *****
 > 代码
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
 ```
 *****
 > 参数
@@ -58,17 +58,17 @@ def handle_data(context, bar_dict):
 | 字段 | 类型 | 描述 |
 | --- | --- | --- |
 | context | Context对象 | 策略上下文对象 |
-| bar_dict | Bar对象 | bar行情字典对象 |
+| bar | Bar对象 | bar行情对象 |
 *****
 > 例子
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 打印平安银行当前回测k线收盘价
-    print(bar_dict['000001.SZ'].close)
+    SRLogger.info(bar['000001.SZ'].close)
     # 打印黄金2002合约当前回测k线收盘价
-    print(bar_dict['AU2002.SHF'].close)
+    SRLogger.info(bar['AU2002.SHF'].close)
     # 股票账号以市价买入2000股平安银行
-    order_shares('15032863', '000001.SZ', 2000, style=MarketOrderStyle)
+    order_shares('8888', '000001.SZ', 2000, style=MarketOrderStyle)
     # 期货账号以市价开仓买入黄金2002合约1手
     buy_open("5588","AU2002.SHF",1, style=MarketOrderStyle)
 ```
@@ -106,7 +106,7 @@ def before_trading(context):
 def before_trading(context):
     # 开盘前打印
     total_value = context.future_account_dict['5588'].total_value
-    print(total_value)
+    SRLogger.info(total_value)
 ```
 
 
@@ -133,7 +133,7 @@ def after_trading(context):
 def after_trading(context):
     # 在收盘后打印当前期货账号的总权益
     total_value = context.future_account_dict['5588'].total_value
-    print(total_value)
+    SRLogger.info(total_value)
 ```
 
 ### 股票报单回报
@@ -157,10 +157,10 @@ def on_stock_trade_rtn(context, order):
 def on_stock_trade_rtn(context, order):
     # 打印订单标的
     order_book_id = order.order_book_id
-    print(order_id)
+    SRLogger.info(order_id)
     # 打印订单手数
     quantity = order.quantity
-    print(quantity)
+    SRLogger.info(quantity)
 ```
 ### 股票撤单回报
 >函数：stock_order_cancel
@@ -183,10 +183,10 @@ def stock_order_cancel(context, order):
 def stock_order_cancel(context, order):
     # 打印订单标的
     order_book_id = order.order_book_id
-    print(order_id)
+    SRLogger.info(order_id)
     # 打印订单手数
     quantity = order.quantity
-    print(quantity)
+    SRLogger.info(quantity)
 ```
 
 ### 期货报单回报
@@ -210,10 +210,10 @@ def on_future_trade_rtn(context, order):
 def on_future_trade_rtn(context, order):
     # 打印订单标的
     order_book_id = order.order_book_id
-    print(order_id)
+    SRLogger.info(order_id)
     # 打印订单手数
     quantity = order.quantity
-    print(quantity)
+    SRLogger.info(quantity)
 ```
 
 ### 期货撤单回报
@@ -237,10 +237,10 @@ def future_order_cancel(context, order):
 def future_order_cancel(context, order):
     # 打印订单标的
     order_book_id = order.order_book_id
-    print(order_id)
+    SRLogger.info(order_id)
     # 打印订单手数
     quantity = order.quantity
-    print(quantity)
+    SRLogger.info(quantity)
 ```
 
 ### 事件拓展
@@ -266,20 +266,22 @@ context.变量
 | portfolio_dict | dict | 收益信息字典（key为account，value为Portfolio对象）|
 | stock_account_dict | dict | 股票账户信息字典（key为account，value为StockAccount对象）|
 | future_account_dict | dict | 期货账户信息字典（key为account，value为FutureAccount对象）|
+| df_factor | DataFrame | 因子数据框，由因子构建节点生成的因子值数据 |
 *****
 > 例子
 ``` python
-stock_account = context.stock_account_dict['15032863']
+stock_account = context.stock_account_dict['8888']
 ```
+
 
 ### BarDict对象
 
->对象：**Bar**
+>对象：**bar**
 >描述：当前bar行情对象
 *****
 > 代码
 ``` python
-bar_dict[合约]
+bar[合约]
 ```
 *****
 > 内置变量
@@ -297,10 +299,59 @@ bar_dict[合约]
 | oi | long | 持仓量 |
 | turnover | double | 成交金额 |
 *****
+> 注意点: bar 不是 python 内置字典类型, 无法使用 bar.get(), bar.keys()等方法. 需要以 bar['行情对象'] 方式来使用.
 > 例子
 ``` python
 # 获取平安银行当前bar收盘价
-close = bar_dict['000001.SZ'].close
+close = bar['000001.SZ'].close
+```
+
+
+### df_factor对象
+
+>对象：**context.df_factor**
+>描述：因子数据框对象，由因子构建节点生成的因子值数据，用于策略中的因子分析
+*****
+> 代码
+``` python
+context.df_factor
+```
+*****
+> 数据结构
+> 
+| 字段 | 类型 | 描述 |
+| --- | --- | --- |
+| date（index） | str | 日期索引（格式：yyyyMMdd），作为 DataFrame 复合索引的第一级 |
+| symbol（index） | str | 股票/期货合约代码（如：000001.SZ，AG2002.SHF），作为 DataFrame 复合索引的第二级 |
+| factor_value | float | 因子值，用于排序和选股的数值 |
+| [其他列] | any | 根据具体因子构建节点的输出可能包含其他列 |
+
+> **索引结构说明**
+> 该 DataFrame 使用 `date` 和 `symbol` 作为复合索引（MultiIndex）
+> 在使用时，如果需要将复合索引转换为普通列进行查询，可以使用 `reset_index()` 方法。
+
+> 例子
+``` python
+def initialize(context):
+    # 预处理因子数据
+    # 注意：date 是 DataFrame 的 index，需要 reset_index() 将其转换为列以便查询
+    context.df_factor = context.df_factor.reset_index()
+    context.df_factor['factor_value'] = pd.to_numeric(
+        context.df_factor
+        .groupby('symbol')[context.df_factor.columns[2]]
+        .shift(1),
+        errors='coerce'
+    )
+
+def handle_data(context, bar):
+    today = context.now
+    # 获取今日因子值并按值排序
+    # 注意：date 是 DataFrame 的 index，需要 reset_index() 将其转换为列以便查询
+    context.df_factor = context.df_factor.reset_index()
+    df_today = context.df_factor[context.df_factor["date"] == today]
+    df_today_sorted = df_today.sort_values('factor_value', ascending=False)
+    # 选择前N只股票
+    buy_list = df_today_sorted.head(5)['symbol'].tolist()
 ```
 
 
@@ -311,7 +362,7 @@ close = bar_dict['000001.SZ'].close
 *****
 > 代码
 ``` python
-order = order_shares('15032863','000001.SZ', 100 )
+order = order_shares('8888','000001.SZ', 100 )
 ```
 *****
 > 内置变量
@@ -332,7 +383,7 @@ order = order_shares('15032863','000001.SZ', 100 )
 > 例子
 ``` python
 # 获取订单id
-order = order_shares('15032863','000001.SZ', 100 )
+order = order_shares('8888','000001.SZ', 100 )
 order_id = order.order_id
 ```
 
@@ -344,7 +395,7 @@ order_id = order.order_id
 *****
 > 代码
 ``` python
-context.stock_account_dict['15032863']
+context.stock_account_dict['8888']
 ```
 *****
 > 内置变量
@@ -360,7 +411,7 @@ context.stock_account_dict['15032863']
 > 例子
 ``` python
 # 获取股票账号总权益
-total_value = context.stock_account_dict['15032863'].total_value
+total_value = context.stock_account_dict['8888'].total_value
 ```
 
 
@@ -371,7 +422,7 @@ total_value = context.stock_account_dict['15032863'].total_value
 *****
 > 代码
 ``` python
-context.stock_account_dict['15032863'].positions['000001.SZ']
+context.stock_account_dict['8888'].positions['000001.SZ']
 ```
 *****
 > 内置变量
@@ -388,7 +439,7 @@ context.stock_account_dict['15032863'].positions['000001.SZ']
 > 例子
 ``` python
 # 获取股票账号平安银行持仓数量
-quantity = context.stock_account_dict['15032863'].positions['000001.SZ'].quantity
+quantity = context.stock_account_dict['8888'].positions['000001.SZ'].quantity
 ```
 
 
@@ -429,7 +480,7 @@ total_value = context.future_account_dict['5588'].total_value
 *****
 > 代码
 ``` python
-context.stock_account_dict['15032863'].positions['000001.SZ']
+context.stock_account_dict['8888'].positions['000001.SZ']
 ```
 *****
 > 内置变量
@@ -548,17 +599,17 @@ def order_shares(account, symbol, amount, style):
 *****
 > 例子
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 按照市价最新价买入100股平安银行
-    order_shares('15032863','000001.SZ', 100)
+    order_shares('8888','000001.SZ', 100)
     # 按照市价最新价卖出100股平安银行
-    order_shares('15032863','000001.SZ', -100)
+    order_shares('8888','000001.SZ', -100)
 ```
 或者
 ```python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 按照12.89价格买入100股平安银行
-    order_shares('15032863','000001.SZ', 100, style=LimitOrderStyle(12.89))
+    order_shares('8888','000001.SZ', 100, style=LimitOrderStyle(12.89))
 ```
 
 ### 按照目标持仓下单
@@ -585,9 +636,9 @@ def target_stock_group_order(account, symbol_dict):
 *****
 > 例子
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 平掉当前持仓，买入中国平安1手
-    target_stock_group_order('15032863',{'000001.SZ':100})
+    target_stock_group_order('8888',{'000001.SZ':100})
 ```
 
 
@@ -615,12 +666,12 @@ def cancel_order(account, order_id):
 *****
 > 例子
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 按照市价买入100股平安银行
-    order_list = order_shares('15032863','000001.SZ', 100)
+    order_list = order_shares('8888','000001.SZ', 100)
     # 对订单进行撤单
     for order in order_list:
-        cancel_order('15032863',order.order_id)
+        cancel_order('8888',order.order_id)
 ```
 
 ## 期货交易
@@ -650,13 +701,13 @@ def buy_open(account, symbol, amount, style):
 *****
 > 例子
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 按照市价最新价开仓买入1手AG2002
     buy_open('5588','AG2002.SHF', 1)
 ```
 或者
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 按照4280价格开仓买入1手AG2002
     buy_open('5588','AG2002.SHF', 1, style=LimitOrderStyle(4280))
 ```
@@ -688,13 +739,13 @@ def sell_open(account, symbol, amount, style):
 *****
 > 例子
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 按照市价最新价开仓卖出1手AG2002
     sell_open('5588','AG2002.SHF', 1)
 ```
 或者
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 按照4280价格开仓卖出1手AG2002
     sell_open('5588','AG2002.SHF', 1, style=LimitOrderStyle(4280))
 ```
@@ -725,13 +776,13 @@ def buy_close(account, symbol, amount, style):
 *****
 > 例子
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 按照市价最新价平仓1手AG2002空头
     buy_close('5588','AG2002.SHF', 1)
 ```
 或者
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 按照4280价格平仓1手AG2002空头
     buy_close('5588','AG2002.SHF', 1, style=LimitOrderStyle(4280))
 ```
@@ -762,13 +813,13 @@ def sell_close(account, symbol, amount, style):
 *****
 > 例子
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 按照市价最新价平仓1手AG2002多头
     sell_close('5588','AG2002.SHF', 1)
 ```
 或者
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 按照4280价格平仓1手AG2002多头
     sell_close('5588','AG2002.SHF', 1, style=LimitOrderStyle(4280))
 ```
@@ -798,11 +849,11 @@ def target_future_group_order(account, long_symbol_dict, short_symbol_dict):
 *****
 > 例子
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 平掉当前持仓，建立多头AG2505.SHF，空头A2505.DCE
     long_dict = {"AG2505.SHF": 1}
     short_dict = {"A2505.DCE": 1}
-    target_future_group_order('15032863', long_dict, short_dict)
+    target_future_group_order('8888', long_dict, short_dict)
 ```
 
 ### 期货撤单
@@ -829,9 +880,9 @@ def cancel_future_order(account, order_id):
 *****
 > 例子
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 按照市价最新价开仓买入1手AG2002
-    order = buy_open('15032863','000001.SZ', 100, style=LimitOrderStyle(4280))
+    order = buy_open('8888','000001.SZ', 100, style=LimitOrderStyle(4280))
     # 对订单进行撤单
     cancel_order('5588',order.order_id)
 ```
@@ -864,7 +915,7 @@ def purchase(account, symbol, amount, fund_cover_old=False):
 *****
 > 例子
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 申购70000块景顺沪深300
     purchase('2233', '000311.OF', 700000)
 ```
@@ -895,7 +946,7 @@ def redeem(account, symbol, quantity, fund_cover_old=False):
 *****
 > 例子
 ``` python
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     # 赎回100份景顺沪深300
     redeem('2233', '000311.OF', 100)
 ```
@@ -938,6 +989,7 @@ def initialize(context):
     context.s_rb_period = 5            # 调仓周期（单位：天）
 
     # 预处理因子数据
+    # 注意：date 是 DataFrame 的 index，需要 reset_index() 将其转换为列
     context.df_factor = context.df_factor.reset_index()
     context.df_factor['factor_value'] = pd.to_numeric(
         context.df_factor
@@ -946,15 +998,15 @@ def initialize(context):
         errors='coerce'
     )
 
-    print("策略初始化完成")
+    SRLogger.info("策略初始化完成")
     context.account = '5588'
 
 
-def handle_data(context, bar_dict):
+def handle_data(context, bar):
     if int(context.now) % context.s_rb_period != 0:
         return  # 非调仓日不执行任何操作
 
-    print(f"调仓日：{context.now}")
+    SRLogger.info(f"调仓日：{context.now}")
     today = context.now
 
     # 获取今日因子值并按值排序
@@ -986,9 +1038,9 @@ def handle_data(context, bar_dict):
         hands = np.floor(np.abs(hands))
         orders[symbol] = hands
 
-        print(f"{symbol}: 合约乘数={contract_mul[symbol]}, 收盘价={per_close[symbol]}, 下单手数={hands}")
+        SRLogger.info(f"{symbol}: 合约乘数={contract_mul[symbol]}, 收盘价={per_close[symbol]}, 下单手数={hands}")
 
-    print(pd.DataFrame(list(orders.items()), columns=['symbol', 'order_hands']))
+    SRLogger.info(pd.DataFrame(list(orders.items()), columns=['symbol', 'order_hands']))
     target_future_group_order(context.account, orders, {})
 
 ```

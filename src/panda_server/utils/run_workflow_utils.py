@@ -15,6 +15,7 @@ from panda_server.models.workflow_run_model import (
 )
 from panda_plugins.base.work_node_registery import ALL_WORK_NODES
 from panda_server.utils.db_storage import save_to_gridfs
+from common.logging.user_logger import UserLogger
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +39,9 @@ def generate_friendly_error_message(error, node, node_input_model, input_data):
         for field in missing_fields:
             suggestions.extend(
                 [
-                    f"❌ 节点 '{node_name}' ({node_type}) 缺少必需的输入字段: '{field}'",
+                    f"节点 '{node_name}' ({node_type}) 缺少必需的输入字段: '{field}'",
                     f"",
-                    f"🔧 修复建议:",
+                    f"修复建议:",
                     f"1. 检查工作流图中是否有节点连接到该节点的 '{field}' 输入端口",
                     f"2. 常见的 {field} 数据源节点:",
                 ]
@@ -81,9 +82,9 @@ def generate_friendly_error_message(error, node, node_input_model, input_data):
     elif "DataFrame" in error_str:
         suggestions.extend(
             [
-                f"❌ 数据格式错误: 期望 pandas DataFrame，但接收到其他类型",
+                f"数据格式错误: 期望 pandas DataFrame，但接收到其他类型",
                 f"",
-                f"🔧 修复建议:",
+                f"修复建议:",
                 f"1. 检查前置节点是否正确输出 DataFrame 格式的数据",
                 f"2. 验证连接的字段是否包含有效的 DataFrame",
                 f"3. 检查前置节点的执行日志，确认数据生成正常",
@@ -93,9 +94,9 @@ def generate_friendly_error_message(error, node, node_input_model, input_data):
     elif "import" in error_str.lower() or "module" in error_str.lower():
         suggestions.extend(
             [
-                f"❌ 模块导入错误",
+                f"模块导入错误",
                 f"",
-                f"🔧 修复建议:",
+                f"修复建议:",
                 f"1. 检查相关依赖包是否已安装",
                 f"2. 验证 Python 路径配置",
                 f"3. 重启服务以重新加载模块",
@@ -105,9 +106,9 @@ def generate_friendly_error_message(error, node, node_input_model, input_data):
     else:
         suggestions.extend(
             [
-                f"❌ 节点执行错误: {error_str}",
+                f"节点执行错误: {error_str}",
                 f"",
-                f"🔧 通用修复建议:",
+                f"通用修复建议:",
                 f"1. 检查节点配置参数是否正确",
                 f"2. 验证输入数据格式和内容",
                 f"3. 查看节点执行日志获取更多信息",
@@ -119,7 +120,7 @@ def generate_friendly_error_message(error, node, node_input_model, input_data):
     suggestions.extend(
         [
             f"",
-            f"📊 调试信息:",
+            f"调试信息:",
             f"- 节点类型: {node_type}",
             f"- 节点名称: {node_name}",
             f"- 错误类型: {error_type}",
@@ -155,9 +156,10 @@ def generate_friendly_error_message(error, node, node_input_model, input_data):
 async def run_workflow_in_background(workflow_run_id):
     # 生成唯一执行ID
     execution_id = str(uuid.uuid4())[:8]
-
+    
+    # 记录工作流开始执行的日志
     logger.info(
-        f"🚀 [EXEC:{execution_id}] run_workflow_logic: start, workflow_run_id: {workflow_run_id}"
+        f"[EXEC:{execution_id}] run_workflow_logic: start, workflow_run_id: {workflow_run_id}"
     )
 
     # 从 mongodb 中获取 workflow run 信息
@@ -169,19 +171,18 @@ async def run_workflow_in_background(workflow_run_id):
         logger.error(f"No workflow run found, id: {workflow_run_id}")
         return
 
+    # 将查询结果转换为WorkflowRunModel对象
     workflow_run = WorkflowRunModel(**query_result)
-
     workflow_id = workflow_run.workflow_id
 
     # 创建工作流级别的用户日志记录器
     try:
-        from common.logging.workflow_log import WorkflowLogger
-        workflow_logger = WorkflowLogger(
+        user_logger = UserLogger(
             user_id=workflow_run.owner,
             workflow_run_id=workflow_run_id,
-            work_node_id=None,  # None表示工作流级别
+            work_node_id=None,  # None表示这是工作流级别的日志，而不是节点级别
         )
-        await workflow_logger.info("工作流开始执行", workflow_id=workflow_id)
+        await user_logger.info("工作流开始执行", workflow_id=workflow_id)
     except Exception as e:
         logger.error(f"Failed to create workflow logger, terminating workflow: {e}")
         return
@@ -191,16 +192,17 @@ async def run_workflow_in_background(workflow_run_id):
     query_result = await workflow_collection.find_one({"_id": ObjectId(workflow_id)})
     if not query_result:
         logger.error(f"No workflow found, id: {workflow_id}")
-        if workflow_logger:
-            await workflow_logger.error("未找到工作流定义", workflow_id=workflow_id)
+        if user_logger:
+            await user_logger.error("未找到工作流定义", workflow_id=workflow_id)
         return
-
+    
+    # 将工作流定义转换为WorkflowModel对象
     workflow = WorkflowModel(**query_result)
 
-    # 得到分层排序好的节点列表
+    # 得到分层排序好的节点列表（确定工作流节点的执行顺序）
     try:
         execution_layers = determine_workflow_execution_order(workflow)
-        await workflow_logger.info(
+        await user_logger.info(
             "工作流执行顺序确定完成",
             workflow_id=workflow_id,
             layers_count=len(execution_layers),
@@ -210,7 +212,7 @@ async def run_workflow_in_background(workflow_run_id):
         logger.error(
             f"Error determining workflow execution order, id: {workflow_run_id}, error: {e}"
         )
-        await workflow_logger.error(
+        await user_logger.error(
             "工作流执行顺序确定失败", workflow_id=workflow_id, error=str(e)
         )
         await mark_workflow_run_failed(workflow_run_id, str(e), traceback.format_exc())
@@ -221,30 +223,37 @@ async def run_workflow_in_background(workflow_run_id):
             {"$set": workflow_run_update_data.model_dump(exclude_unset=True)},
         )
         return
-
+    
+    # 记录确定的执行顺序
     logger.info(
-        f"🔄 [EXEC:{execution_id}] run_workflow_logic: execution_order determined: {execution_layers}"
+        f"[EXEC:{execution_id}] run_workflow_logic: execution_order determined: {execution_layers}"
     )
 
     # 简化版的执行逻辑 (单线程执行)
-    node_outputs: dict[str, Any] = {}
-    failed_node_ids = []
-    success_node_ids = []
-    passed_link_ids = []
+    node_outputs: dict[str, Any] = {}   # 存储节点的输出结果
+    failed_node_ids = []                # 存储失败的节点ID
+    success_node_ids = []               # 存储成功的节点ID
+    passed_link_ids = []                # 存储已经通过的连接ID
+
+    # 按层执行工作流节点
     for layer_index, layer in enumerate(execution_layers):
         if await is_workflow_run_terminated(workflow_run_id):
             logger.info(f"Workflow run terminated, id: {workflow_run_id}")
-            await workflow_logger.warning("工作流执行被手动终止", workflow_id=workflow_id)
+            await user_logger.warning("工作流执行被手动终止", workflow_id=workflow_id)
             return
+
+        # 记录当前层的执行开始
         logger.info(
-            f"⚡ [EXEC:{execution_id}] run_workflow_logic: running layer: {layer}"
+            f"[EXEC:{execution_id}] run_workflow_logic: running layer: {layer}"
         )
-        await workflow_logger.info(
+        await user_logger.info(
             f"开始执行第 {layer_index + 1} 层节点",
             workflow_id=workflow_id,
             layer_index=layer_index + 1,
             nodes_in_layer=len(layer),
         )
+
+        # 计算并更新工作流执行进度
         progress = layer_index / len(execution_layers) * 100
         workflow_run_update_data = WorkflowRunUpdateModel(
             status=WorkflowStatus.RUNNING,
@@ -265,20 +274,22 @@ async def run_workflow_in_background(workflow_run_id):
 
         # 并行执行当前层的所有节点
         for node_id in layer:
+            # 再次检查是否被终止
             if await is_workflow_run_terminated(workflow_run_id):
                 logger.info(f"Workflow run terminated, id: {workflow_run_id}")
-                await workflow_logger.warning(
+                await user_logger.warning(
                     "工作流执行被手动终止", workflow_id=workflow_id, work_node_id=node_id
                 )
                 return
             try:
-                # 获取节点信息
+                # 获取节点信息并创建节点实例
                 node = [n for n in workflow.nodes if n.uuid == node_id][0]
                 logger.info(
-                    f"🔧 [EXEC:{execution_id}] run_workflow_logic: running work node id: {node_id}, name: {node.name}"
+                    f"[EXEC:{execution_id}] run_workflow_logic: running work node id: {node_id}, name: {node.name}"
                 )
                 node_class = ALL_WORK_NODES.get(node.name)
                 node_instance = node_class()
+                
                 # 设置节点的日志上下文，使用户在节点中调用 self.log_info 等方法时能存储到数据库
                 node_instance._setup_logging_context(
                     user_id=workflow_run.owner,
@@ -286,11 +297,12 @@ async def run_workflow_in_background(workflow_run_id):
                     work_node_id=node_id,
                     workflow_id=workflow_id
                 )
+
                 node_input_model = node_class.input_model()
                 # 注入静态的输入字段
                 input_data = node.static_input_data.copy()
                 logger.debug(
-                    f"📊 [EXEC:{execution_id}] run_workflow_logic: got static input data: {input_data}"
+                    f"[EXEC:{execution_id}] run_workflow_logic: got static input data: {input_data}"
                 )
                 # 注入动态的从前置节点获得的输入字段
                 previous_links = [
@@ -304,24 +316,29 @@ async def run_workflow_in_background(workflow_run_id):
                         .get(link.input_field_name)
                     )
                     logger.debug(
-                        f"🔗 [EXEC:{execution_id}] run_workflow_logic: got data from link: link_input_field_name: {link.input_field_name}, link_output_field_name: {link.output_field_name}, data: {target_input_data}"
+                        f"[EXEC:{execution_id}] run_workflow_logic: got data from link: link_input_field_name: {link.input_field_name}, link_output_field_name: {link.output_field_name}, data: {target_input_data}"
                     )
                     input_data[link.output_field_name] = target_input_data
                 logger.info(
-                    f"▶️ [EXEC:{execution_id}] run_workflow_logic: running work node id: {node_id}, name: {node.name}, got input_data: {input_data}"
+                    f"[EXEC:{execution_id}] run_workflow_logic: running work node id: {node_id}, name: {node.name}, got input_data: {input_data}"
                 )
+                
+                 # 创建节点输入模型实例
                 node_input = node_input_model(**input_data)
-                await workflow_logger.debug(
+                await user_logger.debug(
                     "节点输入数据", workflow_id=workflow_id, work_node_id=node_id, input_fields=list(input_data.keys())
                 )
+
+                # 在线程池中执行节点的run方法
                 node_output = await run_in_threadpool(
                     lambda: run_without_stdout(node_instance.run, node_input)
                 )
                 # 处理节点执行期间产生的队列日志
                 await node_instance._process_queued_logs()
-                await workflow_logger.info(
+                await user_logger.info(
                     f"节点 {node.name} 执行成功", workflow_id=workflow_id, work_node_id=node_id, has_output=node_output is not None
                 )
+                
                 node_outputs[node_id] = node_output
                 # 保存节点输出到数据库
                 output_db_id = await save_output_to_db(
@@ -346,13 +363,17 @@ async def run_workflow_in_background(workflow_run_id):
                 friendly_error = generate_friendly_error_message(
                     e, node, node_input_model, input_data
                 )
+
+                # 记录错误信息
                 logger.error(
                     f"Error running workflow, id: {workflow_run_id}, failed node: {node_id} error: {e},\nstack_trace: {stack_trace}\n\n=== 错误分析与修复建议 ===\n{friendly_error}"
                 )
+
+                # 标记工作流运行失败
                 await mark_workflow_run_failed(
                     workflow_run_id, str(e), stack_trace, failed_node_ids
                 )
-                await workflow_logger.error(
+                await user_logger.error(
                     "节点执行失败",
                     workflow_id=workflow_id,
                     work_node_id=node_id,
@@ -360,6 +381,7 @@ async def run_workflow_in_background(workflow_run_id):
                     error=str(e),
                     suggestions=friendly_error,
                 )
+                # 更新工作流状态为失败
                 workflow_run_update_data = WorkflowRunUpdateModel(
                     status=WorkflowStatus.FAILED,
                     failed_node_ids=failed_node_ids,
@@ -372,13 +394,15 @@ async def run_workflow_in_background(workflow_run_id):
                     {"$set": workflow_run_update_data.model_dump(exclude_unset=True)},
                 )
                 return
-
+    # 所有节点执行成功，更新工作流状态
     logger.info(
         f"run_workflow_logic: all nodes executed successfully, workflow_run_id: {workflow_run_id}"
     )
-    await workflow_logger.info(
+    await user_logger.info(
         "工作流执行完成", workflow_id=workflow_id, total_nodes=len(success_node_ids)
     )
+
+     # 最终更新：标记工作流为成功完成状态
     workflow_run_update_data = WorkflowRunUpdateModel(
         status=WorkflowStatus.SUCCESS,
         progress=100,

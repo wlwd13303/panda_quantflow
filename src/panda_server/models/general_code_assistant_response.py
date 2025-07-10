@@ -4,7 +4,7 @@ from .base_api_response import BaseAPIResponse
 class GeneralCodeAssistantMessage(BaseModel):
     """代码类助手消息结构"""
     new_code: str = Field(None, description="新代码，如果为空，则表示不需要新代码")
-    explaination: str = Field(..., description="AI对新代码的解释")
+    explanation: str = Field(..., description="AI对新代码的解释")
 
 class GeneralCodeAssistantData(BaseModel):
     """"LLM 会话响应数据"""

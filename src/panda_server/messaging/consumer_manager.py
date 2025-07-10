@@ -18,16 +18,16 @@ class QueueConsumerManager:
         """启动所有消费者"""
         
         # 启动工作流执行消费者
-        workflow_workers = PANDA_SERVER_WORKFLOW_WORKERS
-        logger.info(f"🚀 Starting {workflow_workers} workflow execution consumers")
+        workflow_workers = int(PANDA_SERVER_WORKFLOW_WORKERS)
+        logger.info(f"Starting {workflow_workers} workflow execution consumers")
         await self.workflow_consumer.start_workers(client, workflow_workers)
         
         # 启动工作流日志消费者（使用较少的worker）
-        log_workers = max(1, PANDA_SERVER_WORKFLOW_WORKERS // 2)
-        logger.info(f"🚀 Starting {log_workers} workflow log consumers")
+        log_workers = max(1, int(PANDA_SERVER_WORKFLOW_WORKERS) // 2)
+        logger.info(f"Starting {log_workers} workflow log consumers")
         await self.log_consumer.start_workers(client, log_workers)
         
-        logger.info(f"✅ All consumers started successfully - Total workers: {workflow_workers + log_workers}")
+        logger.info(f"All consumers started successfully - Total workers: {workflow_workers + log_workers}")
 
 
 # 为了保持向后兼容，保留原来的 WorkflowRunner 类

@@ -12,9 +12,12 @@ from panda_backtest.system.panda_log import SRLogger
 
 import json
 from bson import ObjectId
-def start(code:str,start_date:str,end_date:str, start_capital: int, standard_symbol: str,
+def get_backtest_id():
+    return str(ObjectId())
+
+def start(back_test_id:str,code:str,start_date:str,end_date:str, start_capital: int, standard_symbol: str,
           commission_rate: int, account_id: str, df_factor: pd.DataFrame,frequency:str):
-    back_test_id = str(ObjectId())
+    # back_test_id = str(ObjectId())
 
     symbol_map = {
         "上证指数": "000001.SH",

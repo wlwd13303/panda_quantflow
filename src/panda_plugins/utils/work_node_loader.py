@@ -2,7 +2,7 @@ import os
 import importlib.util
 import sys
 import pathlib
-from common.logging.system_log import logging, setup_logging
+from common.logging.system_logger import logging, setup_logging
 
 logger = logging.getLogger(__name__)
 

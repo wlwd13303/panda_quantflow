@@ -33,38 +33,42 @@ class TestBacktestAssistant:
             await mongodb.close_db()
             print("数据库连接已关闭")
 
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     @pytest.mark.asyncio
     async def test_process_message_from_empty_code(self):
         old_code = ""
-        user_message = "写一个布林带策略"
+        user_message = "写一个股票('000001.SZ')的布林带策略"
         assistant = BacktestAssistant()
 
         session_id, result = await assistant.process_message(
             user_id=self.test_user_id,
             user_message=user_message,
-            old_code=old_code,
+            original_user_code=old_code,
         )
 
         print(f"Session ID: {session_id}")
+        print(f"result:\n{result}")
         assert len(session_id) > 0
-        print(f"Chat completion result: {result}")
         assert len(result) > 0
 
         result_json = json.loads(result)
         assert "code" in result_json
         assert "explanation" in result_json
+        
+        print(f"explanation:\n{result_json['explanation']}")
+        print(f"code:\n{result_json['code']}")
 
+    @pytest.mark.skip()
     @pytest.mark.asyncio
     async def test_multiple_rounds_chat(self):
         old_code = ""
-        user_message = "写一个布林带策略"
+        user_message = "写一个股票('000001.SZ')的布林带策略"
         assistant = BacktestAssistant()
 
         session_id, result = await assistant.process_message(
             user_id=self.test_user_id,
             user_message=user_message,
-            old_code=old_code,
+            original_user_code=old_code,
         )
 
         print(f"[Round 1] Session ID: {session_id}")
@@ -80,7 +84,7 @@ class TestBacktestAssistant:
             session_id=session_id,
             user_id=self.test_user_id,
             user_message=user_message,
-            old_code=result_json["code"],
+            original_user_code=result_json["code"],
         )
 
         assert session_id == session_id2
@@ -89,7 +93,6 @@ class TestBacktestAssistant:
         result_json = json.loads(result)
         assert "code" in result_json
         assert "explanation" in result_json
-
 
 if __name__ == "__main__":
     # 运行测试

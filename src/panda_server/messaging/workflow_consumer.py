@@ -26,7 +26,7 @@ class WorkflowConsumer:
         """单个工作流执行worker"""
         try:
             logger.info(
-                f"⚡ workflow execution worker {worker_id} started listening to queue: {WORKFLOW_RUN_QUEUE}"
+                f"workflow execution worker {worker_id} started listening to queue: {WORKFLOW_RUN_QUEUE}"
             )
             await client.consume(
                 queue_name=WORKFLOW_RUN_QUEUE,
@@ -42,6 +42,6 @@ class WorkflowConsumer:
 
     async def start_workers(self, client: AsyncRabbitMQ, worker_count: int):
         """启动多个工作流执行worker"""
-        logger.info(f"🚀 Creating {worker_count} workflow execution workers")
+        logger.info(f"Creating {worker_count} workflow execution workers")
         for i in range(worker_count):
             asyncio.create_task(self.single_worker(i, client)) 

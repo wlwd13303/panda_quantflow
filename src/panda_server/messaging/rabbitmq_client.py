@@ -26,7 +26,7 @@ class AsyncRabbitMQ:
         :param retry_interval: 重试间隔(秒)
         """
         self.url = url
-        self.max_retries = max_retries
+        self.max_retries = int(max_retries)
         self.retry_interval = retry_interval
         self.connection: Optional[aio_pika.RobustConnection] = None
         self.channel: Optional[AbstractChannel] = None
@@ -147,7 +147,7 @@ class AsyncRabbitMQ:
             await self.connect()
 
         try:
-            await self.channel.set_qos(prefetch_count=prefetch_count)
+            await self.channel.set_qos(prefetch_count=int(prefetch_count))
 
             if exchange_name:
                 exchange = await self.channel.declare_exchange(
@@ -203,7 +203,7 @@ class AsyncRabbitMQ:
             await self.connect()
 
         try:
-            await self.channel.set_qos(prefetch_count=prefetch_count)
+            await self.channel.set_qos(prefetch_count=int(prefetch_count))
 
             if exchange_name:
                 exchange = await self.channel.declare_exchange(

@@ -52,22 +52,22 @@ class ChatSessionBaseModel(BaseModel):
         default_factory=list, 
         description="List of messages in the chat session"
     )
-    created_at: int = Field(
+    create_at: int = Field(
         description="The unix timestamp of the chat session creation time, unit: milliseconds"
     )
-    updated_at: int = Field(
+    update_at: int = Field(
         description="The unix timestamp of the chat session update time, unit: milliseconds"
     )
 
-    # Set values for created_at and updated_at
+    # Set values for create_at and update_at
     @model_validator(mode="before")
     @classmethod
     def set_defaults(cls, data):
         now = int(time.time() * 1000)
-        if "created_at" not in data:
-            data["created_at"] = now
-        if "updated_at" not in data:
-            data["updated_at"] = now
+        if "create_at" not in data:
+            data["create_at"] = now
+        if "update_at" not in data:
+            data["update_at"] = now
         return data
 
     class Config:
@@ -95,11 +95,23 @@ class ChatSessionCreateModel(ChatSessionModel):
     用于创建新的聊天会话，包含自动生成的ID字段
     继承ChatSessionModel，包含所有字段并自动生成ObjectId
     """
-    pass
+    @model_validator(mode="before")
+    @classmethod
+    def set_create_timestamps(cls, data):
+        now = int(time.time() * 1000)
+        data["create_at"] = now
+        data["update_at"] = now
+        return data
 
 
 class ChatSessionUpdateModel(ChatSessionBaseModel):
     user_id: Optional[str] = None
     messages: Optional[List[Message]] = None
-    updated_at: Optional[int] = None
-    created_at: Optional[int] = None
+    update_at: Optional[int] = None
+    create_at: Optional[int] = Field(default=None, exclude=True)  # 在更新时完全排除这个字段
+
+    @model_validator(mode="before")
+    @classmethod
+    def set_update_timestamp(cls, data):
+        data["update_at"] = int(time.time() * 1000)
+        return data

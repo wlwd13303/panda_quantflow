@@ -29,7 +29,7 @@ def load_config():
     config["LOG_LEVEL"] = os.getenv("LOG_LEVEL", "DEBUG")
     config["log_file"] = os.getenv("LOG_FILE", "logs/data_cleaner.log")
     config["log_rotation"] = os.getenv("LOG_ROTATION", "1 MB")
-    config["LOG_PATH"] = os.getenv("LOG_PATH", "~/log")
+    config["LOG_PATH"] = os.getenv("LOG_PATH", "logs")
 
     # Redis
     config["REDIS_HOST"] = os.getenv("REDIS_HOST", "localhost")

@@ -1,4 +1,4 @@
-from .workflow_log import WorkflowLogger
+from .user_logger import UserLogger
 import logging
 
-__all__ = ["WorkflowLogger"] 
+__all__ = ["UserLogger"] 

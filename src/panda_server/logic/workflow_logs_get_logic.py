@@ -3,7 +3,7 @@ from typing import Optional
 from bson import ObjectId
 from fastapi import HTTPException, status
 from panda_server.config.database import mongodb
-from common.logging.workflow_log import WorkflowLog
+from common.logging.user_log_model import UserLog
 from panda_server.models.query_logs_response import (
     QueryWorkflowLogsResponse,
     QueryWorkflowLogsResponseData,
@@ -110,7 +110,7 @@ async def workflow_logs_get_logic(
 
     # 构造响应数据
     response_data = QueryWorkflowLogsResponseData(
-        logs=[WorkflowLog(**log) for log in logs],
+        logs=[UserLog(**log) for log in logs],
         has_more=has_more,
         next_sequence=next_sequence,
     )

@@ -115,11 +115,59 @@ class ResultDb(object):
         self.mongo_client.mongo_insert_many(db_name=config["MONGO_DB"], collection_name="panda_backtest_trade",
                                             documents=all_trade_list)
 
-    def save_profit(self, all_profit_dict):
+    def save_profit(self, all_profit_data):
         # profit_col = self.mongo_client.xb_backtest_profit
         # profit_col.insert_one(all_profit_dict)
-        self.mongo_client.mongo_insert_many(db_name=config["MONGO_DB"], collection_name="panda_backtest_profit",
-                                            documents=[all_profit_dict])
+        
+        try:
+            print(f"save_profit 开始处理数据，类型: {type(all_profit_data)}")
+            
+            # 处理不同的数据类型
+            if isinstance(all_profit_data, list):
+                # 如果传入的是列表，检查每个元素的类型
+                # print(f"处理列表数据，长度: {len(all_profit_data)}")
+                documents = []
+                for i, item in enumerate(all_profit_data):
+                    if isinstance(item, dict):
+                        documents.append(item)
+                    elif hasattr(item, '__dict__'):
+                        documents.append(item.__dict__)
+                    else:
+                        print(f"跳过无法处理的数据类型: {type(item)}")
+                        continue
+            else:
+                # 如果传入的不是列表
+                print("处理非列表数据")
+                if isinstance(all_profit_data, dict):
+                    documents = [all_profit_data]
+                elif hasattr(all_profit_data, '__dict__'):
+                    documents = [all_profit_data.__dict__]
+                else:
+                    print(f"无法处理的数据类型: {type(all_profit_data)}")
+                    return
+                    
+            # print(f"准备插入 {len(documents)} 个文档")
+            
+            # 确保所有documents都是字典
+            validated_documents = []
+            for doc in documents:
+                if isinstance(doc, dict):
+                    validated_documents.append(doc)
+                else:
+                    print(f"跳过非字典文档: {type(doc)}")
+                    
+            if validated_documents:
+                # print("开始MongoDB插入操作")
+                self.mongo_client.mongo_insert_many(db_name=config["MONGO_DB"], collection_name="panda_backtest_profit",
+                                                    documents=validated_documents)
+                # print("MongoDB插入操作完成")
+            else:
+                print("没有有效的文档可以插入")
+                
+        except Exception as e:
+            print(f"save_profit 执行出错: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def save_draw(self, chart_data):
         # chart = self.mongo_client.xb_custom_chart

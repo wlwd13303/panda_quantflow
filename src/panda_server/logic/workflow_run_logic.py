@@ -123,7 +123,7 @@ async def workflow_run_logic(
                 "content": workflow_run_id,
             }
         )
-        logger.info(f"CLOUD mode: 将工作流任务{workflow_run_id}加入rabbitMQ队列")
+        logger.info(f"CLOUD mode: Adding workflow task {workflow_run_id} to RabbitMQ queue")
         logger.info(message)
         await rabbitMq.publish(
             exchange_name=WORKFLOW_EXCHANGE_NAME,
@@ -132,7 +132,7 @@ async def workflow_run_logic(
         )
     elif RUN_MODE == "LOCAL":
         # LOCAL模式：直接执行工作流
-        logger.info(f"LOCAL mode: 直接执行工作流任务{workflow_run_id}")
+        logger.info(f"LOCAL mode: Executing workflow task {workflow_run_id} directly")
         background_tasks.add_task(run_workflow_in_background, workflow_run_id)
 
     return RunWorkflowResponse(

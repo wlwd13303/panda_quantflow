@@ -65,7 +65,7 @@ def order_shares(account_id, id_or_ins, quantity, style=MarketOrderStyle, retry_
 
     idandins = id_or_ins.split('.')
     if len(idandins) != 2:
-        logger.error('合约输入有误')
+        # print('合约输入有误')
         SRLogger.error(str(id_or_ins) + '下单失败：合约输入有误')
         return
 
@@ -130,7 +130,7 @@ def order_values(account_id, id_or_ins, amount, style=MarketOrderStyle, retry_nu
 
     idandins = id_or_ins.split('.')
     if len(idandins) != 2:
-        logger.error('合约输入有误')
+        # print('合约输入有误')
         SRLogger.error(str(id_or_ins) + '下单失败：合约输入有误')
         return
 
@@ -218,7 +218,7 @@ def buy_open(account_id, id_or_ins, amount, style=MarketOrderStyle, retry_num=No
 
     idandins = id_or_ins.split('.')
     if len(idandins) != 2:
-        logger.error('合约输入有误')
+        # print('合约输入有误')
         SRLogger.error(str(id_or_ins) + '下单失败：合约输入有误')
         return list()
 
@@ -279,7 +279,7 @@ def sell_open(account_id, id_or_ins, amount, style=MarketOrderStyle, retry_num=N
 
     idandins = id_or_ins.split('.')
     if len(idandins) != 2:
-        logger.error('合约输入有误')
+        # print('合约输入有误')
         SRLogger.error(str(id_or_ins) + '下单失败：合约输入有误')
         return list()
 
@@ -349,7 +349,7 @@ def sell_close(account_id, id_or_ins, amount, style=MarketOrderStyle, close_toda
 
     idandins = id_or_ins.split('.')
     if len(idandins) != 2:
-        logger.error('合约输入有误')
+        # print('合约输入有误')
         SRLogger.error(str(id_or_ins) + '平仓失败：合约输入有误')
         return all_order_list
 
@@ -435,7 +435,7 @@ def buy_close(account_id, id_or_ins, amount, style=MarketOrderStyle, close_today
 
     idandins = id_or_ins.split('.')
     if len(idandins) != 2:
-        logger.error('合约输入有误')
+        # print('合约输入有误')
         SRLogger.error(str(id_or_ins) + '平仓失败：合约输入有误')
         return all_order_list
 
@@ -674,7 +674,7 @@ def target_stock_group_order(account, symbol_dict, price_type=0):
 @append_to_api_list
 def pub_data(pub_key, json_data):
     if type(json_data) != str:
-        logger.error("策略推送的内容只能为字符串类型")
+        print("策略推送的内容只能为字符串类型")
         return
     context = CoreContext.get_instance()
     context.operation_proxy.pub_data(pub_key, json_data)
@@ -682,7 +682,7 @@ def pub_data(pub_key, json_data):
 @append_to_api_list
 def sub_data(sub_keys, call_back):
     if type(sub_keys) != list:
-        logger.error("订阅key为list类型")
+        print("订阅key为list类型")
         return
     context = CoreContext.get_instance()
     context.operation_proxy.sub_data(sub_keys, call_back)

@@ -1,7 +1,8 @@
-from common.logging.system_log import logging, setup_logging
+from common.logging.system_logger import logging, setup_logging
 import mimetypes
 import sys
 import uvicorn
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,8 +26,6 @@ from panda_server.routes.trading import (
     trading_report_routes
 )
 
-import sys
-import os
 # Add project root path to python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))  
 
@@ -69,9 +68,11 @@ async def lifespan(app: FastAPI):
         await rabbitmq_client.test_connect()
         logger.info("RabbitMQ connection successful")
 
-        # start queue consumers
-        consumer_manager = QueueConsumerManager()
-        await consumer_manager.start_all_consumers(rabbitmq_client)
+        # start queue consumers only when server_role is CONSUMER or ALL
+        if SERVER_ROLE in ["CONSUMER","ALL"]:
+            logger.info("RabbitMQ CONSUMER start")
+            consumer_manager = QueueConsumerManager()
+            await consumer_manager.start_all_consumers(rabbitmq_client)
     else:
         logger.info(f"LOCAL mode: RabbitMQ not required, will use direct database operations")
         rabbitmq_client = None

@@ -1,43 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
   <head>
-    <script>self["MonacoEnvironment"] = (function (paths) {
-          return {
-            globalAPI: false,
-            getWorkerUrl : function (moduleId, label) {
-              var result =  paths[label];
-              if (/^((http:)|(https:)|(file:)|(\/\/))/.test(result)) {
-                var currentUrl = String(window.location);
-                var currentOrigin = currentUrl.substr(0, currentUrl.length - window.location.hash.length - window.location.search.length - window.location.pathname.length);
-                if (result.substring(0, currentOrigin.length) !== currentOrigin) {
-                  var js = '/*' + label + '*/importScripts("' + result + '");';
-                  var blob = new Blob([js], { type: 'application/javascript' });
-                  return URL.createObjectURL(blob);
-                }
-              }
-              return result;
-            }
-          };
-        })({
-  "editorWorkerService": "/quantflow/monacoeditorwork/editor.worker.bundle.js",
-  "css": "/quantflow/monacoeditorwork/css.worker.bundle.js",
-  "html": "/quantflow/monacoeditorwork/html.worker.bundle.js",
-  "json": "/quantflow/monacoeditorwork/json.worker.bundle.js",
-  "typescript": "/quantflow/monacoeditorwork/ts.worker.bundle.js",
-  "javascript": "/quantflow/monacoeditorwork/ts.worker.bundle.js",
-  "less": "/quantflow/monacoeditorwork/css.worker.bundle.js",
-  "scss": "/quantflow/monacoeditorwork/css.worker.bundle.js",
-  "handlebars": "/quantflow/monacoeditorwork/html.worker.bundle.js",
-  "razor": "/quantflow/monacoeditorwork/html.worker.bundle.js"
-});</script>
-
     <meta charset="UTF-8">
     <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <title>PandaAI QuantFlow</title>
-    <script type="module" crossorigin src="/quantflow/assets/main-BiUkPfWp.js"></script>
-    <link rel="stylesheet" crossorigin href="/quantflow/assets/main-Cs4ipP4k.css">
+    <script type="module" crossorigin src="/quantflow/assets/main-BMJQvnQN.js"></script>
+    <link rel="stylesheet" crossorigin href="/quantflow/assets/main-rhwZ2Vxm.css">
   </head>
   <body>
     <div id="app"></div>
