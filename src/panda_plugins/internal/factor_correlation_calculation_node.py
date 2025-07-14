@@ -51,7 +51,7 @@ class FactorCorrelationOutputModel(BaseModel):
     
 
 
-@work_node(name="因子相关性分析", group="04-因子相关", type="general", box_color="green")
+@work_node(name="因子相关性分析", group="04-因子相关", type="general", box_color="purple")
 class FactorCorrelationCalculationControl(BaseWorkNode):
     """
     因子相关性分析节点

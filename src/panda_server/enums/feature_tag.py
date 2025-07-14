@@ -11,7 +11,7 @@ class FeatureTag(str, Enum):
 
 # Maintain a mapping of feature tag to specific node names
 FeatureTagNodeNames = {
-    FeatureTag.BACKTEST: ["FutureBacktestControl"],
+    FeatureTag.BACKTEST: ["FutureBacktestControl","StockBacktestControl"],
     FeatureTag.SIGNAL: [],
     FeatureTag.FACTOR: ["FactorAnalysisControl"],
     FeatureTag.TRADE: [],

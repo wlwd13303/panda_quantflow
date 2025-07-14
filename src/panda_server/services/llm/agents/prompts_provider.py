@@ -58,6 +58,24 @@ class PromptsProvider:
   * Implementation efficiency and optimization
   * Factor combination and interaction analysis
 
+# CRITICAL CONSTRAINT: Available Base Factors
+**YOU CAN ONLY USE THESE BASE FACTORS - NO OTHER DATA IS AVAILABLE:**
+- `close`: 收盘价 (Closing price)
+- `open`: 开盘价 (Opening price)
+- `high`: 最高价 (High price)
+- `low`: 最低价 (Low price)
+- `volume`: 成交量 (Trading volume)
+- `amount`: 成交额 (Trading amount)
+- `vwap`: 成交量加权平均价 (Volume-weighted average price)
+- `turnover`: 换手率 (Turnover rate)
+- `factor`: 复权调整因子 (Adjustment factor for price splits/dividends)
+
+**IMPORTANT NOTES:**
+1. **NO FUNDAMENTAL DATA**: There is NO access to earnings, P/E ratios, financial statements, or any fundamental data
+2. **NO MARKET DATA**: There is NO access to market cap, shares outstanding, or other market-derived metrics beyond the above 9 base factors
+3. **BUILD FROM BASICS**: All complex indicators (like momentum, volatility, relative strength) must be constructed using only the available base factors
+4. **DO NOT ASSUME**: Never use `factors['pe_ratio']`, `factors['market_cap']`, `factors['earnings']` or any other non-listed factors
+
 # Professional Capabilities
 
 ## 1. Data Requirements
@@ -124,15 +142,66 @@ class PromptsProvider:
 
 3. Example Format:
 ```python
-# Formula Mode
+# Formula Mode - Price momentum factor
 RANK(CLOSE / DELAY(CLOSE, 20) - 1)
 
-# Python Mode
+# Python Mode - Volume-weighted price momentum
 class MomentumFactor(Factor):
     def calculate(self, factors):
         close = factors['close']
+        volume = factors['volume']
         returns = (close / DELAY(close, 20)) - 1
-        return RANK(returns)
+        vol_weighted_momentum = returns * RANK(volume)
+        return RANK(vol_weighted_momentum)
+```
+
+# Factor Construction Examples for Common Requests
+
+## Momentum Factors
+```python
+# Simple price momentum
+class PriceMomentum(Factor):
+    def calculate(self, factors):
+        close = factors['close']
+        return RANK(close / DELAY(close, 20) - 1)
+
+# Volume-confirmed momentum  
+class VolumeConfirmedMomentum(Factor):
+    def calculate(self, factors):
+        close = factors['close']
+        volume = factors['volume']
+        price_mom = close / DELAY(close, 20) - 1
+        vol_factor = volume / DELAY(volume, 20)
+        return RANK(price_mom * vol_factor)
+```
+
+## Volatility Factors
+```python
+# Price volatility
+class PriceVolatility(Factor):
+    def calculate(self, factors):
+        close = factors['close']
+        returns = close / DELAY(close, 1) - 1
+        return RANK(-STDDEV(returns, 20))  # Negative for low vol preference
+```
+
+## Volume Factors
+```python
+# Relative volume
+class RelativeVolume(Factor):
+    def calculate(self, factors):
+        volume = factors['volume']
+        return RANK(volume / MA(volume, 20))
+```
+
+## Mean Reversion Factors
+```python
+# Price mean reversion
+class PriceMeanReversion(Factor):
+    def calculate(self, factors):
+        close = factors['close']
+        ma20 = MA(close, 20)
+        return RANK(-(close / ma20 - 1))  # Negative for mean reversion
 ```
 
 # Important Notes
@@ -140,6 +209,7 @@ class MomentumFactor(Factor):
 2. You must ensure factor logic doesn't use future data
 3. You must follow daily calculation and next-day trading rules
 4. For non-factor development questions, you should politely redirect to professional domain
+5. **CRITICAL**: Always check that you are only using the 9 available base factors listed above
 """
 
 
@@ -310,16 +380,19 @@ Always return a JSON object with exactly these fields:
             return RANK(returns) * SCALE(vol_ratio)
     ```
 
-## Available Base Factors
-- close: Closing price
-- open: Opening price
-- high: High price
-- low: Low price
-- volume: Trading volume
-- amount: Trading amount
-- vwap: Volume-weighted average price
-- turnover: Turnover rate
-- factor: Adjustment factor
+## Available Base Factors (ONLY THESE 9 FACTORS ARE AVAILABLE)
+**CRITICAL CONSTRAINT: You can ONLY use these factors in factors['factor_name'] syntax:**
+- close: 收盘价 (Closing price)
+- open: 开盘价 (Opening price) 
+- high: 最高价 (High price)
+- low: 最低价 (Low price)
+- volume: 成交量 (Trading volume)
+- amount: 成交额 (Trading amount)
+- vwap: 成交量加权平均价 (Volume-weighted average price)
+- turnover: 换手率 (Turnover rate)
+- factor: 复权调整因子 (Adjustment factor for stock splits/dividends)
+
+**DO NOT USE**: pe_ratio, market_cap, earnings, revenue, or any other fundamental/market data - THEY DO NOT EXIST
 
 ## Built-in Functions
 ### Basic Calculation Functions

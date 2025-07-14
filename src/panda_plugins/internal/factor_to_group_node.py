@@ -50,7 +50,7 @@ class FactorToGroupOutputModel(BaseModel):
 
 
 @work_node(name="单因子集合到因子组", group="04-因子相关", type="general", box_color="green")
-class MultiFactorMergeControl(BaseWorkNode):
+class FactorToGroupControl(BaseWorkNode):
     """
     单因子集合器节点
     
@@ -167,7 +167,7 @@ class MultiFactorMergeControl(BaseWorkNode):
 
 if __name__ == "__main__":
     # 测试代码
-    node = MultiFactorMergeControl()
+    node = FactorToGroupControl()
     
     # 创建测试数据 - 5个因子DataFrame (使用MultiIndex)
     dates = ['20240101', '20240102', '20240103']

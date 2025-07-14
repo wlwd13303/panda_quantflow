@@ -37,16 +37,30 @@ not_allowed_imports = [
     "rabbitmq",
 ]
 
-# 基础因子列表
+# 基础因子列表 - 注意：这些必须与实际可用的因子保持一致
 base_factors = [
-    "CLOSE",
-    "OPEN",
-    "HIGH",
-    "LOW",
-    "VOLUME",
-    "AMOUNT",
-    "TURNOVER",
-    "MARKET_CAP",
+    "close",      # 收盘价
+    "open",       # 开盘价  
+    "high",       # 最高价
+    "low",        # 最低价
+    "volume",     # 成交量
+    "amount",     # 成交额
+    "vwap",       # 成交量加权平均价
+    "turnover",   # 换手率
+    "factor",     # 复权调整因子
+]
+
+# 禁用的因子（用户经常错误使用的）
+forbidden_factors = [
+    "pe_ratio",
+    "market_cap", 
+    "earnings",
+    "revenue",
+    "pb_ratio",
+    "roe",
+    "roa",
+    "debt_ratio",
+    "shares_outstanding",
 ]
 
 # 内置函数列表

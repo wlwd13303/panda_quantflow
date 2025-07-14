@@ -85,6 +85,11 @@ class FactorCodeChecker(BaseCodeChecker):
             if all_violations:
                 result.append({"type": "illegal_key_method_usage", "msg": all_violations})
 
+        # 7. 检查禁用因子的使用
+        forbidden_factor_error = self.check_forbidden_factors()
+        if forbidden_factor_error:
+            result.append({"type": "forbidden_factor_usage", "msg": forbidden_factor_error})
+
         return result
 
     def check_imports(self, mode:str="blacklist") -> str | None:
@@ -178,4 +183,38 @@ class FactorCodeChecker(BaseCodeChecker):
             )
             if check_result:
                 all_violations.append(check_result)
-        return all_violations 
+        return all_violations
+
+    def check_forbidden_factors(self) -> str | None:
+        """
+        检查代码中是否使用了禁用的因子
+        Check if forbidden factors are used in the code
+        
+        Returns:
+            str | None: 错误信息，如果没有使用禁用因子则返回None
+        """
+        try:
+            tree = ast.parse(self.code)
+        except SyntaxError:
+            # 如果语法错误，其他地方会处理，这里直接返回
+            return None
+        
+        forbidden_used = []
+        
+        for node in ast.walk(tree):
+            # 检查 factors['forbidden_factor'] 模式
+            if isinstance(node, ast.Subscript):
+                if (isinstance(node.value, ast.Name) and 
+                    node.value.id == 'factors' and
+                    isinstance(node.slice, ast.Constant)):
+                    factor_name = node.slice.value
+                    if factor_name in forbidden_factors:
+                        forbidden_used.append(factor_name)
+        
+        if forbidden_used:
+            unique_forbidden = list(set(forbidden_used))
+            error_msg = (f"使用了不存在的因子: {', '.join(unique_forbidden)}。"
+                        f"只能使用以下9个基础因子: {', '.join(base_factors)}")
+            return error_msg
+        
+        return None 

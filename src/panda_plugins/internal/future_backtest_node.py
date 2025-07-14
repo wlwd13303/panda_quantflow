@@ -88,10 +88,13 @@ class FutureBacktestControl(BaseWorkNode):
         try:
             backtest_id=start(code=input.code,start_future_capital=input.start_future_capital,future_account_id="8888",start_date=input.start_date,end_date=input.end_date,commission_rate=input.commission_rate,margin_rate=input.margin_rate,frequency=input.frequency,df_factor=input.factors)
         except Exception as e:
-            # 提取前两行和最后一行
-            error_lines = e.message.splitlines()
-            self.log_error(error_lines[0]+"\n"+error_lines[1]+"\n异常信息："+error_lines[2])
-            # backtest_id="error"
+            if hasattr(e, "message"):
+                # 提取前两行和最后一行
+                error_lines = e.message.splitlines()
+                self.log_error(error_lines[0] + "\n" + error_lines[1] + "\n异常信息：" + error_lines[2])
+                # backtest_id="error"
+            else:
+                self.log_error(str(e))
         return FutureBacktestOutputModel(backtest_id=str(backtest_id))
 
 if __name__ == "__main__":

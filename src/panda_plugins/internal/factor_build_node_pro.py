@@ -81,7 +81,10 @@ class FactorBuildProControl(BaseWorkNode):
         if input.direction == "负向":
             factor_values.iloc[:, -1] = factor_values.iloc[:, -1] * -1
 
+        print("因子值:")
         print(factor_values)
+        if factor_values is None:
+            raise ValueError("因子值为空")
         return FactorBuildProOutputModel(factor=factor_values.reset_index())
 
 if __name__ == "__main__":

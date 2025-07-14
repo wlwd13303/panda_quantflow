@@ -74,7 +74,7 @@ class StockBacktestControl(BaseWorkNode):
         except Exception as e:
             # 提取前两行和最后一行
             error_lines = e.message.splitlines()
-            self.log_error(error_lines[0]+"\n"+error_lines[1]+"\n异常信息："+error_lines[2])
+            self.log_error(error_lines[0] + "\n" + error_lines[1] + "\n异常信息：" + error_lines[2])
             return StockBacktestOutputModel(backtest_id=str(back_test_id))
         return StockBacktestOutputModel(backtest_id=str(back_test_id))
 

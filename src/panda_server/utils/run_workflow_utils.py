@@ -16,6 +16,7 @@ from panda_server.models.workflow_run_model import (
 from panda_plugins.base.work_node_registery import ALL_WORK_NODES
 from panda_server.utils.db_storage import save_to_gridfs
 from common.logging.user_logger import UserLogger
+from panda_plugins.utils.time_util import TimeUtil
 
 logger = logging.getLogger(__name__)
 
@@ -329,6 +330,38 @@ async def run_workflow_in_background(workflow_run_id):
                     "节点输入数据", workflow_id=workflow_id, work_node_id=node_id, input_fields=list(input_data.keys())
                 )
 
+                print("----------节点输入数据-------------")
+                print(node_input)
+                # 判断node_input中是否存在start_date和end_date,如果存在的话，则获取时间范围，看看是否超过3年。
+                if hasattr(node_input, "start_date") and hasattr(node_input, "end_date"):
+                    time_range = TimeUtil.get_time_range(start_time=node_input.start_date, end_time=node_input.end_date)
+                    print(f"时间范围：{time_range}天")
+                    if time_range > 3 * 365:
+                        error_msg = "开始时间和结束时间之间的时间范围不能超过3年"
+                        logger.error(error_msg)
+                        await user_logger.error(error_msg, workflow_id=workflow_id, work_node_id=node_id, input_fields=list(input_data.keys()))
+                        raise Exception(error_msg)
+
+                # 判断node_input中是否存在test_start_date和test_end_date,如果存在的话，则获取时间范围，看看是否超过3年。
+                if hasattr(node_input, "test_start_date") and hasattr(node_input, "test_end_date"):
+                    time_range = TimeUtil.get_time_range(start_time=node_input.test_start_date, end_time=node_input.test_end_date)
+                    print(f"时间范围：{time_range}天")
+                    if time_range > 3 * 365:
+                        error_msg = "回测开始时间和回测结束时间之间的时间范围不能超过3年"
+                        logger.error(error_msg)
+                        await user_logger.error(error_msg, workflow_id=workflow_id, work_node_id=node_id, input_fields=list(input_data.keys()))
+                        raise Exception(error_msg)
+
+                # 判断node_input中是否存在predict_start_date和predict_end_date,如果存在的话，则获取时间范围，看看是否超过3年。
+                if hasattr(node_input, "predict_start_date") and hasattr(node_input, "predict_end_date"):
+                    time_range = TimeUtil.get_time_range(start_time=node_input.predict_start_date, end_time=node_input.predict_end_date)
+                    print(f"时间范围：{time_range}天")
+                    if time_range > 3 * 365:
+                        error_msg = "预测开始时间和预测结束时间之间的时间范围不能超过3年"
+                        logger.error(error_msg)
+                        await user_logger.error(error_msg, workflow_id=workflow_id, work_node_id=node_id, input_fields=list(input_data.keys()))
+                        raise Exception(error_msg)
+
                 # 在线程池中执行节点的run方法
                 node_output = await run_in_threadpool(
                     lambda: run_without_stdout(node_instance.run, node_input)
@@ -374,7 +407,7 @@ async def run_workflow_in_background(workflow_run_id):
                     workflow_run_id, str(e), stack_trace, failed_node_ids
                 )
                 await user_logger.error(
-                    "节点执行失败",
+                    f"节点 {node.name} 执行失败，报错信息: {e}",
                     workflow_id=workflow_id,
                     work_node_id=node_id,
                     node_name=node.name,
