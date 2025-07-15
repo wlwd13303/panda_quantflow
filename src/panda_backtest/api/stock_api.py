@@ -40,7 +40,7 @@ def stock_api_pre_close(df_stock_code: pd.DataFrame, date: str):
     df_bar = pd.DataFrame(bar_dict)
     return df_bar
 """
-获取股票的pre_close
+获取股票行情
 """
 @append_to_api_list
 def stock_api_quotation(symbol_list=None, start_date=None, end_date=None, fields=None, period=None):
@@ -83,3 +83,23 @@ def stock_api_quotation(symbol_list=None, start_date=None, end_date=None, fields
     df_bar = pd.DataFrame(bar_dict)
 
     return df_bar
+
+if __name__ == '__main__':
+    # print(">>> 测试 stock_api_pre_close")
+    # test_df = pd.DataFrame({'symbol': ['000001.SZ', '600000.SH']})
+    # test_date = '20250710'
+    # df_pre_close = stock_api_pre_close(test_df, test_date)
+    # print(df_pre_close)
+
+    # 测试 stock_api_quotation
+    print("\n>>> 测试 stock_api_quotation")
+    df_quotation = stock_api_quotation(
+        symbol_list=['000001.SZ', '600000.SH'],
+        start_date='20250710',
+        end_date='20250712',
+        fields=['symbol','pre_close', 'close', 'volume'],
+        period='1d'
+    )
+    print(df_quotation)
+    # pd.set_option('display.max_columns', None)
+    # pd.set_option('display.max_rows', None)

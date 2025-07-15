@@ -21,6 +21,8 @@ async def get_all_plugins_logic():
             display_name=getattr(node_class, "__work_node_display_name__"),
             group=getattr(node_class, "__work_node_group__"),
             type=getattr(node_class, "__work_node_type__"),
+            short_description=getattr(node_class, "__short_description__"),
+            long_description=getattr(node_class,"__long_description__"),
             box_color=getattr(node_class, "__work_node_box_color__"),
         )
 

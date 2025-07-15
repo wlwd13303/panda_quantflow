@@ -20,6 +20,8 @@ class BaseWorkNode(ABC):
     __work_node_group__: str
     __work_node_order__: int
     __work_node_type__: str
+    __short_description__: str = ""  # html rich text
+    __long_description__: str = ""  # html rich text
 
     def __init__(self):
         # 日志记录器，由工作流执行器设置
@@ -228,3 +230,11 @@ class BaseWorkNode(ABC):
                     raise
         """
         pass
+
+    @classmethod
+    def set_short_description(cls, html: str):
+        cls.__short_description__ = html.strip()
+
+    @classmethod
+    def set_long_description(cls, html: str):
+        cls.__long_description__ = html.strip()

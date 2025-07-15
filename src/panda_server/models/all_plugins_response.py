@@ -10,6 +10,8 @@ class PluginInfo(BaseModel):
     group: str
     type: str
     box_color: Optional[Literal["red", "brown", "green", "blue", "cyan", "purple", "yellow", "black"]] = "black"
+    short_description: str
+    long_description: str
     input_schema: Optional[Dict[str, Any]] = {}
     output_schema: Optional[Dict[str, Any]] = {}
 

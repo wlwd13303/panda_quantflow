@@ -133,7 +133,7 @@ class DatabaseHandler:
         collection = self.get_mongo_collection(db_name, collection_name)
         return collection.distinct(field)
 
-    def mongo_find_one(self, db_name, collection_name, query, hint=None, project=None, sort=None):
+    def mongo_find_one(self, db_name, collection_name, query, hint=None, projection=None, sort=None):
         """
         Find a single document in MongoDB collection
 
@@ -152,8 +152,8 @@ class DatabaseHandler:
 
         if hint:
             find_args['hint'] = hint
-        if project:
-            find_args['projection'] = project
+        if projection:
+            find_args['projection'] = projection
         if sort:
             find_args['sort'] = sort
 

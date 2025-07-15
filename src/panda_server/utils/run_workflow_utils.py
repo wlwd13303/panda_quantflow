@@ -1,5 +1,3 @@
-import contextlib
-import os
 import traceback
 import logging
 import uuid
@@ -17,6 +15,8 @@ from panda_plugins.base.work_node_registery import ALL_WORK_NODES
 from panda_server.utils.db_storage import save_to_gridfs
 from common.logging.user_logger import UserLogger
 from panda_plugins.utils.time_util import TimeUtil
+from panda_plugins.utils.error_code import ErrorCode
+from panda_plugins.utils.work_node_loader import load_work_node_from_db, unload_work_node_from_db
 
 logger = logging.getLogger(__name__)
 
@@ -288,7 +288,19 @@ async def run_workflow_in_background(workflow_run_id):
                 logger.info(
                     f"[EXEC:{execution_id}] run_workflow_logic: running work node id: {node_id}, name: {node.name}"
                 )
-                node_class = ALL_WORK_NODES.get(node.name)
+                
+                if len(node.name.split(":")) == 1:
+                    node_class = ALL_WORK_NODES.get(node.name)
+                else:
+                    # TODO @cgt 统筹处理和调试这一部分逻辑
+                    node_class_name = node.name.split(":")[0]
+                    node_class_db_id = node.name.split(":")[1]
+                    # TODO @cgt 这里还忽视了权限检查, 你在工作流运行前统一检查
+                    module = load_work_node_from_db(node_class_db_id)
+                    node_class = getattr(module, node_class_name)
+                    # TODO @cgt 工作流运行结束后要执行
+                    # unload_work_node_from_db(node_class_db_id)
+                    
                 node_instance = node_class()
                 
                 # 设置节点的日志上下文，使用户在节点中调用 self.log_info 等方法时能存储到数据库
@@ -339,7 +351,6 @@ async def run_workflow_in_background(workflow_run_id):
                     if time_range > 3 * 365:
                         error_msg = "开始时间和结束时间之间的时间范围不能超过3年"
                         logger.error(error_msg)
-                        await user_logger.error(error_msg, workflow_id=workflow_id, work_node_id=node_id, input_fields=list(input_data.keys()))
                         raise Exception(error_msg)
 
                 # 判断node_input中是否存在test_start_date和test_end_date,如果存在的话，则获取时间范围，看看是否超过3年。
@@ -349,7 +360,6 @@ async def run_workflow_in_background(workflow_run_id):
                     if time_range > 3 * 365:
                         error_msg = "回测开始时间和回测结束时间之间的时间范围不能超过3年"
                         logger.error(error_msg)
-                        await user_logger.error(error_msg, workflow_id=workflow_id, work_node_id=node_id, input_fields=list(input_data.keys()))
                         raise Exception(error_msg)
 
                 # 判断node_input中是否存在predict_start_date和predict_end_date,如果存在的话，则获取时间范围，看看是否超过3年。
@@ -359,7 +369,6 @@ async def run_workflow_in_background(workflow_run_id):
                     if time_range > 3 * 365:
                         error_msg = "预测开始时间和预测结束时间之间的时间范围不能超过3年"
                         logger.error(error_msg)
-                        await user_logger.error(error_msg, workflow_id=workflow_id, work_node_id=node_id, input_fields=list(input_data.keys()))
                         raise Exception(error_msg)
 
                 # 在线程池中执行节点的run方法
@@ -413,6 +422,7 @@ async def run_workflow_in_background(workflow_run_id):
                     node_name=node.name,
                     error=str(e),
                     suggestions=friendly_error,
+                    error_detail=ErrorCode.get_error_by_message(error_msg=str(e))
                 )
                 # 更新工作流状态为失败
                 workflow_run_update_data = WorkflowRunUpdateModel(

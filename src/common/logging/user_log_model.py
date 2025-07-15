@@ -34,6 +34,7 @@ class UserLog(BaseModel):
     work_node_id: Optional[str] = None
     sequence: int = Field(default=0, description="日志在同一workflow中的序列号，从1开始自增，0表示待自动分配")
     workflow_id: Optional[str] = None
+    error_detail: Optional[Any] = None
 
     class Config:
         populate_by_name = True

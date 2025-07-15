@@ -274,7 +274,7 @@ stock_account = context.stock_account_dict['8888']
 ```
 
 
-### BarDict对象
+### Bar对象
 
 >对象：**bar**
 >描述：当前bar行情对象
@@ -299,7 +299,7 @@ bar[合约]
 | oi | long | 持仓量 |
 | turnover | double | 成交金额 |
 *****
-> 注意点: bar 不是 python 内置字典类型, 无法使用 bar.get(), bar.keys()等方法. 需要以 bar['行情对象'] 方式来使用.
+> 重要: bar 不是 python 内置字典类型, 需要以 bar['行情对象'] 方式来使用. 无法使用 bar.keys(), bar.items(), bar.values(), bar.__contains__(key), bar.__iter__(),bar.__len__() 等方法, 也不能进行遍历和使用in方法判断.
 > 例子
 ``` python
 # 获取平安银行当前bar收盘价

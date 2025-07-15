@@ -95,11 +95,11 @@ class UserLogger:
         collection = mongodb.db["workflow_logs"]
         return await collection.insert_one(user_log.model_dump(by_alias=True))
     
-    async def _log(self, level: str, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, **kwargs):
+    async def _log(self, level: str, message: str, workflow_id: Optional[str] = None, work_node_id: Optional[str] = None, error_detail: Optional[str] = None, **kwargs):
         """内部日志记录方法（直接处理所有逻辑）"""
         if mongodb.db is None:
             # 数据库不可用，只记录到系统日志
-            self.sys_logger.info(f"[USER_LOG] {level} - {message} (workflow_id: {workflow_id}, work_node_id: {work_node_id}, kwargs: {kwargs})")
+            self.sys_logger.info(f"[USER_LOG] {level} - {message} (workflow_id: {workflow_id}, work_node_id: {work_node_id}, error_detail: {error_detail}, kwargs: {kwargs})")
             return
         
         # 创建UserLog对象
@@ -110,7 +110,8 @@ class UserLogger:
             level=level,
             message=message,
             type="workflow_run",
-            workflow_id=workflow_id
+            workflow_id=workflow_id,
+            error_detail=error_detail
         )
         
         # 如果有workflow_run_id且sequence为0，自动生成序列号

@@ -15,6 +15,9 @@ class BarMap(object):
     def __init__(self, bar_data_source: BaseBarDataSource):
         self.context = CoreContext.get_instance()
         self.bar_data_source = bar_data_source
+        
+    def get(self, key):
+        return self.__getitem__(key)
 
     def __getitem__(self, key):
         """
@@ -22,7 +25,7 @@ class BarMap(object):
         :param key:
         :return:
         """
-        if not isinstance(key, six.string_types):
+        if not isinstance(key, str):
             # TODO：抛异常
             raise Exception('获取行情数据失败')
 

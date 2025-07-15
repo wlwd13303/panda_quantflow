@@ -49,7 +49,7 @@ class FactorToGroupOutputModel(BaseModel):
         return v
 
 
-@work_node(name="单因子集合到因子组", group="04-因子相关", type="general", box_color="green")
+@work_node(name="因子集合器", group="04-因子相关", type="general", box_color="green")
 class FactorToGroupControl(BaseWorkNode):
     """
     单因子集合器节点

@@ -84,8 +84,13 @@ class FactorBuildProControl(BaseWorkNode):
         print("因子值:")
         print(factor_values)
         if factor_values is None:
-            raise ValueError("因子值为空")
-        return FactorBuildProOutputModel(factor=factor_values.reset_index())
+            raise ValueError("因子值为空")        
+        # 重置索引并修改列名
+        factor_df = factor_values.reset_index()
+        if 'value' in factor_df.columns:
+            factor_df = factor_df.rename(columns={'value': 'factor_value'})
+        
+        return FactorBuildProOutputModel(factor=factor_df)
 
 if __name__ == "__main__":
     node = FactorBuildProControl()

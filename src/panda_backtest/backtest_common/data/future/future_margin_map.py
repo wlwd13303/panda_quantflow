@@ -33,7 +33,7 @@ class FutureMarginMap(BaseFutureMarginMap):
         # collection = self.quotation_mongo_db.future_margin
         process_symbol=self.process_symbol(symbol)
         instrument_info = self.quotation_mongo_db.mongo_find_one(db_name="panda",collection_name="future_margin",query=
-            {'symbol': str(process_symbol), 'trade_date': trade_date}, project={'long_margin': 1, 'short_margin': 1, 'margin': 1})
+            {'symbol': str(process_symbol), 'trade_date': trade_date}, projection={'long_margin': 1, 'short_margin': 1, 'margin': 1})
         if instrument_info:
             instrument_info['name'] = symbol
             return instrument_info

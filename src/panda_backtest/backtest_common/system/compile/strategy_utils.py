@@ -57,8 +57,7 @@ class FileStrategyLoader(object):
 def strategy_compile(source_code, strategy, scope):
     try:
         # 在策略作用域中注入自定义的print函数
-        scope['print'] = create_strategy_print()
-        
+        scope['print'] = create_strategy_print()        
         code = compile(source_code, strategy, 'exec')
         six.exec_(code, scope)
         return scope

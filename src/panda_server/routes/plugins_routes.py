@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status
 import logging
 
 from panda_server.logic.get_all_plugins_logic import get_all_plugins_logic
-from panda_server.models.all_plugins_response import AllPluginsResponse, PluginInfo
+from panda_server.models.all_plugins_response import AllPluginsResponse
 import traceback
 import logging
 

@@ -22,6 +22,24 @@ class FuturePositions(object):
 
         return FuturePositionsItems(key, long_pos_dict, short_pos_dict)
 
+    def __contains__(self, key):
+        """检查期货合约是否在持仓中"""
+        return key in self.keys()
+
+    def get(self, key, default=None):
+        """获取指定键的值，如果键不存在则返回默认值"""
+        if key in self:
+            return self[key]
+        return default
+
+    def __iter__(self):
+        """返回迭代器，迭代所有键"""
+        return iter(self.keys())
+
+    def __len__(self):
+        """返回持仓字典的长度"""
+        return len(self.keys())
+
     def items(self):
 
         long_pos_dict = self.strategy_context.all_trade_reverse_result.get_future_reverse_result(

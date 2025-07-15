@@ -32,7 +32,7 @@ class FutureInfoMap(BaseFutureInfoMap):
 
             collection="future_info"
             instrument_info =  self.quotation_mongo_db.mongo_find_one(db_name="panda",collection_name=collection,query=
-                {'symbolcode': str(key.split(".")[0])}, project={'emcode': 1, 'name': 1, 'ftmktsname': 1, 'deliverydate': 1, 'starttradedate': 1,
+                {'symbolcode': str(key.split(".")[0])}, projection={'emcode': 1, 'name': 1, 'ftmktsname': 1, 'deliverydate': 1, 'starttradedate': 1,
                                        'lasttradedate': 1, 'emcodetype': 1, 'contractmul': 1, 'listdate': 1,
                                        'fttransmargin': 1, 'ftfirsttransmargin': 1, 'ftpricelimit': 1,
                                        'ftminpricechg': 1})
