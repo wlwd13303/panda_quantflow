@@ -48,6 +48,7 @@ dependencies = [
     "async_timeout",
     "json2html",
     "uuid6",
+    "python-dotenv",
     "python-socketio",
     "openai>=1.0.0",
     "dotenv>=0.9.9",
