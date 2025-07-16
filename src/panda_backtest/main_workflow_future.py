@@ -20,7 +20,6 @@ def start(code:str,start_future_capital:int,future_account_id:str,start_date:str
 
     handle_message = {'code': code,
     # handle_message = {'file': '/Users/peiqi/code/python/panda_workflow/src/panda_backtest/strategy/ase.py',
-                      'df_factor': df_factor_pro,
                       'run_params': 'no_opz',
                       'start_capital': 10000000,
                       'start_date': start_date,
@@ -42,7 +41,6 @@ def start(code:str,start_future_capital:int,future_account_id:str,start_date:str
     # 系统核心上下文 创建q
     strategy_context = StrategyContext()
     if not df_factor.empty:
-        df_factor_pro = df_factor.reset_index()
         strategy_context.init_factor_params(df_factor)
     param_dict = dict()
     run_params = handle_message['run_params']

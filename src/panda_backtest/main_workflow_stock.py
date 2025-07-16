@@ -26,7 +26,6 @@ def start(back_test_id:str,code:str,start_date:str,end_date:str, start_capital: 
     standard_symbol_pro = symbol_map.get(standard_symbol)
     handle_message = {'code': code,
                       'file':'/Users/peiqi/code/python/panda_workflow/src/panda_backtest/strategy/stock01.py',
-                      'df_factor': df_factor_pro,
                       'run_params': 'no_opz',
                       'start_capital': start_capital,
                       'start_date': start_date,
@@ -53,7 +52,6 @@ def start(back_test_id:str,code:str,start_date:str,end_date:str, start_capital: 
     # 系统核心上下文 创建q
     strategy_context = StrategyContext()
     if not df_factor.empty:
-        df_factor_pro = df_factor.reset_index()
         strategy_context.init_factor_params(df_factor)
     param_dict = dict()
     run_params = handle_message['run_params']
