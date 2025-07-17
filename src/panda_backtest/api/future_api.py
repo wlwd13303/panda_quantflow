@@ -8,8 +8,8 @@ Description:
 import pandas as pd
 from common.connector.mongodb_handler import DatabaseHandler
 from common.config.config import config
-pd.set_option('display.max_columns', None)
-pd.set_option('display.max_rows', None)
+# pd.set_option('display.max_columns', None)
+# pd.set_option('display.max_rows', None)
 api_list = []
 
 
@@ -26,10 +26,8 @@ def append_to_api_list(func):
 quotation_mongo_db = DatabaseHandler(config=config)
 
 """
-查询品种某一天的主力合约
+1.查询品种某一天的主力合约
 """
-
-
 @append_to_api_list
 def future_api_domain_symbol(symbol: str, date: str):
     # 构造 Mongo 查询条件
@@ -48,7 +46,7 @@ def future_api_domain_symbol(symbol: str, date: str):
 
 
 """
-获取期货行情
+2.获取期货行情
 """
 @append_to_api_list
 def future_api_quotation(symbol_list=None, start_date=None, end_date=None, fields=None, period=None):
@@ -100,10 +98,8 @@ def future_api_quotation(symbol_list=None, start_date=None, end_date=None, field
 
 
 """
-获取合约最小乘数
+3.获取合约最小乘数
 """
-
-
 @append_to_api_list
 def future_api_symbol_contractmul(symbol_list=None):
     #对symbol进行处理
@@ -151,12 +147,37 @@ def future_api_symbol_contractmul(symbol_list=None):
     # 定义替换规则
     return df_bar
 
+"""
+4.获取品种合约集合
+"""
+@append_to_api_list
+def future_api_symbol_contracts(underlying_symbol: str, exchange:str):
+    # 构造 Mongo 查询条件
+    query = {
+        "underlying_symbol": underlying_symbol,
+        "exchange": exchange
+    }
+    bar_dict = quotation_mongo_db.mongo_find(
+        db_name=config["MONGO_DB"],
+        collection_name='future_symbol',
+        query=query,
+        projection={'_id': 0, 'underlying_symbol':1,'order_book_id': 1, 'exchange': 1}
+    )
+    df_bar = pd.DataFrame(bar_dict)
+    df_bar['symbol'] = df_bar[['order_book_id', 'exchange']].astype(str).agg('.'.join, axis=1)
+    return df_bar[['symbol','exchange','underlying_symbol']]
+
+
+
+
 if __name__ == '__main__':
     # 测试查询主力合约
     # result = future_api_domain_symbol(symbol="AG88", date="20250605")
     # print(result)
-    result =future_api_symbol_contractmul(symbol_list=["IC2501.CFFEX","AG2504.SHFE","RI1907.CZC","V2502.DCE","BC2511.INE","LC2505.GFEX"])
-    print(result)
+    # result =future_api_symbol_contractmul(symbol_list=["IC2501.CFFEX","AG2504.SHFE","RI1907.CZC","V2502.DCE","BC2511.INE","LC2505.GFEX"])
+    # print(result)
     # 测试查询期货行情
     # result = future_api_quotation(symbol_list=["IC88","AG2508.SHFE"],start_date="20250420",end_date="20250430",period="1d")
     # print(result)
+    result =future_api_symbol_contracts(underlying_symbol="A",exchange="DCE")
+    print(result)

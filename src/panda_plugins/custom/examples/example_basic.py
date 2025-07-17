@@ -53,10 +53,10 @@ class ExamplePluginAddition(BaseWorkNode):
         result = input.number1 + input.number2
         return OutputModel(result=result)
 
-# 设置简短预览介绍 (HTML 富文本, 推荐使用工具: https://wordtohtml.net/site/index) 
+# 设置简短预览介绍 (HTML 富文本, 推荐使用工具: https://html5-editor.net) 
 ExamplePluginAddition.set_short_description('''<p>这是一个简单的加法运算, &nbsp;输入 2 个数值, 输出 <strong><span style="color: rgb(209, 72, 65);">2 个数值的和</span></strong>.</p>''')
 
-# 设置完整预览介绍 (HTML 富文本, 推荐使用工具: https://wordtohtml.net/site/index)
+# 设置完整预览介绍 (HTML 富文本, 推荐使用工具: https://html5-editor.net)
 ExamplePluginAddition.set_long_description('''<p>这是一个简单的加法运算, &nbsp;输入 2 个数值, 输出 <strong><span style="color: rgb(209, 72, 65);">2 个数值的和</span></strong>.</p>
 <p>这里是一张图片说明</p>
 <p><img src="https://code2048.com/images/betacat/betacat02/20.png" alt="示例图片"></pp>

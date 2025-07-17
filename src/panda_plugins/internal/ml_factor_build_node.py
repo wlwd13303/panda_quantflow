@@ -19,6 +19,8 @@ import logging
 
 from panda_plugins.internal.mtl_nn_node import MTLNNModelWrapper
 from panda_plugins.internal.svm_node import SVMModelWrapper
+from panda_plugins.internal.ml_lstm_node import LSTMModelWrapper
+from panda_plugins.internal.ml_gru_node import GRUModelWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +32,6 @@ logger = logging.getLogger(__name__)
     start_date={"input_type": "date_picker"},
     end_date={"input_type": "date_picker"},
 )
-
 class MLFactorBuildInputModel(BaseModel):
     model: MLModel = Field(title="机器学习模型",)
     feature: FeatureModel = Field(title="特征工程",)
@@ -63,6 +64,7 @@ class MLFactorBuildControl(BaseWorkNode):
         factor_values = get_factors(input.feature,input.start_date, input.end_date)
         # 重命名最后一列
         # factor_values.columns = list(factor_values.columns[:-1]) + ['label']
+        print(input.model.model_type)
 
         # 根据模型类型加载对应的模型
         if input.model.model_type == "xgboost":
@@ -76,9 +78,14 @@ class MLFactorBuildControl(BaseWorkNode):
             model = SVMModelWrapper.load(input.model.model_path)
         elif input.model.model_type == "mtl_nn":
             model = MTLNNModelWrapper.load(input.model.model_path)
+        elif input.model.model_type == "lstm":
+            model = LSTMModelWrapper.load(input.model.model_path)
+        elif input.model.model_type == "gru":
+            model = GRUModelWrapper.load(input.model.model_path)
         else:
             raise ValueError(f"不支持的模型类型: {input.model.model_type}")
 
+        print(model)
         print("开始预测计算")
         # 准备数据
         df = factor_values.copy()
@@ -102,12 +109,13 @@ class MLFactorBuildControl(BaseWorkNode):
         df = df.reset_index()[['date', 'symbol', 'value']]
         return MLFactorBuildOutputModel(factor=df)
 
-# if __name__ == "__main__":
-#     node = XgboostControl()
-#     factors = "CLOSE\nLOW"
-#     input = InputModel(feature=FeatureModel(factors=factors, label="RETURNS(CLOSE,1)"),start_date="20250101",end_date="20250301")
-#     model = node.run(input)
-#     node = FactorBuildControl()
-#     factors = "CLOSE\nOPEN\nHIGH\nLOW"
-#     input = InputModel(model=model)
-#     print(node.run(input))
+if __name__ == "__main__":
+    pass
+    # node = XgboostControl()
+    # factors = "CLOSE\nLOW"
+    # input = InputModel(feature=FeatureModel(factors=factors, label="RETURNS(CLOSE,1)"),start_date="20250101",end_date="20250301")
+    # model = node.run(input)
+    # node = FactorBuildControl()
+    # factors = "CLOSE\nOPEN\nHIGH\nLOW"
+    # input = InputModel(model=model)
+    # print(node.run(input))
