@@ -190,7 +190,7 @@ panda_workflow/
 └── docker-compose.yml      # Docker Compose配置
 ```
 
-## 加群答疑
+## 加群答疑（备注【开源】更快通过）
 ![PandaAI 交流群](https://zynf-test.oss-cn-shanghai.aliyuncs.com/github/wechat_2025-06-27_102633_615.png)
 
 ## 贡献
