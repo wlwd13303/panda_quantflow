@@ -1,5 +1,4 @@
-# FROM python:3.9.22-slim
-FROM crpi-oge0xe9byb7l546u.cn-shanghai.personal.cr.aliyuncs.com/pandaai/offline_workflow_service:latest
+FROM panda_factor:latest
 ENV TZ=Asia/Shanghai
 
 WORKDIR /app
