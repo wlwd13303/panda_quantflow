@@ -30,6 +30,7 @@ dependencies = [
     "pytz>=2023.3",
     "pydantic>=2.0.0",
     # 机器学习模型
+    "tensorflow",
     "lightgbm>=4.6.0",
     "openpyxl>=3.1.5",
     "tushare>=1.4.21",
