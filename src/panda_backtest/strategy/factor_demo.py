@@ -80,7 +80,7 @@ class SimpleFactorDemo:
         print(f"  - 动量因子值: {factor1:.4f}\n")
         
         # ============ 因子2：波动率因子 ============
-        print("📊 因子2：波动率因子")
+        print("因子2：波动率因子")
         print("公式：-ts_std(close, 10) / ts_mean(close, 10)")
         
         price_std = self.ts_std(closes, 10)
@@ -165,7 +165,7 @@ class SimpleFactorDemo:
         else:
             signal = "🟡 中性信号"
             
-        print(f"  📊 交易信号: {signal}")
+        print(f"  交易信号: {signal}")
         
         return {
             'momentum': factor1,
@@ -226,7 +226,7 @@ def run_factor_demo():
         volumes.append(int(max(volume, 1000)))
     
     # 展示最近几天的数据
-    print(f"\n📊 螺纹钢主力合约最近5天数据：")
+    print(f"\n螺纹钢主力合约最近5天数据：")
     print("日期\t\t收盘价\t最高价\t最低价\t成交量")
     print("-" * 50)
     for i in range(-5, 0):

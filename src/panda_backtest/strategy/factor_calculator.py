@@ -304,7 +304,7 @@ def demo_factor_calculation():
     factors = calculator.calculate_all_factors(price_data)
     
     # 显示最近5天的价格数据
-    print("📊 最近5天价格数据：")
+    print("最近5天价格数据：")
     print("日期\t\t开盘\t最高\t最低\t收盘\t成交量")
     print("-" * 60)
     for data in price_data[-5:]:
