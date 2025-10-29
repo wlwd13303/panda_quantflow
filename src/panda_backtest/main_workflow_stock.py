@@ -25,7 +25,8 @@ def start(back_test_id:str,code:str,start_date:str,end_date:str, start_capital: 
     }
     standard_symbol_pro = symbol_map.get(standard_symbol)
     handle_message = {'code': code,
-                      'file':'/Users/peiqi/code/python/panda_workflow/src/panda_backtest/strategy/stock01.py',
+                      # 'file':'/Users/peiqi/code/python/panda_workflow/src/panda_backtest/strategy/stock01.py',
+                      'file':'C:/work/panda_quantflow/src/panda_backtest/strategy/stock01.py',
                       'run_params': 'no_opz',
                       'start_capital': start_capital,
                       'start_date': start_date,

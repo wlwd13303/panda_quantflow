@@ -31,6 +31,8 @@ from panda_backtest.backtest_common.system.compile.strategy_utils import FileStr
 import traceback
 from panda_backtest.data.context.strategy_context import StrategyContext
 from panda_backtest.system.panda_log import SRLogger
+import json
+import pandas as pd
 
 
 class Run(object):
@@ -41,11 +43,32 @@ class Run(object):
 
         # 系统核心上下文 创建q
         strategy_context = StrategyContext()
+        
+        # 处理优化参数
+        run_params = handle_message.get('run_params', None)
+        if run_params is not None and run_params != 'no_opz' and run_params != 'no_run_params' and run_params != '':
+            print('运行时参数', run_params)
+            param_dict = dict()
+            run_params_list = json.loads(run_params)
+            for run_params_item in run_params_list:
+                if run_params_item[0] == 0:
+                    param_dict[run_params_item[1]] = float(run_params_item[2])
+                elif run_params_item[0] == 1:
+                    param_dict[run_params_item[1]] = run_params_item[2]
+                elif run_params_item[0] == 2:
+                    try:
+                        json_data = json.loads(run_params_item[2])
+                        df = pd.json_normalize(json_data)
+                        param_dict[run_params_item[1]] = df
+                    except Exception as e:
+                        print(f"Error loading JSON DataFrame : {e}")
+            strategy_context.init_opz_params(param_dict)
+        
         _context = CoreContext(strategy_context)
 
         back_test_id = handle_message['back_test_id']
         DevInit.init_log_env('panda')
-        DevInit.init_remote_sr_log(back_test_id, handle_message['run_params'], strategy_context)
+        DevInit.init_remote_sr_log(back_test_id, handle_message.get('run_params', 'no_run_params'), strategy_context)
 
         # 全局动态字典初始化
         global_args = {}

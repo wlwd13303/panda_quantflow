@@ -17,7 +17,7 @@ import warnings
 
 import uuid
 from datetime import datetime
-from panda_factor.analysis.factor_correlation_workflow import factor_correlation_workflow
+from panda_factor.analysis.factor_analysis_workflow import factor_analysis_workflow
 logger = logging.getLogger(__name__)
 
 @ui(
@@ -60,7 +60,7 @@ class FactorCorrelationCalculationControl(BaseWorkNode):
 
     def run(self, input: BaseModel) -> BaseModel:
         df_factor=input.factor
-        task_id = factor_correlation_workflow(df_factor)
+        task_id = factor_analysis_workflow(df_factor)
 
         return FactorCorrelationOutputModel(task_id=str(task_id))
         

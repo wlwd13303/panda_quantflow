@@ -5,6 +5,8 @@ description = "PandaAI QuantFlow"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    # 本地项目依赖
+    "panda_factor @ file:///C:/work/panda_factor/panda_factor",
     # 核心依赖
     "numpy>=1.22,<2.0",
     "pandas>=2.2.3",

@@ -101,5 +101,15 @@ if __name__ == '__main__':
         period='1d'
     )
     print(df_quotation)
+
+    print("\n>>> 测试 stock_api_quotation")
+    df_quotation = stock_api_quotation(
+        symbol_list=['000001.SZ', '600000.SH'],
+        start_date='20250710',
+        end_date='20250712',
+        fields=['symbol','pre_close', 'close', 'volume'],
+        period='1d'
+    )
+    print(df_quotation)
     # pd.set_option('display.max_columns', None)
     # pd.set_option('display.max_rows', None)

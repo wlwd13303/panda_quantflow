@@ -9,16 +9,47 @@ from panda_server.config.database import  mongodb
 from bson import ObjectId
 import logging
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+def _is_pydantic_model(obj: Any) -> bool:
+    """检查对象是否为Pydantic模型实例"""
+    return isinstance(obj, BaseModel)
+
+
+def _serialize_for_pickle(obj: Any) -> tuple[Any, dict]:
+    """
+    准备对象进行pickle序列化
+    
+    Returns:
+        tuple: (要序列化的对象, 元数据字典)
+    """
+    metadata = {}
+    
+    if _is_pydantic_model(obj):
+        # Pydantic模型转换为字典以避免_PydanticWeakRef错误
+        serialized_obj = obj.model_dump()
+        metadata['is_pydantic'] = True
+        metadata['pydantic_class'] = f"{obj.__class__.__module__}.{obj.__class__.__name__}"
+        return serialized_obj, metadata
+    
+    return obj, metadata
 
 async def save_to_collection(collection_name: str, obj: Any, extra: dict = {}) -> str:
     """
     将对象 pickle 后作为 Binary 存储到指定集合 (有 16M 的大小限制)，返回新文档的 _id 字符串。
     """
     try:
-        raw_bytes = cloudpickle.dumps(obj)
+        # 序列化对象并获取元数据
+        serialized_obj, serialize_metadata = _serialize_for_pickle(obj)
+        raw_bytes = cloudpickle.dumps(serialized_obj)
+        
         extra["size"] = round(len(raw_bytes) / 1024, 0)  # KB
+        # 合并序列化元数据到extra中
+        extra.update(serialize_metadata)
+        
         doc = {
             "version": 1,
             "_class": f"{obj.__class__.__module__}.{obj.__class__.__name__}",
@@ -46,16 +77,27 @@ async def save_to_gridfs(bucket_name: str, obj: Any, filename: str = None, extra
     """
     将整个 Pydantic 对象 pickle 后通过 GridFS 存储到 MongoDB，支持超过 16MB 的大文件。
     """
-    raw_bytes = cloudpickle.dumps(obj)
+    # 序列化对象并获取元数据
+    serialized_obj, serialize_metadata = _serialize_for_pickle(obj)
+    raw_bytes = cloudpickle.dumps(serialized_obj)
+    
     fs = AsyncIOMotorGridFSBucket(mongodb.db, bucket_name=bucket_name)
     file_name = filename or f"{obj.__class__.__name__}.pkl"
+    
+    # 合并序列化元数据到extra中
+    metadata = {
+        "_class": f"{obj.__class__.__module__}.{obj.__class__.__name__}", 
+        **serialize_metadata,
+        **extra
+    }
+    
     # 上传数据
     file_id = await fs.upload_from_stream(
         file_name,
         raw_bytes,
-        metadata={"_class": f"{obj.__class__.__module__}.{obj.__class__.__name__}", **extra},
+        metadata=metadata,
     )
-    logger.info(f"GridFS save success, bucket: {bucket_name}, id: {file_id}")
+    logger.info(f"GridFS save success, bucket: {bucket_name}, id: {file_id}, is_pydantic: {serialize_metadata.get('is_pydantic', False)}")
     return str(file_id)
 
 

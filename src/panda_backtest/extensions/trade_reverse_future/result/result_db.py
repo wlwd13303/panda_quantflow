@@ -80,7 +80,16 @@ class ResultDb(object):
         run_id = strategy_context.run_info.run_id
         # result_col.update_one({'_id': ObjectId(run_id)},
         #                       {'$set': update_dict})
-        self.mongo_client.mongo_update_one(config["MONGO_DB"],collection_name="panda_back_test",query={"_id": ObjectId(run_id)},update={"$set": update_dict},upsert=True)
+        
+        # 尝试将 run_id 转换为 ObjectId，如果失败则使用字符串作为查询条件
+        try:
+            query = {"_id": ObjectId(run_id)}
+        except Exception:
+            # 如果不是有效的 ObjectId，使用 run_id 字段查询
+            query = {"run_id": run_id}
+            update_dict['run_id'] = run_id  # 确保保存 run_id 字段
+        
+        self.mongo_client.mongo_update_one(config["MONGO_DB"],collection_name="panda_back_test",query=query,update={"$set": update_dict},upsert=True)
 
     def save_to_db(self):
         while self.save_flag:
@@ -112,6 +121,7 @@ class ResultDb(object):
     def save_trade(self, all_trade_list):
         # trade_col = self.mongo_client.xb_backtest_trade
         # trade_col.insert_many(all_trade_list)
+        print(f"save_trade 开始处理数据，类型: {type(all_trade_list)}")
         self.mongo_client.mongo_insert_many(db_name=config["MONGO_DB"], collection_name="panda_backtest_trade",
                                             documents=all_trade_list)
 

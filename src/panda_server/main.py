@@ -17,6 +17,8 @@ from panda_server.routes import (
     workflow_routes,
     backtest_route,
     chat_routes,
+    quotation_routes,
+    strategy_routes,
 )
 from starlette.staticfiles import StaticFiles
 from pathlib import Path
@@ -126,6 +128,8 @@ app.include_router(plugins_routes.router)
 app.include_router(workflow_routes.router)
 app.include_router(backtest_route.router)
 app.include_router(chat_routes.router)
+app.include_router(quotation_routes.router)  # 本地行情数据API
+app.include_router(strategy_routes.router)  # 策略管理API
 
 app.include_router(trading_routes.router)
 

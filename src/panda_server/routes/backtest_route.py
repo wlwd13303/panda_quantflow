@@ -9,12 +9,16 @@ from panda_server.logic.backtest.backtest_position_get_logic import backtest_pos
 from panda_server.logic.backtest.backtest_profit_get_logic import backtest_profit_get_logic
 from panda_server.logic.backtest.backtest_trade_get_logic import backtest_trade_get_logic
 from panda_server.logic.backtest.backtest_user_strategy_log_get_logic import backtest_user_strategy_log_get_logic
+from panda_server.logic.backtest.backtest_start_logic import start_backtest, get_backtest_progress
+from panda_server.logic.backtest.backtest_delete_logic import delete_backtest, batch_delete_backtests
+from panda_server.logic.backtest.backtest_list_get_logic import backtest_list_get_logic
 from panda_server.models.backtest.query_backtest_response import QueryBacktestBacktestResponse
 from panda_server.models.backtest.query_account_response import QueryBacktestAccountListResponse
 from panda_server.models.backtest.query_position_response import QueryBacktestPositionListResponse
 from panda_server.models.backtest.query_profit_response import QueryBacktestProfitListResponse
 from panda_server.models.backtest.query_trade_response import QueryBacktestTradeListResponse
 from panda_server.models.backtest.query_user_strategy_log_response import QueryBacktestUserStrategyLogListResponse
+from panda_server.models.backtest.backtest_start_request import BacktestStartRequest, BacktestStartResponse
 
 # 获取 logger
 logger = logging.getLogger(__name__)
@@ -24,6 +28,26 @@ router = APIRouter(
     prefix="/api/backtest",
     tags=["backtest"]
 )
+
+@router.get("/list")
+async def get_backtest_list(
+    page: int = Query(1, description="页码", ge=1),
+    page_size: int = Query(20, description="每页数量", ge=1, le=100),
+    status: Optional[str] = Query(None, description="状态筛选: running, completed, failed")
+):
+    """
+    获取回测列表，支持分页和状态筛选
+    """
+    try:
+        return await backtest_list_get_logic(page, page_size, status)
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        logger.error(f"Unexpected error in get_backtest_list: {e}\n{stack_trace}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取回测列表失败: {str(e)}",
+        )
+
 
 @router.get(
     "/backtest", response_model=QueryBacktestBacktestResponse,status_code=status.HTTP_200_OK)
@@ -210,4 +234,84 @@ async def get_user_strategy_logs(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while retrieving the user strategy log result",
+        )
+
+
+@router.post("/start", response_model=BacktestStartResponse)
+async def start_backtest_route(request: BacktestStartRequest) -> BacktestStartResponse:
+    """
+    启动回测
+    """
+    try:
+        return await start_backtest(request)
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        logger.error(f"Unexpected error in start_backtest: {e}\n{stack_trace}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"启动回测失败: {str(e)}",
+        )
+
+
+@router.get("/progress")
+async def get_backtest_progress_route(
+    back_id: str = Query(..., description="回测ID")
+):
+    """
+    获取回测进度
+    """
+    try:
+        return await get_backtest_progress(back_id)
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        logger.error(f"Unexpected error in get_backtest_progress: {e}\n{stack_trace}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取回测进度失败: {str(e)}",
+        )
+
+
+@router.delete("/delete")
+async def delete_backtest_route(
+    back_id: str = Query(..., description="回测ID")
+):
+    """
+    删除回测及其所有相关数据
+    """
+    try:
+        result = await delete_backtest(back_id)
+        if result["success"]:
+            return result
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result["message"]
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        logger.error(f"Unexpected error in delete_backtest: {e}\n{stack_trace}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"删除回测失败: {str(e)}",
+        )
+
+
+@router.post("/batch_delete")
+async def batch_delete_backtests_route(
+    back_ids: list = Query(..., description="回测ID列表")
+):
+    """
+    批量删除回测
+    """
+    try:
+        result = await batch_delete_backtests(back_ids)
+        return result
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        logger.error(f"Unexpected error in batch_delete_backtests: {e}\n{stack_trace}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"批量删除回测失败: {str(e)}",
         ) 

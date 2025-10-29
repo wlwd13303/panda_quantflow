@@ -18,6 +18,18 @@ class BarMap(object):
         
     def get(self, key):
         return self.__getitem__(key)
+    
+    def __contains__(self, key):
+        """
+        检查是否存在该合约的行情数据
+        :param key: 合约代码
+        :return: bool
+        """
+        try:
+            bar = self.__getitem__(key)
+            return bar is not None
+        except:
+            return False
 
     def __getitem__(self, key):
         """
@@ -45,6 +57,7 @@ class BarMap(object):
             if frequency == '1d':
                 return self.bar_data_source.get_stock_daily_bar(key, strategy_context.trade_date)
             elif frequency == '1M':
+                breakpoint()
                 return self.bar_data_source.get_stock_minute_bar(key, strategy_context.trade_date, strategy_context.hms)
 
         else:
