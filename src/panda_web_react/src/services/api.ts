@@ -208,7 +208,7 @@ export const backtestApi = {
 
   // 删除回测
   async deleteBacktest(backId: string): Promise<any> {
-    const response = await apiClient.get('/api/backtest/delete', {
+    const response = await apiClient.delete('/api/backtest/delete', {
       params: { back_id: backId },
     });
     return response.data;
