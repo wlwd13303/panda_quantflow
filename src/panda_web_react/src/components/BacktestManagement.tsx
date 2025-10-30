@@ -52,13 +52,15 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
   const handleDelete = async (record: BacktestRecord) => {
     Modal.confirm({
       title: '确认删除',
-      content: `确定要删除回测 "${record.strategy_name || record._id}" 吗？此操作将删除所有相关数据且不可恢复！`,
+      content: `确定要删除回测 "${record.strategy_name || record.run_id || record._id}" 吗？此操作将删除所有相关数据且不可恢复！`,
       okText: '确定',
       okType: 'danger',
       cancelText: '取消',
       onOk: async () => {
         try {
-          const result = await backtestApi.deleteBacktest(record._id || record.run_id || '');
+          // 使用 run_id 作为删除的主键（而不是自增的 _id）
+          const backId = record.run_id || record._id || '';
+          const result = await backtestApi.deleteBacktest(backId);
           const deletedCount = result.data?.deleted_count?.total || 0;
           message.success(`删除成功！共删除 ${deletedCount} 条数据`);
           loadBacktestList();
@@ -87,7 +89,9 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
 
         for (const record of selectedRows) {
           try {
-            await backtestApi.deleteBacktest(record._id || record.run_id || '');
+            // 使用 run_id 作为删除的主键（而不是自增的 _id）
+            const backId = record.run_id || record._id || '';
+            await backtestApi.deleteBacktest(backId);
             successCount++;
           } catch (error) {
             failCount++;
@@ -124,8 +128,8 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
       width: 220,
       ellipsis: true,
       render: (record: BacktestRecord) => (
-        <Tooltip title={record._id || record.run_id}>
-          {record._id || record.run_id}
+        <Tooltip title={record.run_id || record._id}>
+          {record.run_id || record._id}
         </Tooltip>
       ),
     },
@@ -224,7 +228,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
           <Button
             size="small"
             icon={<EyeOutlined />}
-            onClick={() => onViewBacktest(record._id || record.run_id || '')}
+            onClick={() => onViewBacktest(record.run_id || record._id || '')}
           >
             查看
           </Button>
@@ -242,7 +246,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
   ];
 
   const rowSelection = {
-    selectedRowKeys: selectedRows.map((r) => r._id || r.run_id || ''),
+    selectedRowKeys: selectedRows.map((r) => r.run_id || r._id || ''),
     onChange: (_: React.Key[], selectedRecords: BacktestRecord[]) => {
       setSelectedRows(selectedRecords);
     },
@@ -294,7 +298,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
           rowSelection={rowSelection}
           pagination={false}
           scroll={{ x: 1500 }}
-          rowKey={(record) => record._id || record.run_id || ''}
+          rowKey={(record) => record.run_id || record._id || ''}
         />
         <div style={{ marginTop: 20, textAlign: 'center' }}>
           <Pagination

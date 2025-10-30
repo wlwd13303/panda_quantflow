@@ -39,7 +39,7 @@ const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
         const date = new Date(backtest.created_at);
         displayName = `回测-${date.toLocaleDateString('zh-CN')}`;
       } else {
-        displayName = `回测-${backtest._id?.substring(0, 8) || backtest.run_id?.substring(0, 8) || '未命名'}`;
+        displayName = `回测-${backtest.run_id?.substring(0, 8) || backtest._id?.substring(0, 8) || '未命名'}`;
       }
     }
     
@@ -123,7 +123,7 @@ const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
                 dropdownMatchSelectWidth={350}
               >
               {runningBacktests.map((backtest) => (
-                <Select.Option key={backtest._id || backtest.run_id} value={backtest._id || backtest.run_id || ''}>
+                <Select.Option key={backtest.run_id || backtest._id} value={backtest.run_id || backtest._id || ''}>
                   <Space>
                     <span>{formatBacktestLabel(backtest)}</span>
                     {backtest.start_date && backtest.end_date && (

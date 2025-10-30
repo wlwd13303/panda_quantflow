@@ -51,9 +51,9 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
       if (!initialBacktestId && result.items && result.items.length > 0) {
         const runningBacktest = result.items.find(bt => bt.status === 'running');
         if (runningBacktest) {
-          setBackId(runningBacktest._id || runningBacktest.run_id || '');
+          setBackId(runningBacktest.run_id || runningBacktest._id || '');
         } else if (result.items[0]) {
-          setBackId(result.items[0]._id || result.items[0].run_id || '');
+          setBackId(result.items[0].run_id || result.items[0]._id || '');
         }
       }
     } catch (error: any) {
@@ -360,15 +360,15 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
                     const date = new Date(bt.created_at);
                     displayName = `回测-${date.toLocaleDateString('zh-CN')}`;
                   } else {
-                    displayName = `回测-${(bt._id || bt.run_id || '').substring(0, 8)}`;
+                    displayName = `回测-${(bt.run_id || bt._id || '').substring(0, 8)}`;
                   }
                 }
                 
                 const statusIcon = bt.status === 'running' ? '⚡' : bt.status === 'completed' ? '✅' : '❌';
-                const idShort = (bt._id || bt.run_id || '').substring(0, 8);
+                const idShort = (bt.run_id || bt._id || '').substring(0, 8);
                 
                 return (
-                  <Select.Option key={bt._id || bt.run_id} value={bt._id || bt.run_id || ''}>
+                  <Select.Option key={bt.run_id || bt._id} value={bt.run_id || bt._id || ''}>
                     {statusIcon} {displayName} ({idShort})
                   </Select.Option>
                 );

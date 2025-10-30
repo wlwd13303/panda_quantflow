@@ -327,7 +327,7 @@ const StrategyToolbar: React.FC<StrategyToolbarProps> = ({
                         size="small"
                         type="link"
                         icon={<EyeOutlined />}
-                        onClick={() => onViewBacktest(item._id || item.run_id || '')}
+                        onClick={() => onViewBacktest(item.run_id || item._id || '')}
                       >
                         查看
                       </Button>,
