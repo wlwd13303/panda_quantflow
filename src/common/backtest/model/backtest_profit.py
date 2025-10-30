@@ -13,6 +13,7 @@ class PyObjectId(ObjectId):
             python_schema=core_schema.union_schema(
                 [
                     core_schema.is_instance_schema(ObjectId),
+                    core_schema.str_schema(),  # 也接受字符串（用于 SQLite 整数ID）
                     core_schema.chain_schema(
                         [
                             core_schema.str_schema(),
@@ -30,9 +31,16 @@ class PyObjectId(ObjectId):
 
     @classmethod
     def validate(cls, v):
-        if not ObjectId.is_valid(v):
-            raise ValueError("Invalid ObjectId")
-        return ObjectId(v)
+        # 如果是有效的 ObjectId 字符串，返回 ObjectId 实例
+        if ObjectId.is_valid(v):
+            return ObjectId(v)
+        # 如果是整数或整数字符串（SQLite 自增 ID），也接受
+        # 将其转换为字符串并返回（保持原值，不转换为 ObjectId）
+        try:
+            int(v)
+            return str(v)  # 返回字符串格式的整数ID
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid ObjectId or integer ID: {v}")
 
 class BacktestProfitBaseModel(BaseModel):
     """
@@ -48,6 +56,14 @@ class BacktestProfitBaseModel(BaseModel):
     strategy_profit: Optional[float] = Field(default=None, description="策略收益")
     day_profit: Optional[float] = Field(default=None, description="日收益")
     overful_profit: Optional[float] = Field(default=None, description="超额收益")
+    # 数据库字段（SQLite）
+    total_value: Optional[float] = Field(default=None, description="账户总价值")
+    profit: Optional[float] = Field(default=None, description="日收益（数据库字段）")
+    profit_rate: Optional[float] = Field(default=None, description="收益率")
+    cumulative_profit: Optional[float] = Field(default=None, description="累计收益")
+    cumulative_profit_rate: Optional[float] = Field(default=None, description="累计收益率")
+    date: Optional[str] = Field(default=None, description="日期（数据库字段）")
+    total_profit: Optional[float] = Field(default=None, description="总收益（兼容字段）")
 
     class Config:
         json_encoders = {ObjectId: str}

@@ -66,7 +66,17 @@ class MongoDB:
                 await init_all_indexes(cls)
                 logger.info("Database index initialization completed")
             except Exception as e:
-                logger.error(f"Database index initialization failed: {e}")
+                error_msg = str(e)
+                # 如果是认证错误，提供更友好的提示
+                if "authentication" in error_msg.lower() or "Unauthorized" in error_msg:
+                    logger.warning("数据库索引初始化失败：MongoDB需要认证")
+                    logger.warning("提示：如果这是本地MongoDB且未启用认证，请检查:")
+                    logger.warning("  1. MongoDB服务是否启用了认证")
+                    logger.warning("  2. 环境变量 MONGO_USER 和 MONGO_PASSWORD 是否正确设置")
+                    logger.warning("  3. 如果不需要认证，请确保MongoDB配置允许无认证连接")
+                    logger.warning("索引初始化失败不影响系统基本功能，但可能影响查询性能")
+                else:
+                    logger.error(f"Database index initialization failed: {e}")
         else:
             logger.info("Cloud environment, skipping database index initialization")
     

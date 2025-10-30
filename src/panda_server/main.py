@@ -32,9 +32,8 @@ from panda_server.routes.trading import (
 # Add project root path to python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))  
 
-# Load .env file if exsits
-import dotenv
-dotenv.load_dotenv()
+# 注意：.env 文件由 panda_server.config.env 模块自动加载
+# 配置完全从 .env 文件读取，不使用系统环境变量
 
 logger = logging.getLogger(__name__)
 

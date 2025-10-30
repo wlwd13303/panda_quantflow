@@ -57,7 +57,6 @@ class BarMap(object):
             if frequency == '1d':
                 return self.bar_data_source.get_stock_daily_bar(key, strategy_context.trade_date)
             elif frequency == '1M':
-                breakpoint()
                 return self.bar_data_source.get_stock_minute_bar(key, strategy_context.trade_date, strategy_context.hms)
 
         else:

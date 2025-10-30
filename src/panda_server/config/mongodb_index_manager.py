@@ -28,7 +28,13 @@ async def sync_collection_indexes(db_instance, collection_name: str, indexes_to_
             existing_indexes = {index["name"] for index in indexes}
             logger.info(f"Existing {display_name} indexes: {existing_indexes}")
         except Exception as e:
-            logger.warning(f"Failed to list existing indexes for {display_name}: {e}")
+            error_msg = str(e)
+            if "authentication" in error_msg.lower() or "Unauthorized" in error_msg:
+                logger.warning(f"无法列出 {display_name} 的索引: MongoDB需要认证")
+                logger.warning("将跳过索引创建，但系统仍可正常运行")
+                return  # 认证失败时直接返回，不尝试创建索引
+            else:
+                logger.warning(f"Failed to list existing indexes for {display_name}: {e}")
         
         # 创建缺失的索引
         created_count = 0
@@ -43,7 +49,12 @@ async def sync_collection_indexes(db_instance, collection_name: str, indexes_to_
                     logger.info(f"Created index: {index_def['name']}")
                     created_count += 1
                 except Exception as e:
-                    logger.error(f"Failed to create index {index_def['name']}: {e}")
+                    error_msg = str(e)
+                    if "authentication" in error_msg.lower() or "Unauthorized" in error_msg:
+                        logger.warning(f"无法创建索引 {index_def['name']}: MongoDB需要认证")
+                        logger.warning("将跳过此索引，但系统仍可正常运行")
+                    else:
+                        logger.error(f"Failed to create index {index_def['name']}: {e}")
             else:
                 logger.debug(f"Index already exists: {index_def['name']}")
                 

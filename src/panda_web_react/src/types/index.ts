@@ -68,6 +68,7 @@ export interface ProfitData {
 
 // 持仓数据
 export interface PositionData {
+  symbol?: string;          // 监控 API 字段
   contract_code?: string;
   code?: string;
   position?: number;
@@ -77,6 +78,8 @@ export interface PositionData {
   now_price?: number;
   current_price?: number;
   profit?: number;
+  profit_rate?: number;     // 监控 API 字段（收益率）
+  market_value?: number;    // 监控 API 字段（市值）
   date?: string;
   gmt_create?: string;
   [key: string]: any;
@@ -118,5 +121,62 @@ export interface DataStats {
   tradeCount: number;
   positionCount: number;
   profitCount: number;
+}
+
+// 监控数据 - 最新账户状态
+export interface MonitorAccountData {
+  date?: string;
+  total_asset?: number;
+  available?: number;
+  market_value?: number;
+  profit?: number;
+  profit_rate?: number;
+}
+
+// 监控数据 - 最近交易
+export interface MonitorTradeData {
+  date?: string;
+  time?: string;
+  symbol?: string;
+  side?: number;
+  direction?: string;
+  price?: number;
+  volume?: number;
+  amount?: number;
+}
+
+// 监控数据 - 最新持仓
+export interface MonitorPositionData {
+  date?: string;
+  symbol?: string;
+  volume?: number;
+  market_value?: number;
+  profit?: number;
+  profit_rate?: number;
+}
+
+// 监控数据 - 净值曲线点
+export interface EquityCurvePoint {
+  date?: string;
+  value?: number;
+}
+
+// 监控数据 - 完整响应
+export interface BacktestMonitorData {
+  success: boolean;
+  back_id: string;
+  status?: string;
+  progress?: number;
+  stats?: {
+    account_count: number;
+    trade_count: number;
+    position_count: number;
+    profit_count: number;
+  };
+  latest_account?: MonitorAccountData;
+  recent_trades?: MonitorTradeData[];
+  latest_positions?: MonitorPositionData[];
+  equity_curve?: EquityCurvePoint[];
+  error?: string;
 }
 

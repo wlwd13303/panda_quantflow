@@ -9,6 +9,7 @@ import type {
   TradeData,
   ApiResponse,
   PaginatedData,
+  BacktestMonitorData,
 } from '@/types';
 
 const API_BASE = 'http://localhost:8000';
@@ -211,6 +212,17 @@ export const backtestApi = {
     const response = await apiClient.delete('/api/backtest/delete', {
       params: { back_id: backId },
     });
+    return response.data;
+  },
+
+  // 获取回测监控数据
+  async getMonitorData(backId: string): Promise<BacktestMonitorData> {
+    const response = await apiClient.get<BacktestMonitorData>(
+      '/api/backtest/monitor',
+      {
+        params: { back_id: backId },
+      }
+    );
     return response.data;
   },
 };

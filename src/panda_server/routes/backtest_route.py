@@ -12,6 +12,7 @@ from panda_server.logic.backtest.backtest_user_strategy_log_get_logic import bac
 from panda_server.logic.backtest.backtest_start_logic import start_backtest, get_backtest_progress
 from panda_server.logic.backtest.backtest_delete_logic import delete_backtest, batch_delete_backtests
 from panda_server.logic.backtest.backtest_list_get_logic import backtest_list_get_logic
+from panda_server.logic.backtest.backtest_monitor_logic import get_monitor_data
 from panda_server.models.backtest.query_backtest_response import QueryBacktestBacktestResponse
 from panda_server.models.backtest.query_account_response import QueryBacktestAccountListResponse
 from panda_server.models.backtest.query_position_response import QueryBacktestPositionListResponse
@@ -314,4 +315,29 @@ async def batch_delete_backtests_route(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"批量删除回测失败: {str(e)}",
+        )
+
+
+@router.get("/monitor")
+async def get_backtest_monitor(
+    back_id: str = Query(..., description="回测ID")
+):
+    """
+    获取回测实时监控数据
+    返回综合的监控信息，包括：
+    - 数据统计（账户、交易、持仓、收益记录数）
+    - 最新账户状态
+    - 最近5笔交易
+    - 最新持仓信息
+    - 净值曲线数据
+    """
+    try:
+        result = await get_monitor_data(back_id)
+        return result
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        logger.error(f"Unexpected error in get_backtest_monitor: {e}\n{stack_trace}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取监控数据失败: {str(e)}",
         ) 

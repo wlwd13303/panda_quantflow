@@ -13,9 +13,11 @@ import time
 import pandas
 import queue
 import threading
+import asyncio
 from common.connector.mongodb_handler import DatabaseHandler
 from panda_backtest.util.time.time_util import TimeUtil
 from common.config.config import config
+from panda_server.dao.backtest_dao import BacktestDAO
 
 class SRLogger:
     _strategy_context = None
@@ -127,13 +129,52 @@ class SRLogger:
 
     @staticmethod
     def process_consume():
+        """消费进度队列，更新数据库中的回测进度"""
+        last_progress = -1  # 记录上次更新的进度，避免频繁更新
+        
         while True:
             try:
                 insert_content = SRLogger._process_queue.get(timeout=12 * 60 * 60)
-                # 移除了与 Redis 相关的操作
+                progress_rate = insert_content.get('progress_rate', 0)
+                
+                # 只有当进度变化时才更新数据库（避免频繁更新）
+                if progress_rate != last_progress and SRLogger._back_test_id:
+                    last_progress = progress_rate
+                    # 异步更新进度到 SQLite
+                    SRLogger._update_progress_async(SRLogger._back_test_id, float(progress_rate))
+                    
             except queue.Empty:
                 print('进程信息超时')
                 break
+            except Exception as e:
+                logging.error(f"更新回测进度失败: {e}")
+    
+    @staticmethod
+    def _update_progress_async(run_id: str, progress: float):
+        """异步更新回测进度到 SQLite 数据库"""
+        async def update_progress():
+            try:
+                await BacktestDAO.update(run_id, progress=progress)
+            except Exception as e:
+                logging.error(f"更新回测进度失败: {e}")
+        
+        try:
+            # 在同步上下文中运行异步函数
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # 如果事件循环正在运行，创建新的线程来运行
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, update_progress())
+                    future.result(timeout=5)  # 5秒超时
+            else:
+                # 如果事件循环未运行，直接运行
+                loop.run_until_complete(update_progress())
+        except RuntimeError:
+            # 如果没有事件循环，创建一个新的
+            asyncio.run(update_progress())
+        except Exception as e:
+            logging.error(f"异步更新进度失败: {e}")
 
     @staticmethod
     def log_consume():
