@@ -1,6 +1,13 @@
 import React from 'react';
-import { Card, Row, Col, Statistic, Divider, Typography } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Typography, Progress, Space, Tag, Alert } from 'antd';
+import {
+  RiseOutlined,
+  FallOutlined,
+  TrophyOutlined,
+  SafetyOutlined,
+  ThunderboltOutlined,
+  LineChartOutlined,
+} from '@ant-design/icons';
 import type { ProfitData } from '@/types';
 
 const { Title, Text } = Typography;
@@ -144,6 +151,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
   };
 
   const metrics = calculateMetrics();
+  const hasData = profitData && profitData.length > 0;
 
   // 格式化数字显示
   const formatNumber = (num: number, precision: number = 2) => {
@@ -158,173 +166,360 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
     return isNaN(num) || !isFinite(num) ? '¥0.00' : '¥' + num.toFixed(2);
   };
 
+  // 小型指标卡片组件
+  const MetricCard: React.FC<{
+    title: string;
+    value: string | number;
+    suffix?: string;
+    color?: string;
+    icon?: React.ReactNode;
+    extra?: React.ReactNode;
+  }> = ({ title, value, suffix, color, icon, extra }) => (
+    <div
+      style={{
+        background: '#fff',
+        border: '1px solid #f0f0f0',
+        borderRadius: '6px',
+        padding: '10px 12px',
+        height: '100%',
+        transition: 'all 0.3s',
+        cursor: 'default',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+        e.currentTarget.style.borderColor = '#d9d9d9';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = 'none';
+        e.currentTarget.style.borderColor = '#f0f0f0';
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <Text type="secondary" style={{ fontSize: 12, lineHeight: '16px' }}>
+          {icon && <span style={{ marginRight: 4 }}>{icon}</span>}
+          {title}
+        </Text>
+        {extra}
+      </div>
+      <div
+        style={{
+          fontSize: 18,
+          fontWeight: 600,
+          color: color || '#262626',
+          marginTop: 6,
+          lineHeight: '24px',
+        }}
+      >
+        {value}
+        {suffix && <span style={{ fontSize: 14, marginLeft: 2 }}>{suffix}</span>}
+      </div>
+    </div>
+  );
+
   return (
-    <div style={{ padding: '20px' }}>
-      {/* 收益概述 */}
-      <Card>
-        <Title level={4}>收益概述</Title>
-        <Row gutter={[24, 24]} style={{ marginTop: 20 }}>
-          <Col span={6}>
-            <Statistic
-              title="策略收益"
-              value={metrics.totalReturn}
-              precision={2}
-              prefix="¥"
-              valueStyle={{ color: metrics.totalReturn >= 0 ? '#3f8600' : '#cf1322' }}
-              suffix={
-                metrics.totalReturn >= 0 ? (
-                  <ArrowUpOutlined />
-                ) : (
-                  <ArrowDownOutlined />
-                )
-              }
-            />
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              ({formatPercent(metrics.totalReturnRate)})
-            </Text>
-          </Col>
-          
-          <Col span={6}>
-            <Statistic
-              title="超额收益"
-              value={metrics.excessReturn}
-              precision={2}
-              prefix="¥"
-              valueStyle={{ color: metrics.excessReturn >= 0 ? '#3f8600' : '#cf1322' }}
-            />
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              ({formatPercent(metrics.excessReturnRate)})
-            </Text>
-          </Col>
-          
-          <Col span={6}>
-            <Statistic
-              title="年化收益率"
-              value={formatPercent(metrics.annualizedReturn)}
-              valueStyle={{ color: metrics.annualizedReturn >= 0 ? '#3f8600' : '#cf1322' }}
-            />
-          </Col>
-          
-          <Col span={6}>
-            <Statistic
-              title="夏普比率"
-              value={formatNumber(metrics.sharpeRatio)}
-              valueStyle={{ color: metrics.sharpeRatio >= 1 ? '#3f8600' : '#cf1322' }}
-            />
-          </Col>
-        </Row>
+    <div style={{ padding: '16px 20px' }}>
+      {/* 页面标题 */}
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Space>
+          <LineChartOutlined style={{ fontSize: 20, color: '#1890ff' }} />
+          <Title level={4} style={{ margin: 0 }}>收益概述</Title>
+          <Tag color={hasData ? 'blue' : 'default'}>{profitData.length} 交易日</Tag>
+        </Space>
+        <Space size={4}>
+          <Tag color={metrics.totalReturnRate >= 0 ? 'success' : 'error'} style={{ margin: 0 }}>
+            总收益率 {metrics.totalReturnRate >= 0 ? '+' : ''}{formatPercent(metrics.totalReturnRate)}
+          </Tag>
+          <Tag color={metrics.sharpeRatio >= 1 ? 'success' : 'warning'} style={{ margin: 0 }}>
+            夏普 {formatNumber(metrics.sharpeRatio)}
+          </Tag>
+        </Space>
+      </div>
 
-        <Divider />
+      {/* 无数据提示 */}
+      {!hasData && (
+        <Alert
+          message="暂无回测数据"
+          description="当前尚未加载回测数据，以下显示的是默认指标值（0）。请等待回测运行或刷新数据后查看真实的绩效指标。"
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
-        <Row gutter={[24, 24]}>
-          <Col span={6}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary">盈亏比率</Text>
-              <div style={{ fontSize: 20, fontWeight: 500 }}>
-                {formatNumber(metrics.profitLossRatio)}
-              </div>
-            </div>
-          </Col>
-          
-          <Col span={6}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary">阿尔法</Text>
-              <div style={{ fontSize: 20, fontWeight: 500, color: metrics.alpha >= 0 ? '#3f8600' : '#cf1322' }}>
-                {formatPercent(metrics.alpha)}
-              </div>
-            </div>
-          </Col>
-          
-          <Col span={6}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary">贝塔</Text>
-              <div style={{ fontSize: 20, fontWeight: 500 }}>
-                {formatNumber(metrics.beta)}
-              </div>
-            </div>
-          </Col>
-          
-          <Col span={6}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary">胜率</Text>
-              <div style={{ fontSize: 20, fontWeight: 500 }}>
-                {formatPercent(metrics.winRate)}
-              </div>
-            </div>
-          </Col>
-        </Row>
+      <Row gutter={[12, 12]}>
+        {/* 核心收益指标 - 左侧大卡片 */}
+        <Col span={12}>
+          <Card
+            title={
+              <Space>
+                <TrophyOutlined style={{ color: '#faad14' }} />
+                <span style={{ fontSize: 14, fontWeight: 500 }}>核心收益指标</span>
+              </Space>
+            }
+            size="small"
+            bodyStyle={{ padding: '12px' }}
+            headStyle={{ minHeight: 40, padding: '0 12px' }}
+          >
+            <Row gutter={[8, 8]}>
+              <Col span={12}>
+                <MetricCard
+                  title="策略收益"
+                  value={formatMoney(metrics.totalReturn)}
+                  color={metrics.totalReturn >= 0 ? '#52c41a' : '#ff4d4f'}
+                  icon={metrics.totalReturn >= 0 ? <RiseOutlined /> : <FallOutlined />}
+                  extra={
+                    <Tag
+                      color={metrics.totalReturnRate >= 0 ? 'success' : 'error'}
+                      style={{ fontSize: 11, padding: '0 4px', lineHeight: '18px' }}
+                    >
+                      {metrics.totalReturnRate >= 0 ? '+' : ''}{metrics.totalReturnRate.toFixed(2)}%
+                    </Tag>
+                  }
+                />
+              </Col>
+              <Col span={12}>
+                <MetricCard
+                  title="年化收益率"
+                  value={metrics.annualizedReturn.toFixed(2)}
+                  suffix="%"
+                  color={metrics.annualizedReturn >= 0 ? '#52c41a' : '#ff4d4f'}
+                />
+              </Col>
+              <Col span={12}>
+                <MetricCard
+                  title="超额收益"
+                  value={formatMoney(metrics.excessReturn)}
+                  color={metrics.excessReturn >= 0 ? '#52c41a' : '#ff4d4f'}
+                  extra={
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      vs 基准
+                    </Text>
+                  }
+                />
+              </Col>
+              <Col span={12}>
+                <MetricCard
+                  title="超额年化"
+                  value={metrics.excessReturnRate.toFixed(2)}
+                  suffix="%"
+                  color={metrics.excessReturnRate >= 0 ? '#52c41a' : '#ff4d4f'}
+                />
+              </Col>
+              <Col span={12}>
+                <MetricCard
+                  title="日均收益"
+                  value={formatMoney(metrics.totalReturn / Math.max(profitData.length, 1))}
+                  color={metrics.totalReturn >= 0 ? '#52c41a' : '#ff4d4f'}
+                />
+              </Col>
+              <Col span={12}>
+                <MetricCard
+                  title="日均超额收益"
+                  value={formatMoney(metrics.excessReturn / Math.max(profitData.length, 1))}
+                  color={metrics.excessReturn >= 0 ? '#52c41a' : '#ff4d4f'}
+                />
+              </Col>
+            </Row>
+          </Card>
+        </Col>
 
-        <Divider />
+        {/* 风险控制指标 - 右上卡片 */}
+        <Col span={12}>
+          <Card
+            title={
+              <Space>
+                <SafetyOutlined style={{ color: '#ff4d4f' }} />
+                <span style={{ fontSize: 14, fontWeight: 500 }}>风险控制指标</span>
+              </Space>
+            }
+            size="small"
+            bodyStyle={{ padding: '12px' }}
+            headStyle={{ minHeight: 40, padding: '0 12px' }}
+          >
+            <Row gutter={[8, 8]}>
+              <Col span={12}>
+                <MetricCard
+                  title="最大回撤"
+                  value={metrics.maxDrawdownRate.toFixed(2)}
+                  suffix="%"
+                  color="#ff4d4f"
+                  extra={
+                    <Progress
+                      type="circle"
+                      percent={Math.min(metrics.maxDrawdownRate, 100)}
+                      width={24}
+                      strokeColor="#ff4d4f"
+                      format={() => ''}
+                    />
+                  }
+                />
+              </Col>
+              <Col span={12}>
+                <MetricCard
+                  title="回撤金额"
+                  value={formatMoney(metrics.maxDrawdown)}
+                  color="#ff4d4f"
+                />
+              </Col>
+              <Col span={12}>
+                <MetricCard
+                  title="夏普比率"
+                  value={metrics.sharpeRatio.toFixed(3)}
+                  color={metrics.sharpeRatio >= 1 ? '#52c41a' : metrics.sharpeRatio >= 0.5 ? '#faad14' : '#ff4d4f'}
+                  extra={
+                    <Tag color={metrics.sharpeRatio >= 1 ? 'success' : 'warning'} style={{ fontSize: 10, padding: '0 3px' }}>
+                      {metrics.sharpeRatio >= 2 ? '优秀' : metrics.sharpeRatio >= 1 ? '良好' : '一般'}
+                    </Tag>
+                  }
+                />
+              </Col>
+              <Col span={12}>
+                <MetricCard
+                  title="策略波动率"
+                  value={metrics.volatility.toFixed(2)}
+                  suffix="%"
+                  color="#1890ff"
+                />
+              </Col>
+              <Col span={12}>
+                <MetricCard title="阿尔法 α" value={metrics.alpha.toFixed(2)} suffix="%" color={metrics.alpha >= 0 ? '#52c41a' : '#ff4d4f'} />
+              </Col>
+              <Col span={12}>
+                <MetricCard title="贝塔 β" value={metrics.beta.toFixed(3)} color="#722ed1" />
+              </Col>
+            </Row>
+          </Card>
+        </Col>
 
-        <Row gutter={[24, 24]}>
-          <Col span={6}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary">日均超额收益</Text>
-              <div style={{ fontSize: 18, fontWeight: 500 }}>
-                {formatMoney(metrics.excessReturn / Math.max(profitData.length, 1))}
-              </div>
-            </div>
-          </Col>
-          
-          <Col span={6}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary">超额收益率年化</Text>
-              <div style={{ fontSize: 18, fontWeight: 500 }}>
-                {formatPercent(metrics.excessReturnRate)}
-              </div>
-            </div>
-          </Col>
-          
-          <Col span={6}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary">策略波动率</Text>
-              <div style={{ fontSize: 18, fontWeight: 500 }}>
-                {formatPercent(metrics.volatility)}
-              </div>
-            </div>
-          </Col>
-          
-          <Col span={6}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary">最大回撤</Text>
-              <div style={{ fontSize: 18, fontWeight: 500, color: '#cf1322' }}>
-                {formatPercent(metrics.maxDrawdownRate)}
-              </div>
-            </div>
-          </Col>
-        </Row>
+        {/* 交易统计指标 */}
+        <Col span={12}>
+          <Card
+            title={
+              <Space>
+                <ThunderboltOutlined style={{ color: '#13c2c2' }} />
+                <span style={{ fontSize: 14, fontWeight: 500 }}>交易统计</span>
+              </Space>
+            }
+            size="small"
+            bodyStyle={{ padding: '12px' }}
+            headStyle={{ minHeight: 40, padding: '0 12px' }}
+          >
+            <Row gutter={[8, 8]}>
+              <Col span={8}>
+                <MetricCard
+                  title="总交易日"
+                  value={profitData.length}
+                  suffix="天"
+                  color="#1890ff"
+                />
+              </Col>
+              <Col span={8}>
+                <MetricCard
+                  title="盈利日数"
+                  value={Math.round(profitData.length * metrics.winRate / 100)}
+                  suffix="天"
+                  color="#52c41a"
+                />
+              </Col>
+              <Col span={8}>
+                <MetricCard
+                  title="亏损日数"
+                  value={profitData.length - Math.round(profitData.length * metrics.winRate / 100)}
+                  suffix="天"
+                  color="#ff4d4f"
+                />
+              </Col>
+              <Col span={12}>
+                <div
+                  style={{
+                    background: '#fff',
+                    border: '1px solid #f0f0f0',
+                    borderRadius: '6px',
+                    padding: '10px 12px',
+                  }}
+                >
+                  <Text type="secondary" style={{ fontSize: 12 }}>胜率</Text>
+                  <div style={{ marginTop: 6 }}>
+                    <Progress
+                      percent={metrics.winRate}
+                      strokeColor={{
+                        '0%': '#ff4d4f',
+                        '50%': '#faad14',
+                        '100%': '#52c41a',
+                      }}
+                      format={(percent) => (
+                        <span style={{ fontSize: 14, fontWeight: 600, color: '#262626' }}>
+                          {percent?.toFixed(1)}%
+                        </span>
+                      )}
+                    />
+                  </div>
+                </div>
+              </Col>
+              <Col span={12}>
+                <MetricCard
+                  title="盈亏比"
+                  value={metrics.profitLossRatio.toFixed(2)}
+                  color={metrics.profitLossRatio >= 1 ? '#52c41a' : '#faad14'}
+                  extra={
+                    <Tag color={metrics.profitLossRatio >= 2 ? 'success' : metrics.profitLossRatio >= 1 ? 'warning' : 'error'} style={{ fontSize: 10, padding: '0 3px' }}>
+                      {metrics.profitLossRatio >= 2 ? '优秀' : metrics.profitLossRatio >= 1 ? '良好' : '偏低'}
+                    </Tag>
+                  }
+                />
+              </Col>
+            </Row>
+          </Card>
+        </Col>
 
-        <Divider />
-
-        <Row gutter={[24, 24]}>
-          <Col span={8}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary">日数</Text>
-              <div style={{ fontSize: 18, fontWeight: 500 }}>
-                {profitData.length}
-              </div>
-            </div>
-          </Col>
-          
-          <Col span={8}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary">盈利日数</Text>
-              <div style={{ fontSize: 18, fontWeight: 500, color: '#3f8600' }}>
-                {Math.round(profitData.length * metrics.winRate / 100)}
-              </div>
-            </div>
-          </Col>
-          
-          <Col span={8}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary">亏损日数</Text>
-              <div style={{ fontSize: 18, fontWeight: 500, color: '#cf1322' }}>
-                {profitData.length - Math.round(profitData.length * metrics.winRate / 100)}
-              </div>
-            </div>
-          </Col>
-        </Row>
-      </Card>
+        {/* 时间统计 */}
+        <Col span={12}>
+          <Card
+            title={
+              <Space>
+                <LineChartOutlined style={{ color: '#722ed1' }} />
+                <span style={{ fontSize: 14, fontWeight: 500 }}>时间与收益</span>
+              </Space>
+            }
+            size="small"
+            bodyStyle={{ padding: '12px' }}
+            headStyle={{ minHeight: 40, padding: '0 12px' }}
+          >
+            <Row gutter={[8, 8]}>
+              <Col span={12}>
+                <MetricCard
+                  title="开始日期"
+                  value={String(config.start_date || 'N/A').replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')}
+                  color="#722ed1"
+                />
+              </Col>
+              <Col span={12}>
+                <MetricCard
+                  title="结束日期"
+                  value={String(config.end_date || 'N/A').replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')}
+                  color="#722ed1"
+                />
+              </Col>
+              <Col span={12}>
+                <MetricCard
+                  title="初始资金"
+                  value={(config.start_capital * 10000).toLocaleString('zh-CN')}
+                  suffix="元"
+                  color="#1890ff"
+                />
+              </Col>
+              <Col span={12}>
+                <MetricCard
+                  title="最终资金"
+                  value={(config.start_capital * 10000 + metrics.totalReturn).toLocaleString('zh-CN')}
+                  suffix="元"
+                  color={metrics.totalReturn >= 0 ? '#52c41a' : '#ff4d4f'}
+                />
+              </Col>
+            </Row>
+          </Card>
+        </Col>
+      </Row>
     </div>
   );
 };

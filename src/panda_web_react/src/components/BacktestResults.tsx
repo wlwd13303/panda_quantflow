@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import {
   Card,
   Row,
@@ -14,8 +14,19 @@ import {
   InputNumber,
   Input,
   Select,
+  Tabs,
+  Divider,
+  Descriptions,
 } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import {
+  ReloadOutlined,
+  RiseOutlined,
+  FallOutlined,
+  LineChartOutlined,
+  FundOutlined,
+  TransactionOutlined,
+  BarChartOutlined,
+} from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import type {
   ProfitData,
@@ -25,6 +36,8 @@ import type {
   DataStats,
   BacktestConfig,
 } from '@/types';
+
+const { TabPane } = Tabs;
 
 interface BacktestResultsProps {
   backtesting: boolean;
@@ -79,29 +92,46 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
       return String(date).substring(0, 8);
     });
 
+    // 计算净值曲线：净值 = 当前资产 / 初始资金
+    // 初始资金从配置中获取（单位：万），需要转换为元
+    const initialCapital = (config.start_capital || 1000) * 10000;
+    
     const equity = profitData.map((item) => {
-      const value =
+      const totalAsset =
         item.total_value ?? item.total_profit ?? item.csi_stock ?? item.strategy_profit ?? 0;
-      return Number(value) || 0;
+      const totalAssetValue = Number(totalAsset) || 0;
+      // 计算净值：当前资产 / 初始资金
+      const netValue = totalAssetValue / initialCapital;
+      return netValue;
     });
+
+    // 计算收益率（最新净值 - 1）
+    const latestNetValue = equity.length > 0 ? equity[equity.length - 1] : 1;
+    const totalReturn = ((latestNetValue - 1) * 100).toFixed(2);
 
     return {
       title: {
-        text: '资产净值曲线',
+        text: '策略净值曲线',
+        subtext: `累计收益率: ${totalReturn}%`,
         left: 'center',
       },
       tooltip: {
         trigger: 'axis',
         formatter: (params: any) => {
           if (!params || !params[0]) return '';
-          const value = params[0].value ?? 0;
-          const numValue = Number(value);
+          const netValue = params[0].value ?? 1;
+          const numValue = Number(netValue);
+          const returnRate = ((numValue - 1) * 100).toFixed(2);
           return (
             params[0].name +
             '<br/>' +
             params[0].marker +
             '净值: ' +
-            (isNaN(numValue) ? '0.00' : numValue.toFixed(2))
+            (isNaN(numValue) ? '1.0000' : numValue.toFixed(4)) +
+            '<br/>' +
+            '累计收益: ' +
+            returnRate +
+            '%'
           );
         },
       },
@@ -112,7 +142,11 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
       },
       yAxis: {
         type: 'value',
-        name: '资产净值',
+        name: '净值',
+        scale: true,  // 不从0开始，自动缩放以适应数据范围
+        axisLabel: {
+          formatter: '{value}'
+        },
       },
       series: [
         {
@@ -133,6 +167,17 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
                 { offset: 1, color: 'rgba(84, 112, 198, 0.05)' },
               ],
             },
+          },
+          markLine: {
+            symbol: 'none',
+            data: [
+              {
+                yAxis: 1,
+                lineStyle: { color: '#999', type: 'dashed', width: 1 },
+                label: { show: true, position: 'end', formatter: '基准线 (1.0)' }
+              }
+            ],
+            silent: true,
           },
         },
       ],
@@ -213,30 +258,145 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
 
   const latestAccount = accountData.length > 0 ? accountData[accountData.length - 1] : null;
 
+  // 计算关键绩效指标
+  const calculateMetrics = () => {
+    if (profitData.length === 0) {
+      return {
+        totalReturn: 0,
+        annualReturn: 0,
+        maxDrawdown: 0,
+        sharpeRatio: 0,
+        winRate: 0,
+        totalTrades: tradeData.length,
+      };
+    }
+
+    const initialCapital = (config.start_capital || 1000) * 10000;
+    const equity = profitData.map((item) => {
+      const totalAsset = item.total_value ?? item.total_profit ?? item.strategy_profit ?? 0;
+      return Number(totalAsset) || 0;
+    });
+
+    // 总收益率
+    const latestValue = equity[equity.length - 1];
+    const totalReturn = ((latestValue - initialCapital) / initialCapital) * 100;
+
+    // 年化收益率（简化计算）
+    const days = profitData.length;
+    const annualReturn = totalReturn * (252 / Math.max(days, 1));
+
+    // 最大回撤
+    let maxDrawdown = 0;
+    let peak = equity[0];
+    for (const value of equity) {
+      if (value > peak) peak = value;
+      const drawdown = ((peak - value) / peak) * 100;
+      if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+    }
+
+    // 夏普比率（简化计算）
+    const returns = equity.slice(1).map((v, i) => (v - equity[i]) / equity[i]);
+    const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const stdReturn = Math.sqrt(
+      returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 0), 0) / returns.length
+    );
+    const sharpeRatio = stdReturn > 0 ? (avgReturn / stdReturn) * Math.sqrt(252) : 0;
+
+    // 胜率
+    const profitTrades = tradeData.filter((t) => (t.profit ?? 0) > 0).length;
+    const winRate = tradeData.length > 0 ? (profitTrades / tradeData.length) * 100 : 0;
+
+    return {
+      totalReturn,
+      annualReturn,
+      maxDrawdown,
+      sharpeRatio,
+      winRate,
+      totalTrades: tradeData.length,
+    };
+  };
+
+  const metrics = calculateMetrics();
+
+  // 获取回撤曲线数据
+  const getDrawdownChartOption = () => {
+    const initialCapital = (config.start_capital || 1000) * 10000;
+    const equity = profitData.map((item) => {
+      const totalAsset = item.total_value ?? item.total_profit ?? item.strategy_profit ?? 0;
+      return Number(totalAsset) || initialCapital;
+    });
+
+    const dates = profitData.map((item) => {
+      const date = item.date || item.gmt_create_time || item.gmt_create || '';
+      return String(date).substring(0, 8);
+    });
+
+    // 计算回撤序列
+    const drawdowns: number[] = [];
+    let peak = equity[0];
+    for (const value of equity) {
+      if (value > peak) peak = value;
+      const drawdown = ((peak - value) / peak) * 100;
+      drawdowns.push(-drawdown);
+    }
+
+    return {
+      title: {
+        text: '回撤曲线',
+        left: 'center',
+        textStyle: { fontSize: 14, fontWeight: 'normal' },
+      },
+      tooltip: {
+        trigger: 'axis',
+        formatter: (params: any) => {
+          if (!params || !params[0]) return '';
+          const drawdown = Math.abs(params[0].value);
+          return params[0].name + '<br/>' + params[0].marker + '回撤: ' + drawdown.toFixed(2) + '%';
+        },
+      },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        axisLabel: { rotate: 45, interval: Math.floor(dates.length / 10) },
+      },
+      yAxis: {
+        type: 'value',
+        name: '回撤 (%)',
+        axisLabel: { formatter: '{value}%' },
+      },
+      series: [
+        {
+          name: '回撤',
+          type: 'line',
+          data: drawdowns,
+          smooth: true,
+          lineStyle: { color: '#ff4d4f', width: 2 },
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: 'rgba(255, 77, 79, 0.3)' },
+                { offset: 1, color: 'rgba(255, 77, 79, 0.05)' },
+              ],
+            },
+          },
+        },
+      ],
+      grid: { left: '10%', right: '5%', bottom: '15%' },
+    };
+  };
+
   return (
-    <Row gutter={[16, 16]} style={{ padding: '20px' }}>
-      {/* 左侧：图表和列表 */}
-      <Col span={16}>
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
-          {/* 回测进度 */}
-          {(backtesting || currentBacktestId) && (
-            <Card
-              title="回测进度"
-              extra={
-                <Space>
-                  {currentBacktestId && (
-                    <Button size="small" onClick={onLoadResults}>
-                      {backtestStatus === 'completed' ? '刷新结果' : '强制加载结果'}
-                    </Button>
-                  )}
-                  {currentBacktestId && backtestStatus === 'running' && (
-                    <Button size="small" type="primary" onClick={onManualComplete}>
-                      手动标记完成
-                    </Button>
-                  )}
-                </Space>
-              }
-            >
+    <div style={{ padding: '20px', background: '#f0f2f5', minHeight: '100vh' }}>
+      {/* 回测进度条（如果正在运行） */}
+      {(backtesting || (currentBacktestId && backtestStatus === 'running')) && (
+        <Card style={{ marginBottom: 16 }}>
+          <Row align="middle" gutter={16}>
+            <Col flex="auto">
               <Progress
                 percent={backtestProgress}
                 status={
@@ -247,138 +407,276 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
                     : 'active'
                 }
               />
-              <p style={{ marginTop: 10, color: '#666' }}>状态: {getStatusText(backtestStatus)}</p>
+              <p style={{ marginTop: 8, marginBottom: 0, color: '#666' }}>
+                状态: {getStatusText(backtestStatus)} {currentBacktestId && `(ID: ${currentBacktestId})`}
+              </p>
+            </Col>
+            <Col>
+              <Space>
               {currentBacktestId && (
-                <p style={{ marginTop: 5, color: '#909399', fontSize: 12 }}>
-                  回测ID: {currentBacktestId}
-                </p>
-              )}
-
-              {/* 实时数据统计 */}
-              {currentBacktestId &&
-                (dataStats.accountCount > 0 || dataStats.tradeCount > 0) && (
-                  <Row gutter={16} style={{ marginTop: 15 }}>
-                    <Col span={6}>
-                      <Statistic title="账户记录" value={dataStats.accountCount} />
-                    </Col>
-                    <Col span={6}>
-                      <Statistic title="交易记录" value={dataStats.tradeCount} />
-                    </Col>
-                    <Col span={6}>
-                      <Statistic title="持仓记录" value={dataStats.positionCount} />
-                    </Col>
-                    <Col span={6}>
-                      <Statistic title="收益记录" value={dataStats.profitCount} />
-                    </Col>
-                  </Row>
+                  <Button size="small" onClick={onLoadResults}>
+                    {backtestStatus === 'completed' ? '刷新结果' : '强制加载'}
+                  </Button>
                 )}
+                {currentBacktestId && backtestStatus === 'running' && (
+                  <Button size="small" type="primary" onClick={onManualComplete}>
+                    标记完成
+                  </Button>
+                )}
+              </Space>
+            </Col>
+          </Row>
+        </Card>
+      )}
 
-              {/* 最新账户状态 */}
-              {latestAccount && (
-                <Card
-                  size="small"
-                  style={{
-                    marginTop: 15,
-                    background: '#e8f4fd',
-                    borderLeft: '4px solid #1890ff',
-                  }}
-                >
-                  <div style={{ fontWeight: 'bold', color: '#1890ff', marginBottom: 10 }}>
-                    💰 最新账户状态
-                  </div>
-                  <Row gutter={16}>
-                    {latestAccount.total_profit !== undefined && (
-                      <Col span={8}>
+      {/* 顶部：关键绩效指标卡片 */}
+      {!currentBacktestId && (
+        <Card style={{ marginBottom: 16 }}>
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="暂无回测数据，请先配置参数并运行回测。以下显示默认空状态界面。"
+            style={{ padding: '20px 0' }}
+          />
+        </Card>
+      )}
+      
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+            <Col span={4}>
+              <Card>
+                <Statistic
+                  title="累计收益率"
+                  value={metrics.totalReturn}
+                  precision={2}
+                  suffix="%"
+                  valueStyle={{ color: metrics.totalReturn >= 0 ? '#3f8600' : '#cf1322', fontSize: 24 }}
+                  prefix={metrics.totalReturn >= 0 ? <RiseOutlined /> : <FallOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col span={4}>
+              <Card>
                         <Statistic
-                          title="总资产"
-                          value={latestAccount.total_profit}
+                  title="年化收益率"
+                  value={metrics.annualReturn}
                           precision={2}
+                  suffix="%"
+                  valueStyle={{ fontSize: 24 }}
                         />
+              </Card>
                       </Col>
-                    )}
-                    {latestAccount.available_funds !== undefined && (
-                      <Col span={8}>
+            <Col span={4}>
+              <Card>
                         <Statistic
-                          title="可用资金"
-                          value={latestAccount.available_funds}
+                  title="最大回撤"
+                  value={metrics.maxDrawdown}
                           precision={2}
+                  suffix="%"
+                  valueStyle={{ color: '#cf1322', fontSize: 24 }}
                         />
+              </Card>
                       </Col>
-                    )}
-                    {latestAccount.market_value !== undefined && (
-                      <Col span={8}>
+            <Col span={4}>
+              <Card>
                         <Statistic
-                          title="持仓市值"
-                          value={latestAccount.market_value}
+                  title="夏普比率"
+                  value={metrics.sharpeRatio}
                           precision={2}
+                  valueStyle={{ fontSize: 24 }}
                         />
+              </Card>
                       </Col>
-                    )}
-                  </Row>
-                  {latestAccount.gmt_create && (
-                    <p style={{ marginTop: 10, fontSize: 12, color: '#666' }}>
-                      更新时间: {latestAccount.gmt_create}
-                    </p>
-                  )}
+            <Col span={4}>
+              <Card>
+                <Statistic
+                  title="胜率"
+                  value={metrics.winRate}
+                  precision={2}
+                  suffix="%"
+                  valueStyle={{ fontSize: 24 }}
+                />
                 </Card>
-              )}
+            </Col>
+            <Col span={4}>
+              <Card>
+                <Statistic
+                  title="总交易次数"
+                  value={metrics.totalTrades}
+                  valueStyle={{ fontSize: 24 }}
+                />
             </Card>
-          )}
+            </Col>
+          </Row>
 
-          {/* 资产曲线图 */}
-          {currentBacktestId && profitData.length > 0 && (
+          {/* 中部：图表区域 */}
+          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+            <Col span={16}>
             <Card
-              title="资产净值曲线"
+                title={
+                  <Space>
+                    <LineChartOutlined />
+                    <span>策略净值曲线</span>
+                  </Space>
+                }
               extra={
                 <Button size="small" icon={<ReloadOutlined />} onClick={onLoadResults}>
-                  刷新图表
+                    刷新
                 </Button>
               }
             >
-              <ReactECharts ref={chartRef} option={getChartOption()} style={{ height: 400 }} />
+                {profitData.length > 0 ? (
+                  <ReactECharts ref={chartRef} option={getChartOption()} style={{ height: 450 }} />
+                ) : (
+                  <Empty description="暂无收益数据" />
+                )}
             </Card>
-          )}
+            </Col>
+            <Col span={8}>
+              <Card
+                title={
+                  <Space>
+                    <BarChartOutlined />
+                    <span>回撤分析</span>
+                  </Space>
+                }
+              >
+                {profitData.length > 0 ? (
+                  <ReactECharts option={getDrawdownChartOption()} style={{ height: 450 }} />
+                ) : (
+                  <Empty description="暂无回撤数据" />
+                )}
+              </Card>
+            </Col>
+          </Row>
 
-          {/* 持仓信息 */}
-          {currentBacktestId && positionData.length > 0 && (
-            <Card title="当前持仓 (最近20条)">
-              <Table
-                columns={positionColumns}
-                dataSource={positionData.slice(-20)}
-                pagination={false}
-                size="small"
-                scroll={{ y: 300 }}
-                rowKey={(record, index) => index?.toString() || '0'}
-              />
-            </Card>
-          )}
+          {/* 底部：详细数据标签页 */}
+          <Card>
+            <Tabs defaultActiveKey="1" size="large">
+              <TabPane
+                tab={
+                  <span>
+                    <FundOutlined />
+                    账户信息
+                  </span>
+                }
+                key="1"
+              >
+                {latestAccount ? (
+                  <div>
+                    <Descriptions title="最新账户状态" bordered column={3} size="small">
+                      <Descriptions.Item label="总资产">
+                        {(latestAccount.total_profit ?? 0).toLocaleString('zh-CN', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="可用资金">
+                        {(latestAccount.available_funds ?? 0).toLocaleString('zh-CN', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="持仓市值">
+                        {(latestAccount.market_value ?? 0).toLocaleString('zh-CN', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="更新时间" span={3}>
+                        {latestAccount.gmt_create || 'N/A'}
+                      </Descriptions.Item>
+                    </Descriptions>
+                    <Divider />
+                    <Row gutter={16}>
+                      <Col span={6}>
+                        <Statistic title="账户记录数" value={dataStats.accountCount} />
+                      </Col>
+                      <Col span={6}>
+                        <Statistic title="交易记录数" value={dataStats.tradeCount} />
+                      </Col>
+                      <Col span={6}>
+                        <Statistic title="持仓记录数" value={dataStats.positionCount} />
+                      </Col>
+                      <Col span={6}>
+                        <Statistic title="收益记录数" value={dataStats.profitCount} />
+                      </Col>
+                    </Row>
+                  </div>
+                ) : (
+                  <Empty description="暂无账户数据" />
+                )}
+              </TabPane>
 
-          {/* 成交订单 */}
-          {currentBacktestId && tradeData.length > 0 && (
-            <Card title="成交订单 (前50条)">
+              <TabPane
+                tab={
+                  <span>
+                    <TransactionOutlined />
+                    成交明细 ({tradeData.length})
+                  </span>
+                }
+                key="2"
+              >
+                {tradeData.length > 0 ? (
               <Table
                 columns={tradeColumns}
                 dataSource={tradeData}
-                pagination={false}
-                size="small"
-                scroll={{ y: 400 }}
-                rowKey={(record, index) => index?.toString() || '0'}
-              />
-            </Card>
-          )}
+                    pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
+                    size="small"
+                    scroll={{ x: 800 }}
+                    rowKey={(_record, index) => index?.toString() || '0'}
+                  />
+                ) : (
+                  <Empty description="暂无交易记录" />
+                )}
+              </TabPane>
 
-          {/* 无数据提示 */}
-          {!currentBacktestId && (
-            <Card>
-              <Empty description="暂无回测数据，请先运行回测" />
+              <TabPane
+                tab={
+                  <span>
+                    <FundOutlined />
+                    持仓详情 ({positionData.length})
+                  </span>
+                }
+                key="3"
+              >
+                {positionData.length > 0 ? (
+                  <Table
+                    columns={positionColumns}
+                    dataSource={positionData}
+                    pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
+                    size="small"
+                    scroll={{ x: 800 }}
+                    rowKey={(_record, index) => index?.toString() || '0'}
+                  />
+                ) : (
+                  <Empty description="暂无持仓记录" />
+                )}
+              </TabPane>
+
+              <TabPane
+                tab={
+                  <span>
+                    <BarChartOutlined />
+                    回测配置
+                  </span>
+                }
+                key="4"
+              >
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Card title="基本配置" size="small">
+                      <Descriptions bordered column={1} size="small">
+                        <Descriptions.Item label="策略名称">{strategyName || 'N/A'}</Descriptions.Item>
+                        <Descriptions.Item label="初始资金">{config.start_capital} 万</Descriptions.Item>
+                        <Descriptions.Item label="佣金费率">{config.commission_rate} ‰</Descriptions.Item>
+                        <Descriptions.Item label="开始日期">{config.start_date}</Descriptions.Item>
+                        <Descriptions.Item label="结束日期">{config.end_date}</Descriptions.Item>
+                        <Descriptions.Item label="数据频率">{config.frequency}</Descriptions.Item>
+                        <Descriptions.Item label="基准指数">{config.standard_symbol}</Descriptions.Item>
+                      </Descriptions>
             </Card>
-          )}
-        </Space>
       </Col>
-
-      {/* 右侧：参数配置 */}
-      <Col span={8}>
-        <Card title="回测参数配置">
+                  <Col span={12}>
+                    <Card title="编辑配置" size="small">
           <Form layout="vertical" size="small">
             <Form.Item label="策略名称">
               <Input
@@ -387,7 +685,6 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
                 placeholder="请输入策略名称"
               />
             </Form.Item>
-
             <Form.Item label="初始资金(万)">
               <InputNumber
                 style={{ width: '100%' }}
@@ -397,7 +694,6 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
                 onChange={(value) => onConfigChange({ ...config, start_capital: value || 1000 })}
               />
             </Form.Item>
-
             <Form.Item label="佣金费率(‰)">
               <InputNumber
                 style={{ width: '100%' }}
@@ -409,7 +705,8 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
                 onChange={(value) => onConfigChange({ ...config, commission_rate: value || 1 })}
               />
             </Form.Item>
-
+                        <Row gutter={8}>
+                          <Col span={12}>
             <Form.Item label="开始日期">
               <Input
                 value={config.start_date}
@@ -417,7 +714,8 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
                 placeholder="YYYYMMDD"
               />
             </Form.Item>
-
+                          </Col>
+                          <Col span={12}>
             <Form.Item label="结束日期">
               <Input
                 value={config.end_date}
@@ -425,7 +723,10 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
                 placeholder="YYYYMMDD"
               />
             </Form.Item>
-
+                          </Col>
+                        </Row>
+                        <Row gutter={8}>
+                          <Col span={12}>
             <Form.Item label="数据频率">
               <Select
                 value={config.frequency}
@@ -435,7 +736,8 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
                 <Select.Option value="1m">分钟线</Select.Option>
               </Select>
             </Form.Item>
-
+                          </Col>
+                          <Col span={12}>
             <Form.Item label="基准指数">
               <Select
                 value={config.standard_symbol}
@@ -446,10 +748,16 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
                 <Select.Option value="000905.SH">中证500</Select.Option>
               </Select>
             </Form.Item>
+                          </Col>
+                        </Row>
           </Form>
         </Card>
       </Col>
     </Row>
+              </TabPane>
+            </Tabs>
+          </Card>
+    </div>
   );
 };
 

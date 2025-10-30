@@ -5,7 +5,6 @@ import {
   Card,
   Table,
   Tag,
-  Progress,
   Button,
   Space,
   Empty,
@@ -26,8 +25,6 @@ import {
   FundOutlined,
   ReloadOutlined,
   SettingOutlined,
-  PlayCircleOutlined,
-  PauseCircleOutlined,
 } from '@ant-design/icons';
 import type {
   ProfitData,
@@ -102,16 +99,6 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
   onRefreshIntervalChange,
 }) => {
   const [selectedMenu, setSelectedMenu] = useState('overview');
-
-  const getStatusText = (status: string) => {
-    const statusMap: Record<string, string> = {
-      pending: '等待中',
-      running: '运行中',
-      completed: '已完成',
-      failed: '失败',
-    };
-    return statusMap[status] || status;
-  };
 
   // 交易表格列定义
   const tradeColumns = [
@@ -225,184 +212,19 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
 
   // 渲染不同的内容区域
   const renderContent = () => {
-    if (!currentBacktestId) {
-      return (
-        <Card style={{ margin: 20 }}>
-          <Empty description="暂无回测数据，请先运行回测" />
-        </Card>
-      );
-    }
-
     switch (selectedMenu) {
       case 'overview':
         return (
           <div>
-            {/* 回测进度 */}
-            {(backtesting || backtestStatus !== 'completed') && (
-              <Card style={{ margin: '20px 20px 16px 20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <Title level={5} style={{ margin: 0 }}>回测进度</Title>
-                  <Space>
-                    <span style={{ fontSize: 12, color: '#666' }}>刷新间隔:</span>
-                    <InputNumber
-                      size="small"
-                      min={1}
-                      max={60}
-                      value={refreshInterval / 1000}
-                      onChange={(val) => onRefreshIntervalChange?.((val || 2) * 1000)}
-                      style={{ width: 70 }}
-                      suffix="秒"
-                    />
-                    
-                    <Button
-                      size="small"
-                      type={autoRefresh ? 'primary' : 'default'}
-                      icon={autoRefresh ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-                      onClick={() => onAutoRefreshChange?.(!autoRefresh)}
-                    >
-                      {autoRefresh ? '暂停自动刷新' : '启动自动刷新'}
-                    </Button>
-                    
-                    <Button size="small" icon={<ReloadOutlined />} onClick={onLoadResults}>
-                      手动刷新
-                    </Button>
-                    
-                    {backtestStatus === 'running' && (
-                      <Button size="small" type="primary" onClick={onManualComplete}>
-                        手动标记完成
-                      </Button>
-                    )}
-                  </Space>
-                </div>
-                
-                <Progress
-                  percent={backtestProgress}
-                  status={
-                    backtestStatus === 'completed'
-                      ? 'success'
-                      : backtestStatus === 'failed'
-                      ? 'exception'
-                      : 'active'
-                  }
-                />
-                <Text type="secondary" style={{ marginTop: 10, display: 'block' }}>
-                  状态: {getStatusText(backtestStatus)} | 回测ID: {currentBacktestId}
-                </Text>
-
-                {/* 数据统计 */}
-                {(dataStats.accountCount > 0 || dataStats.tradeCount > 0) && (
-                  <Row gutter={16} style={{ marginTop: 20 }}>
-                    <Col span={6}>
-                      <Statistic title="账户记录" value={dataStats.accountCount} />
-                    </Col>
-                    <Col span={6}>
-                      <Statistic title="交易记录" value={dataStats.tradeCount} />
-                    </Col>
-                    <Col span={6}>
-                      <Statistic title="持仓记录" value={dataStats.positionCount} />
-                    </Col>
-                    <Col span={6}>
-                      <Statistic title="收益记录" value={dataStats.profitCount} />
-                    </Col>
-                  </Row>
-                )}
-              </Card>
-            )}
-
-            {/* 回测完成后的刷新控制 */}
-            {backtestStatus === 'completed' && currentBacktestId && (
-              <Card style={{ margin: '20px 20px 16px 20px' }} size="small">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Space>
-                    <Text type="secondary">🔄 自动刷新状态:</Text>
-                    <Tag color={autoRefresh ? 'success' : 'default'}>
-                      {autoRefresh ? `已启用 (${refreshInterval / 1000}秒)` : '已暂停'}
-                    </Tag>
-                  </Space>
-                  <Space>
-                    <span style={{ fontSize: 12, color: '#666' }}>刷新间隔:</span>
-                    <InputNumber
-                      size="small"
-                      min={1}
-                      max={60}
-                      value={refreshInterval / 1000}
-                      onChange={(val) => onRefreshIntervalChange?.((val || 2) * 1000)}
-                      style={{ width: 70 }}
-                      suffix="秒"
-                    />
-                    
-                    <Button
-                      size="small"
-                      type={autoRefresh ? 'primary' : 'default'}
-                      icon={autoRefresh ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-                      onClick={() => onAutoRefreshChange?.(!autoRefresh)}
-                    >
-                      {autoRefresh ? '暂停' : '启动'}
-                    </Button>
-                    
-                    <Button size="small" icon={<ReloadOutlined />} onClick={onLoadResults}>
-                      手动刷新
-                    </Button>
-                  </Space>
-                </div>
-              </Card>
-            )}
 
             {/* 性能指标 */}
-            {profitData.length > 0 && (
-              <PerformanceMetrics profitData={profitData} config={config} />
-            )}
+            <PerformanceMetrics profitData={profitData} config={config} />
 
-            {/* 收益曲线 */}
-            {profitData.length > 0 && (
-              <div style={{ padding: '0 20px 20px 20px' }}>
-                <EnhancedProfitChart profitData={profitData} config={config} />
-              </div>
-            )}
+            {/* 净值曲线 */}
+            <div style={{ padding: '0 20px 20px 20px' }}>
+              <EnhancedProfitChart profitData={profitData} config={config} />
+            </div>
 
-            {/* 最新账户状态 */}
-            {latestAccount && (
-              <Card style={{ margin: '0 20px 20px 20px' }}>
-                <Title level={5}>💰 最新账户状态</Title>
-                <Row gutter={24} style={{ marginTop: 20 }}>
-                  {latestAccount.total_profit !== undefined && (
-                    <Col span={8}>
-                      <Statistic
-                        title="总资产"
-                        value={latestAccount.total_profit}
-                        precision={2}
-                        prefix="¥"
-                      />
-                    </Col>
-                  )}
-                  {latestAccount.available_funds !== undefined && (
-                    <Col span={8}>
-                      <Statistic
-                        title="可用资金"
-                        value={latestAccount.available_funds}
-                        precision={2}
-                        prefix="¥"
-                      />
-                    </Col>
-                  )}
-                  {latestAccount.market_value !== undefined && (
-                    <Col span={8}>
-                      <Statistic
-                        title="持仓市值"
-                        value={latestAccount.market_value}
-                        precision={2}
-                        prefix="¥"
-                      />
-                    </Col>
-                  )}
-                </Row>
-                {latestAccount.gmt_create && (
-                  <Text type="secondary" style={{ marginTop: 16, display: 'block', fontSize: 12 }}>
-                    更新时间: {latestAccount.gmt_create}
-                  </Text>
-                )}
-              </Card>
-            )}
           </div>
         );
 
@@ -482,18 +304,10 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
       case 'analysis':
         return (
           <div>
-            {profitData.length > 0 ? (
-              <>
-                <PerformanceMetrics profitData={profitData} config={config} />
-                <Card style={{ margin: 20 }} title="详细分析">
-                  <Text type="secondary">更多分析图表开发中...</Text>
-                </Card>
-              </>
-            ) : (
-              <Card style={{ margin: 20 }}>
-                <Empty description="暂无分析数据" />
-              </Card>
-            )}
+            <PerformanceMetrics profitData={profitData} config={config} />
+            <Card style={{ margin: 20 }} title="详细分析">
+              <Text type="secondary">更多分析图表开发中...</Text>
+            </Card>
           </div>
         );
 
