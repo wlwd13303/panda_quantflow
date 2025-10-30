@@ -257,7 +257,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
               </Space>
             }
             size="small"
-            bodyStyle={{ padding: '12px' }}
+            styles={{ body: { padding: '12px' } }}
             headStyle={{ minHeight: 40, padding: '0 12px' }}
           >
             <Row gutter={[8, 8]}>
@@ -333,7 +333,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
               </Space>
             }
             size="small"
-            bodyStyle={{ padding: '12px' }}
+            styles={{ body: { padding: '12px' } }}
             headStyle={{ minHeight: 40, padding: '0 12px' }}
           >
             <Row gutter={[8, 8]}>
@@ -347,7 +347,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
                     <Progress
                       type="circle"
                       percent={Math.min(metrics.maxDrawdownRate, 100)}
-                      width={24}
+                      size={24}
                       strokeColor="#ff4d4f"
                       format={() => ''}
                     />
@@ -401,7 +401,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
               </Space>
             }
             size="small"
-            bodyStyle={{ padding: '12px' }}
+            styles={{ body: { padding: '12px' } }}
             headStyle={{ minHeight: 40, padding: '0 12px' }}
           >
             <Row gutter={[8, 8]}>
@@ -482,7 +482,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
               </Space>
             }
             size="small"
-            bodyStyle={{ padding: '12px' }}
+            styles={{ body: { padding: '12px' } }}
             headStyle={{ minHeight: 40, padding: '0 12px' }}
           >
             <Row gutter={[8, 8]}>

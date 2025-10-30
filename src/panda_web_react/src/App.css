@@ -27,25 +27,8 @@ body {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-.ant-tabs-content {
-  height: 100%;
-}
-
-.ant-tabs-tabpane {
-  height: 100%;
-}
-
-/* 确保 Tabs 占满高度 */
-.ant-tabs {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.ant-tabs-content-holder {
-  flex: 1;
-  overflow: auto;
-}
+/* 去掉全局的 Tabs 强制高度，避免占满父容器导致下方内容被挤压不可见。
+   如需某处 Tabs 全高，请在对应组件上用局部 class 进行范围化样式。 */
 
 /* Monaco Editor 样式调整 */
 .monaco-editor {

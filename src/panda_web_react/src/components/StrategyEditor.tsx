@@ -302,7 +302,7 @@ const StrategyEditor: React.FC<StrategyEditorProps> = ({
         </div>
       }
       bordered={false}
-      bodyStyle={{ padding: 0, height: 'calc(100vh - 200px)' }}
+      styles={{ body: { padding: 0, height: 'calc(100vh - 200px)' } }}
     >
       <Editor
         height="100%"

@@ -1,30 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  Layout,
-  Button,
-  Space,
-  Select,
-  Tabs,
-  Modal,
-  Form,
-  Input,
-  message,
-  Spin,
-} from 'antd';
-import {
-  SaveOutlined,
-  PlayCircleOutlined,
-  LoadingOutlined,
-} from '@ant-design/icons';
-import StrategyEditor, { defaultCode } from './components/StrategyEditor';
-import BacktestResults from './components/BacktestResults';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Layout, message } from 'antd';
+import WorkspaceHeader from './components/workspace/WorkspaceHeader';
+import WorkspaceTabs from './components/workspace/WorkspaceTabs';
+import StrategyEditorTab, { defaultStrategyCode } from './components/strategy/StrategyEditorTab';
 import EnhancedBacktestResults from './components/EnhancedBacktestResults';
-import BacktestManagement from './components/BacktestManagement';
-import BacktestMonitor from './components/BacktestMonitor';
+import ManagementCenter from './components/management/ManagementCenter';
 import { strategyApi, backtestApi } from './services/api';
 import type {
   Strategy,
   BacktestConfig,
+  BacktestRecord,
+  WorkspaceTab,
   ProfitData,
   TradeData,
   PositionData,
@@ -33,155 +19,123 @@ import type {
 } from './types';
 import './App.css';
 
-const { Header, Content } = Layout;
+const { Content } = Layout;
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('code');
-  const [code, setCode] = useState(defaultCode);
-  const [strategyName, setStrategyName] = useState('我的策略');
-  const [strategies, setStrategies] = useState<Strategy[]>([]);
-  const [selectedStrategyId, setSelectedStrategyId] = useState<string>();
-  const [saving, setSaving] = useState(false);
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [saveForm] = Form.useForm();
-
-  const [backtesting, setBacktesting] = useState(false);
-  const [currentBacktestId, setCurrentBacktestId] = useState<string>();
-  const [backtestProgress, setBacktestProgress] = useState(0);
-  const [backtestStatus, setBacktestStatus] = useState<'pending' | 'running' | 'completed' | 'failed'>('pending');
-
-  const [config, setConfig] = useState<BacktestConfig>({
-    start_capital: 1000,
-    start_date: '20240101',
-    end_date: '20240201',
-    frequency: '1d',
-    commission_rate: 1,
-    standard_symbol: '000001.SH',
-    matching_type: 1,
-  });
-
-  const [profitData, setProfitData] = useState<ProfitData[]>([]);
-  const [tradeData, setTradeData] = useState<TradeData[]>([]);
-  const [accountData, setAccountData] = useState<AccountData[]>([]);
-  const [positionData, setPositionData] = useState<PositionData[]>([]);
-  const [dataStats, setDataStats] = useState<DataStats>({
-    accountCount: 0,
-    tradeCount: 0,
-    positionCount: 0,
-    profitCount: 0,
-  });
+  // ==================== 状态管理 ====================
   
-  // 自动刷新控制
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(2000); // 2秒
+  // Tab管理
+  const [tabs, setTabs] = useState<WorkspaceTab[]>([
+    {
+      id: 'management',
+      type: 'management',
+      title: '管理中心',
+      closable: false,
+    },
+  ]);
+  const [activeTabId, setActiveTabId] = useState('management');
 
-  const progressTimerRef = useRef<NodeJS.Timeout>();
-  const dataRefreshTimerRef = useRef<NodeJS.Timeout>();
+  // 策略列表
+  const [strategies, setStrategies] = useState<Strategy[]>([]);
+  const [strategiesLoading, setStrategiesLoading] = useState(false);
 
+  // 运行中的回测
+  const [runningBacktests, setRunningBacktests] = useState<BacktestRecord[]>([]);
+
+  // 回测数据缓存（按backtestId存储）
+  const [backtestDataCache, setBacktestDataCache] = useState<Record<string, any>>({});
+
+  // 定时器引用
+  const progressTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const dataRefreshTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // ==================== 初始化 ====================
+  
   useEffect(() => {
     loadStrategies();
+    loadRunningBacktests();
+
+    // 清理定时器
     return () => {
-      if (progressTimerRef.current) {
-        clearInterval(progressTimerRef.current);
-      }
-      if (dataRefreshTimerRef.current) {
-        clearInterval(dataRefreshTimerRef.current);
-      }
+      Object.values(progressTimersRef.current).forEach(clearInterval);
+      Object.values(dataRefreshTimersRef.current).forEach(clearInterval);
     };
   }, []);
 
-  // 自动刷新数据（当有回测ID且启用自动刷新时）
-  useEffect(() => {
-    if (autoRefresh && currentBacktestId && activeTab === 'result') {
-      // 立即加载一次
-      loadBacktestResults(true);
-      
-      // 设置定时刷新
-      dataRefreshTimerRef.current = setInterval(() => {
-        loadBacktestResults(true);
-      }, refreshInterval);
-    } else {
-      if (dataRefreshTimerRef.current) {
-        clearInterval(dataRefreshTimerRef.current);
-        dataRefreshTimerRef.current = undefined;
-      }
-    }
-
-    return () => {
-      if (dataRefreshTimerRef.current) {
-        clearInterval(dataRefreshTimerRef.current);
-      }
-    };
-  }, [autoRefresh, currentBacktestId, refreshInterval, activeTab]);
-
+  // ==================== 策略相关函数 ====================
+  
   const loadStrategies = async () => {
+    setStrategiesLoading(true);
     try {
       const data = await strategyApi.getStrategies();
       setStrategies(data);
     } catch (error: any) {
       console.error('加载策略列表失败:', error);
-    }
-  };
-
-  const handleSaveStrategy = () => {
-    saveForm.setFieldsValue({
-      name: strategyName,
-      description: '',
-    });
-    setShowSaveDialog(true);
-  };
-
-  const confirmSaveStrategy = async () => {
-    try {
-      const values = await saveForm.validateFields();
-      setSaving(true);
-      const result = await strategyApi.saveStrategy({
-        name: values.name,
-        code: code,
-        description: values.description,
-      });
-      message.success('策略保存成功');
-      setShowSaveDialog(false);
-      await loadStrategies();
-      setSelectedStrategyId(result.id || result._id);
-    } catch (error: any) {
-      if (error.errorFields) return; // Form validation error
-      message.error('保存策略失败: ' + error.message);
+      message.error('加载策略列表失败: ' + error.message);
     } finally {
-      setSaving(false);
+      setStrategiesLoading(false);
     }
   };
 
-  const loadStrategy = async (strategyId: string) => {
-    if (!strategyId) return;
+  const loadStrategy = async (strategyId: string): Promise<Strategy | null> => {
     try {
       const strategy = await strategyApi.getStrategy(strategyId);
-      setCode(strategy.code);
-      setStrategyName(strategy.name);
-      message.success('策略加载成功');
+      return strategy;
     } catch (error: any) {
       message.error('加载策略失败: ' + error.message);
+      return null;
     }
   };
 
-  const startBacktest = async () => {
-    if (!code.trim()) {
-      message.warning('请先编写策略代码');
-      return;
+  const saveStrategy = async (data: { name: string; description?: string; code: string }, strategyId?: string) => {
+    try {
+      const result = await strategyApi.saveStrategy({
+        id: strategyId !== 'new' ? strategyId : undefined,
+        name: data.name,
+        code: data.code,
+        description: data.description,
+      });
+      
+      await loadStrategies();
+      return result;
+    } catch (error: any) {
+      throw new Error('保存策略失败: ' + error.message);
     }
+  };
 
-    setBacktesting(true);
-    setBacktestProgress(0);
-    setBacktestStatus('running');
-    setProfitData([]);
-    setTradeData([]);
-    setAccountData([]);
-    setPositionData([]);
+  const deleteStrategy = async (strategyId: string) => {
+    try {
+      await strategyApi.deleteStrategy(strategyId);
+      await loadStrategies();
+    } catch (error: any) {
+      throw new Error('删除策略失败: ' + error.message);
+    }
+  };
 
+  // ==================== 回测相关函数 ====================
+  
+  const loadRunningBacktests = async () => {
+    try {
+      const result = await backtestApi.getBacktestList(1, 100, 'running');
+      setRunningBacktests(result.items || []);
+    } catch (error: any) {
+      console.error('加载运行中的回测失败:', error);
+    }
+  };
+
+  const startBacktest = async (
+    config: BacktestConfig,
+    backtestName: string,
+    saveAsDefault: boolean,
+    code: string,
+    strategyName: string,
+    strategyId?: string
+  ) => {
     try {
       const result = await backtestApi.startBacktest({
         strategy_code: code,
-        strategy_name: strategyName,
+        strategy_name: backtestName || strategyName,
+        strategy_id: strategyId !== 'new' ? strategyId : undefined,
         start_date: config.start_date,
         end_date: config.end_date,
         start_capital: config.start_capital * 10000,
@@ -197,369 +151,444 @@ const App: React.FC = () => {
         start_fund_capital: 1000000,
       });
 
-      setCurrentBacktestId(result.back_test_id);
-      message.success('回测已启动，正在运行中...');
-      setActiveTab('result');
-
-      // 开始轮询进度
-      startProgressPolling();
+      const backtestId = result.back_test_id;
       
-      // 注意：数据刷新由 autoRefresh 的 useEffect 自动处理
+      // 打开回测结果Tab
+      openBacktestTab(backtestId, backtestName || strategyName, strategyId, code);
+      
+      // 刷新运行中的回测列表
+      loadRunningBacktests();
+      
+      // 开始轮询进度
+      startProgressPolling(backtestId);
+      
+      return backtestId;
     } catch (error: any) {
-      message.error('启动回测失败: ' + error.message);
-      setBacktesting(false);
+      throw new Error('启动回测失败: ' + error.message);
     }
   };
 
-  const startProgressPolling = () => {
-    if (progressTimerRef.current) {
-      clearInterval(progressTimerRef.current);
+  const startProgressPolling = (backtestId: string) => {
+    if (progressTimersRef.current[backtestId]) {
+      clearInterval(progressTimersRef.current[backtestId]);
     }
-    progressTimerRef.current = setInterval(checkBacktestProgress, 2000);
+    
+    progressTimersRef.current[backtestId] = setInterval(() => {
+      checkBacktestProgress(backtestId);
+    }, 2000);
   };
 
-  const checkBacktestProgress = async () => {
-    if (!currentBacktestId) return;
-
+  const checkBacktestProgress = async (backtestId: string) => {
     try {
-      const data = await backtestApi.getProgress(currentBacktestId);
-      setBacktestProgress(data.progress || 0);
-      setBacktestStatus(data.status);
+      const data = await backtestApi.getProgress(backtestId);
+      
+      // 更新对应Tab的状态
+      setTabs(prevTabs => prevTabs.map(tab => {
+        if (tab.type === 'backtest' && tab.backtestData?.backtestId === backtestId) {
+          return {
+            ...tab,
+            backtestData: {
+              ...tab.backtestData,
+              status: data.status,
+              progress: data.progress || 0,
+            },
+          };
+        }
+        return tab;
+      }));
 
-      if (data.status === 'completed') {
-        setBacktesting(false);
-        setBacktestProgress(100);
-        message.success('回测完成！');
-        if (progressTimerRef.current) {
-          clearInterval(progressTimerRef.current);
+      if (data.status === 'completed' || data.status === 'failed') {
+        // 停止轮询
+        if (progressTimersRef.current[backtestId]) {
+          clearInterval(progressTimersRef.current[backtestId]);
+          delete progressTimersRef.current[backtestId];
         }
-        // 回测完成后加载最终结果
-        await loadBacktestResults();
-      } else if (data.status === 'failed') {
-        setBacktesting(false);
-        message.error('回测失败: ' + (data.error || '未知错误'));
-        if (progressTimerRef.current) {
-          clearInterval(progressTimerRef.current);
+        
+        if (data.status === 'completed') {
+          message.success('回测完成！');
+          // 加载最终结果
+          await loadBacktestResults(backtestId);
+        } else {
+          message.error('回测失败: ' + (data.error || '未知错误'));
         }
+        
+        // 刷新运行中的回测列表
+        loadRunningBacktests();
       }
-      // 注意：不在这里加载数据了，数据刷新由独立的定时器控制
     } catch (error: any) {
       console.error('查询回测进度失败:', error);
     }
   };
 
-  const loadBacktestResults = async (isRealtime = false) => {
-    if (!currentBacktestId) return;
-
+  const loadBacktestResults = async (backtestId: string) => {
     try {
-      // 优先使用监控 API，这是实时监控页面使用的方式，数据结构更完整、更可靠
-      const monitorData = await backtestApi.getMonitorData(currentBacktestId);
+      // 使用监控 API
+      const monitorData = await backtestApi.getMonitorData(backtestId);
       
       if (monitorData.success) {
-        // 更新数据统计
-        if (monitorData.stats) {
-          setDataStats({
-            accountCount: monitorData.stats.account_count || 0,
-            tradeCount: monitorData.stats.trade_count || 0,
-            positionCount: monitorData.stats.position_count || 0,
-            profitCount: monitorData.stats.profit_count || 0,
-          });
-        }
+        const dataStats: DataStats = {
+          accountCount: monitorData.stats?.account_count || 0,
+          tradeCount: monitorData.stats?.trade_count || 0,
+          positionCount: monitorData.stats?.position_count || 0,
+          profitCount: monitorData.stats?.profit_count || 0,
+        };
 
-        // 更新账户数据 - 从最新账户状态构建
-        if (monitorData.latest_account) {
-          const latestAccount: AccountData = {
-            total_profit: monitorData.latest_account.total_asset || 0,
-            available_funds: monitorData.latest_account.available || 0,
-            market_value: monitorData.latest_account.market_value || 0,
-            gmt_create: monitorData.latest_account.date || '',
-          };
-          setAccountData([latestAccount]);
-        }
+        const accountData: AccountData[] = monitorData.latest_account ? [{
+          total_profit: monitorData.latest_account.total_asset || 0,
+          available_funds: monitorData.latest_account.available || 0,
+          market_value: monitorData.latest_account.market_value || 0,
+          gmt_create: monitorData.latest_account.date || '',
+        }] : [];
 
-        // 更新净值曲线数据（用于收益图表）
-        if (monitorData.equity_curve && monitorData.equity_curve.length > 0) {
-          const mappedProfits = monitorData.equity_curve.map((point) => ({
-            date: point.date || '',
-            total_value: point.value || 0,
-            total_profit: point.value || 0,
-            csi_stock: point.value || 0,
-            strategy_profit: point.value || 0,
-            gmt_create_time: point.date || '',
-          }));
-          setProfitData(mappedProfits);
-        }
+        const profitData: ProfitData[] = (monitorData.equity_curve || []).map(point => ({
+          date: point.date || '',
+          total_value: point.value || 0,
+          total_profit: point.value || 0,
+          csi_stock: point.value || 0,
+          strategy_profit: point.value || 0,
+          gmt_create_time: point.date || '',
+        }));
 
-        // 优先使用监控 API 的持仓和交易数据（已验证正确）
-        // 监控 API 返回最近的数据，对于回测结果展示已经足够
-        
-        // 更新持仓数据（使用监控 API 的数据，保持字段名一致）
-        if (monitorData.latest_positions && monitorData.latest_positions.length > 0) {
-          // 直接使用监控 API 的数据，添加兼容字段
-          const mappedPositions = monitorData.latest_positions.map((pos) => ({
-            symbol: pos.symbol || '',           // 监控 API 字段
-            contract_code: pos.symbol || '',    // 兼容字段
-            code: pos.symbol || '',             // 兼容字段
-            volume: pos.volume || 0,            // 监控 API 字段
-            position: pos.volume || 0,          // 兼容字段
-            market_value: pos.market_value || 0, // 监控 API 字段
-            profit: pos.profit || 0,            // 监控 API 字段
-            profit_rate: pos.profit_rate || 0,  // 监控 API 字段（收益率）
-            date: pos.date || '',               // 监控 API 字段
-            gmt_create: pos.date || '',         // 兼容字段
-          })) as PositionData[];
-          setPositionData(mappedPositions);
-        }
+        const positionData: PositionData[] = (monitorData.latest_positions || []).map(pos => ({
+          symbol: pos.symbol || '',
+          contract_code: pos.symbol || '',
+          code: pos.symbol || '',
+          volume: pos.volume || 0,
+          position: pos.volume || 0,
+          market_value: pos.market_value || 0,
+          profit: pos.profit || 0,
+          profit_rate: pos.profit_rate || 0,
+          date: pos.date || '',
+          gmt_create: pos.date || '',
+        }));
 
-        // 更新交易数据（使用监控 API 的数据）
-        if (monitorData.recent_trades && monitorData.recent_trades.length > 0) {
-          const mappedTrades = monitorData.recent_trades.map((trade) => ({
-            date: trade.date || '',
-            code: trade.symbol || '',
-            direction: (trade.side === 0 || trade.direction === '买入') ? 'buy' : 'sell',
-            amount: Math.abs(trade.volume || 0),
-            price: trade.price ? Number(trade.price).toFixed(2) : '0.00',
-            cost: trade.amount ? Math.abs(Number(trade.amount)).toFixed(2) : '0.00',
-          })) as TradeData[];
-          setTradeData(mappedTrades);
-        }
+        const tradeData: TradeData[] = (monitorData.recent_trades || []).map(trade => ({
+          date: trade.date || '',
+          code: trade.symbol || '',
+          direction: (trade.side === 0 || trade.direction === '买入') ? 'buy' : 'sell',
+          amount: Math.abs(trade.volume || 0),
+          price: trade.price ? Number(trade.price).toFixed(2) : '0.00',
+          cost: trade.amount ? Math.abs(Number(trade.amount)).toFixed(2) : '0.00',
+        }));
 
-        // 如果需要更多数据，可以异步加载详细 API（可选）
-        try {
-          const [tradeResult, positionResult] = await Promise.all([
-            backtestApi.getTradeData(currentBacktestId, 1, 100),
-            backtestApi.getPositionData(currentBacktestId, 1, 200),
-          ]);
-
-          // 如果详细 API 返回更多数据，用它替换（但需要正确映射）
-          const trades = tradeResult.items || [];
-          if (trades.length > (monitorData.recent_trades?.length || 0)) {
-            const mappedTrades = trades.map((trade: any) => ({
-              date: trade.trade_date || trade.gmt_create_time || trade.date,
-              code: trade.contract_code || trade.code,
-              direction: trade.direction > 0 ? 'buy' : 'sell',
-              amount: Math.abs(trade.volume || trade.amount || 0),
-              price:
-                trade.price !== null && trade.price !== undefined
-                  ? Number(trade.price).toFixed(2)
-                  : '0.00',
-              cost:
-                trade.cost !== null && trade.cost !== undefined
-                  ? Math.abs(Number(trade.cost)).toFixed(2)
-                  : '0.00',
-            }));
-            setTradeData(mappedTrades);
-          }
-
-          // 持仓数据：详细 API 可能返回历史持仓，这里只保留监控 API 的最新持仓
-          // 如果需要历史持仓，可以在这里添加逻辑
-          
-        } catch (detailError: any) {
-          // 详细 API 失败不影响，已经有监控 API 的数据了
-          console.log('详细 API 调用失败（不影响显示）:', detailError);
-        }
-
-        // 监控 API 成功，数据已更新
-        return;
+        // 缓存数据
+        setBacktestDataCache(prev => ({
+          ...prev,
+          [backtestId]: {
+            profitData,
+            tradeData,
+            positionData,
+            accountData,
+            dataStats,
+            status: monitorData.status,
+          },
+        }));
       }
-    } catch (monitorError: any) {
-      console.log('监控 API 调用失败，尝试使用传统 API:', monitorError);
-    }
-
-    // 如果监控 API 失败，回退到原来的多个 API 调用方式
-    try {
-      // 加载账户数据
-      const accountResult = await backtestApi.getAccountData(currentBacktestId);
-      const accounts = accountResult.items || [];
-      setAccountData(accounts);
-      setDataStats((prev) => ({ ...prev, accountCount: accounts.length }));
-
-      // 加载持仓数据
-      const positionResult = await backtestApi.getPositionData(currentBacktestId);
-      const positions = positionResult.items || [];
-      setPositionData(positions);
-      setDataStats((prev) => ({ ...prev, positionCount: positions.length }));
-
-      // 加载收益数据
-      const profitResult = await backtestApi.getProfitData(currentBacktestId);
-      const profits = profitResult.items || [];
-      const mappedProfits = profits.map((item) => ({
-        date: item.gmt_create_time || item.gmt_create || item.date,
-        total_value: item.csi_stock || item.total_value,
-        total_profit: item.strategy_profit || item.total_profit,
-        day_profit: item.day_profit,
-        ...item,
-      }));
-      setProfitData(mappedProfits);
-      setDataStats((prev) => ({ ...prev, profitCount: mappedProfits.length }));
-
-      // 加载交易数据
-      const tradeResult = await backtestApi.getTradeData(currentBacktestId);
-      const trades = tradeResult.items || [];
-      const mappedTrades = trades.map((trade: any) => ({
-        date: trade.trade_date || trade.gmt_create_time || trade.date,
-        code: trade.contract_code || trade.code,
-        direction: trade.direction > 0 ? 'buy' : 'sell',
-        amount: Math.abs(trade.volume || trade.amount || 0),
-        price:
-          trade.price !== null && trade.price !== undefined
-            ? Number(trade.price).toFixed(2)
-            : '0.00',
-        cost:
-          trade.cost !== null && trade.cost !== undefined
-            ? Math.abs(Number(trade.cost)).toFixed(2)
-            : '0.00',
-      }));
-      setTradeData(mappedTrades);
-      setDataStats((prev) => ({ ...prev, tradeCount: mappedTrades.length }));
     } catch (error: any) {
-      if (!isRealtime) {
-        console.error('加载回测结果失败:', error);
-        message.error('加载回测结果失败: ' + error.message);
+      console.error('加载回测结果失败:', error);
+    }
+  };
+
+  // ==================== Tab管理函数 ====================
+  
+  const openStrategyTab = useCallback(async (strategyId: string) => {
+    // 检查Tab是否已打开
+    const existingTab = tabs.find(
+      tab => tab.type === 'strategy' && tab.strategyData?.strategyId === strategyId
+    );
+
+    if (existingTab) {
+      setActiveTabId(existingTab.id);
+      return;
+    }
+
+    // 加载策略数据
+    let strategy: Strategy | null = null;
+    let code = defaultStrategyCode;
+    let name = '新建策略';
+    let description = '';
+
+    if (strategyId !== 'new') {
+      strategy = await loadStrategy(strategyId);
+      if (strategy) {
+        code = strategy.code;
+        name = strategy.name;
+        description = strategy.description || '';
       }
     }
-  };
 
-  const manualCompleteBacktest = () => {
-    setBacktestStatus('completed');
-    setBacktestProgress(100);
-    setBacktesting(false);
-    if (progressTimerRef.current) {
-      clearInterval(progressTimerRef.current);
+    // 创建新Tab
+    const newTab: WorkspaceTab = {
+      id: `strategy-${strategyId}-${Date.now()}`,
+      type: 'strategy',
+      title: name,
+      closable: true,
+      strategyData: {
+        strategyId,
+        strategyName: name,
+        code,
+        description,
+        unsavedChanges: strategyId === 'new',
+        defaultConfig: strategy?.default_backtest_config,
+      },
+    };
+
+    setTabs(prev => [...prev, newTab]);
+    setActiveTabId(newTab.id);
+  }, [tabs]);
+
+  const openBacktestTab = useCallback((
+    backtestId: string,
+    backtestName: string,
+    strategyId?: string,
+    strategyCodeSnapshot?: string
+  ) => {
+    // 检查Tab是否已打开
+    const existingTab = tabs.find(
+      tab => tab.type === 'backtest' && tab.backtestData?.backtestId === backtestId
+    );
+
+    if (existingTab) {
+      setActiveTabId(existingTab.id);
+      return;
     }
-    message.info('已手动标记为完成，正在加载结果...');
-    loadBacktestResults();
+
+    // 创建新Tab
+    const newTab: WorkspaceTab = {
+      id: `backtest-${backtestId}-${Date.now()}`,
+      type: 'backtest',
+      title: backtestName,
+      closable: true,
+      backtestData: {
+        backtestId,
+        backtestName,
+        status: 'running',
+        progress: 0,
+        strategyId,
+        strategyName: backtestName,
+        strategyCodeSnapshot,
+      },
+    };
+
+    setTabs(prev => [...prev, newTab]);
+    setActiveTabId(newTab.id);
+  }, [tabs]);
+
+  const openManagementTab = useCallback(() => {
+    const managementTab = tabs.find(tab => tab.type === 'management');
+    if (managementTab) {
+      setActiveTabId(managementTab.id);
+    }
+  }, [tabs]);
+
+  const closeTab = useCallback((tabId: string) => {
+    const tab = tabs.find(t => t.id === tabId);
+    if (!tab || !tab.closable) return;
+
+    // 如果是回测Tab，停止相关定时器
+    if (tab.type === 'backtest' && tab.backtestData) {
+      const backtestId = tab.backtestData.backtestId;
+      if (progressTimersRef.current[backtestId]) {
+        clearInterval(progressTimersRef.current[backtestId]);
+        delete progressTimersRef.current[backtestId];
+      }
+      if (dataRefreshTimersRef.current[backtestId]) {
+        clearInterval(dataRefreshTimersRef.current[backtestId]);
+        delete dataRefreshTimersRef.current[backtestId];
+      }
+    }
+
+    // 移除Tab
+    const newTabs = tabs.filter(t => t.id !== tabId);
+    setTabs(newTabs);
+
+    // 如果关闭的是当前Tab，切换到管理中心
+    if (activeTabId === tabId) {
+      const managementTab = newTabs.find(t => t.type === 'management');
+      if (managementTab) {
+        setActiveTabId(managementTab.id);
+      }
+    }
+  }, [tabs, activeTabId]);
+
+  // ==================== 策略操作回调 ====================
+  
+  const handleSaveStrategy = async (
+    data: { name: string; description?: string; code: string },
+    strategyId: string,
+    tabId: string
+  ) => {
+    const result = await saveStrategy(data, strategyId);
+    const newStrategyId = result.id || result._id;
+
+    // 更新Tab
+    setTabs(prevTabs => prevTabs.map(tab => {
+      if (tab.id === tabId && tab.strategyData) {
+        return {
+          ...tab,
+          title: data.name,
+          strategyData: {
+            ...tab.strategyData,
+            strategyId: newStrategyId,
+            strategyName: data.name,
+            code: data.code,
+            description: data.description,
+            unsavedChanges: false,
+          },
+        };
+      }
+      return tab;
+    }));
   };
 
-  const handleViewBacktest = (backId: string) => {
-    setCurrentBacktestId(backId);
-    setActiveTab('result');
-    loadBacktestResults();
+  const handleStartBacktest = async (
+    config: BacktestConfig,
+    backtestName: string,
+    saveAsDefault: boolean,
+    code: string,
+    strategyName: string,
+    strategyId?: string
+  ) => {
+    await startBacktest(config, backtestName, saveAsDefault, code, strategyName, strategyId);
   };
 
-  const tabItems = [
-    {
-      key: 'code',
-      label: '策略代码',
-      children: (
-        <StrategyEditor
-          code={code}
-          onChange={(value) => setCode(value || '')}
-          currentBacktestId={currentBacktestId}
-        />
-      ),
-    },
-    {
-      key: 'result',
-      label: '回测结果',
-      children: (
-        <EnhancedBacktestResults
-          backtesting={backtesting}
-          currentBacktestId={currentBacktestId}
-          backtestProgress={backtestProgress}
-          backtestStatus={backtestStatus}
-          profitData={profitData}
-          tradeData={tradeData}
-          positionData={positionData}
-          accountData={accountData}
-          dataStats={dataStats}
-          config={config}
-          strategyName={strategyName}
-          autoRefresh={autoRefresh}
-          refreshInterval={refreshInterval}
-          onLoadResults={() => loadBacktestResults()}
-          onManualComplete={manualCompleteBacktest}
-          onConfigChange={setConfig}
-          onStrategyNameChange={setStrategyName}
-          onAutoRefreshChange={setAutoRefresh}
-          onRefreshIntervalChange={setRefreshInterval}
-        />
-      ),
-    },
-    // {
-    //   key: 'monitor',
-    //   label: '实时监控',
-    //   children: <BacktestMonitor initialBacktestId={currentBacktestId} />,
-    // },
-    {
-      key: 'management',
-      label: '回测管理',
-      children: <BacktestManagement onViewBacktest={handleViewBacktest} />,
-    },
-  ];
+  const handleCodeChange = (code: string, tabId: string) => {
+    setTabs(prevTabs => prevTabs.map(tab => {
+      if (tab.id === tabId && tab.strategyData) {
+        return {
+          ...tab,
+          strategyData: {
+            ...tab.strategyData,
+            code,
+            unsavedChanges: true,
+          },
+        };
+      }
+      return tab;
+    }));
+  };
+
+  // ==================== 渲染Tab内容 ====================
+  
+  const renderTabContent = (tab: WorkspaceTab) => {
+    switch (tab.type) {
+      case 'strategy':
+        if (!tab.strategyData) return null;
+        
+        return (
+          <StrategyEditorTab
+            strategyId={tab.strategyData.strategyId}
+            initialCode={tab.strategyData.code}
+            initialName={tab.strategyData.strategyName}
+            initialDescription={tab.strategyData.description}
+            defaultConfig={tab.strategyData.defaultConfig}
+            relatedBacktests={[]}
+            onCodeChange={(code) => handleCodeChange(code, tab.id)}
+            onSaveStrategy={(data) => handleSaveStrategy(data, tab.strategyData!.strategyId, tab.id)}
+            onStartBacktest={(config, backtestName, saveAsDefault, code, strategyName) =>
+              handleStartBacktest(config, backtestName, saveAsDefault, code, strategyName, tab.strategyData!.strategyId)
+            }
+            onViewBacktest={(backtestId) => openBacktestTab(backtestId, 'Backtest', tab.strategyData?.strategyId)}
+          />
+        );
+
+      case 'backtest':
+        if (!tab.backtestData) return null;
+        
+        const backtestData = backtestDataCache[tab.backtestData.backtestId] || {
+          profitData: [],
+          tradeData: [],
+          positionData: [],
+          accountData: [],
+          dataStats: { accountCount: 0, tradeCount: 0, positionCount: 0, profitCount: 0 },
+          status: tab.backtestData.status,
+        };
+
+        return (
+          <EnhancedBacktestResults
+            backtesting={tab.backtestData.status === 'running'}
+            currentBacktestId={tab.backtestData.backtestId}
+            backtestProgress={tab.backtestData.progress || 0}
+            backtestStatus={tab.backtestData.status}
+            profitData={backtestData.profitData}
+            tradeData={backtestData.tradeData}
+            positionData={backtestData.positionData}
+            accountData={backtestData.accountData}
+            dataStats={backtestData.dataStats}
+            config={{
+              start_capital: 1000,
+              start_date: '20240101',
+              end_date: '20240201',
+              frequency: '1d',
+              commission_rate: 1,
+              standard_symbol: '000001.SH',
+              matching_type: 1,
+            }}
+            strategyName={tab.backtestData.strategyName || ''}
+            strategyId={tab.backtestData.strategyId}
+            strategyCodeSnapshot={tab.backtestData.strategyCodeSnapshot}
+            onLoadResults={() => loadBacktestResults(tab.backtestData!.backtestId)}
+            onManualComplete={() => {}}
+            onEditStrategy={(strategyId) => openStrategyTab(strategyId)}
+            onRerunBacktest={(config) => {
+              // TODO: 实现重新运行回测
+              message.info('重新运行回测功能开发中...');
+            }}
+          />
+        );
+
+      case 'management':
+        return (
+          <ManagementCenter
+            strategies={strategies}
+            strategiesLoading={strategiesLoading}
+            onEditStrategy={openStrategyTab}
+            onDeleteStrategy={deleteStrategy}
+            onNewStrategy={() => openStrategyTab('new')}
+            onRefreshStrategies={loadStrategies}
+            onViewBacktest={(backtestId) => openBacktestTab(backtestId, 'Backtest')}
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  // ==================== 渲染 ====================
+  
+  const currentTab = tabs.find(t => t.id === activeTabId);
 
   return (
     <Layout style={{ height: '100vh' }}>
-      <Header style={{ background: '#fff', padding: '0 20px', borderBottom: '1px solid #e4e7ed' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Space>
-            <h2 style={{ margin: 0 }}>策略回测平台 - PandaAI QuantFlow</h2>
-          </Space>
-          <Space>
-            <Button icon={<SaveOutlined />} onClick={handleSaveStrategy} loading={saving}>
-              保存策略
-            </Button>
-            <Select
-              placeholder="选择已保存的策略"
-              value={selectedStrategyId}
-              onChange={(value) => {
-                setSelectedStrategyId(value);
-                loadStrategy(value);
-              }}
-              allowClear
-              style={{ width: 250 }}
-            >
-              {strategies.map((s) => (
-                <Select.Option key={s.id || s._id} value={s.id || s._id || ''}>
-                  {s.name}
-                </Select.Option>
-              ))}
-            </Select>
-            <Button
-              type="primary"
-              icon={backtesting ? <LoadingOutlined /> : <PlayCircleOutlined />}
-              onClick={startBacktest}
-              loading={backtesting}
-              disabled={backtesting}
-            >
-              {backtesting ? '回测运行中...' : '开始回测'}
-            </Button>
-          </Space>
-        </div>
-      </Header>
-      <Content style={{ padding: '15px', overflow: 'hidden' }}>
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          type="card"
-          items={tabItems}
-          style={{ height: '100%' }}
-        />
-      </Content>
+      <WorkspaceHeader
+        strategies={strategies}
+        runningBacktests={runningBacktests}
+        onNewStrategy={() => openStrategyTab('new')}
+        onOpenStrategy={openStrategyTab}
+        onOpenBacktest={(backtestId) => openBacktestTab(backtestId, 'Backtest')}
+        onOpenManagement={openManagementTab}
+      />
 
-      {/* 保存策略对话框 */}
-      <Modal
-        title="保存策略"
-        open={showSaveDialog}
-        onOk={confirmSaveStrategy}
-        onCancel={() => setShowSaveDialog(false)}
-        confirmLoading={saving}
-        okText="确定"
-        cancelText="取消"
-      >
-        <Form form={saveForm} layout="vertical">
-          <Form.Item
-            label="策略名称"
-            name="name"
-            rules={[{ required: true, message: '请输入策略名称' }]}
-          >
-            <Input placeholder="请输入策略名称" />
-          </Form.Item>
-          <Form.Item label="策略描述" name="description">
-            <Input.TextArea rows={3} placeholder="请输入策略描述（可选）" />
-          </Form.Item>
-        </Form>
-      </Modal>
+      <Layout style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
+        <WorkspaceTabs
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onTabChange={setActiveTabId}
+          onTabClose={closeTab}
+        />
+
+        <Content style={{ 
+          background: '#f5f5f5', 
+          overflow: 'hidden',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0
+        }}>
+          {currentTab && renderTabContent(currentTab)}
+        </Content>
+      </Layout>
     </Layout>
   );
 };

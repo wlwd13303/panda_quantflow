@@ -62,11 +62,19 @@ export const strategyApi = {
 
   // 保存策略
   async saveStrategy(data: {
+    id?: string;
     name: string;
     code: string;
     description?: string;
+    default_backtest_config?: any;
   }): Promise<Strategy> {
     const response = await apiClient.post<ApiResponse<Strategy>>('/api/strategy/', data);
+    return response.data.data!;
+  },
+
+  // 更新策略
+  async updateStrategy(id: string, data: Partial<Strategy>): Promise<Strategy> {
+    const response = await apiClient.put<ApiResponse<Strategy>>(`/api/strategy/${id}`, data);
     return response.data.data!;
   },
 
@@ -83,6 +91,7 @@ export const backtestApi = {
   async startBacktest(data: {
     strategy_code: string;
     strategy_name: string;
+    strategy_id?: string;
     start_date: string;
     end_date: string;
     start_capital: number;

@@ -352,11 +352,27 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
               showSearch
               optionFilterProp="children"
             >
-              {backtestList.map((bt) => (
-                <Select.Option key={bt._id || bt.run_id} value={bt._id || bt.run_id || ''}>
-                  {bt.strategy_name} - {bt._id || bt.run_id}
-                </Select.Option>
-              ))}
+              {backtestList.map((bt) => {
+                // 格式化回测显示名称
+                let displayName = bt.strategy_name;
+                if (!displayName || /^\d+$/.test(displayName.trim())) {
+                  if (bt.created_at) {
+                    const date = new Date(bt.created_at);
+                    displayName = `回测-${date.toLocaleDateString('zh-CN')}`;
+                  } else {
+                    displayName = `回测-${(bt._id || bt.run_id || '').substring(0, 8)}`;
+                  }
+                }
+                
+                const statusIcon = bt.status === 'running' ? '⚡' : bt.status === 'completed' ? '✅' : '❌';
+                const idShort = (bt._id || bt.run_id || '').substring(0, 8);
+                
+                return (
+                  <Select.Option key={bt._id || bt.run_id} value={bt._id || bt.run_id || ''}>
+                    {statusIcon} {displayName} ({idShort})
+                  </Select.Option>
+                );
+              })}
             </Select>
 
             <span>刷新间隔:</span>

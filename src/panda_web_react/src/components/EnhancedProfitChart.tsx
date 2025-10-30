@@ -245,7 +245,7 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
 
   return (
     <Card 
-      bodyStyle={{ padding: '16px' }}
+      styles={{ body: { padding: '16px' } }}
       style={{ height: '100%' }}
     >
       {/* 控制栏 */}

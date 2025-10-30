@@ -16,6 +16,8 @@ import {
   InputNumber,
   Input,
   Select,
+  Alert,
+  Modal,
 } from 'antd';
 import {
   LineChartOutlined,
@@ -25,7 +27,12 @@ import {
   FundOutlined,
   ReloadOutlined,
   SettingOutlined,
+  CodeOutlined,
+  EditOutlined,
+  CopyOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
+import Editor from '@monaco-editor/react';
 import type {
   ProfitData,
   TradeData,
@@ -54,12 +61,19 @@ interface EnhancedBacktestResultsProps {
   strategyName: string;
   autoRefresh?: boolean;
   refreshInterval?: number;
+  // 🆕 策略相关属性
+  strategyId?: string;
+  strategyCodeSnapshot?: string;
+  currentStrategyCode?: string;
   onLoadResults: () => void;
   onManualComplete: () => void;
   onConfigChange?: (config: BacktestConfig) => void;
   onStrategyNameChange?: (name: string) => void;
   onAutoRefreshChange?: (enabled: boolean) => void;
   onRefreshIntervalChange?: (interval: number) => void;
+  // 🆕 策略操作回调
+  onEditStrategy?: (strategyId: string) => void;
+  onRerunBacktest?: (config: BacktestConfig) => void;
 }
 
 type MenuItem = {
@@ -72,9 +86,10 @@ const menuItems: MenuItem[] = [
   { key: 'overview', icon: <LineChartOutlined />, label: '收益概述' },
   { key: 'trades', icon: <TransactionOutlined />, label: '交易详情' },
   { key: 'positions', icon: <FundOutlined />, label: '持仓信息' },
-  { key: 'logs', icon: <FileTextOutlined />, label: '日志输出' },
   { key: 'analysis', icon: <BarChartOutlined />, label: '绩效分析' },
-  { key: 'settings', icon: <SettingOutlined />, label: '策略代码' },
+  { key: 'logs', icon: <FileTextOutlined />, label: '日志输出' },
+  { key: 'strategy_code', icon: <CodeOutlined />, label: '策略代码' },
+  { key: 'settings', icon: <SettingOutlined />, label: '回测配置' },
 ];
 
 const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
@@ -91,14 +106,22 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
   strategyName,
   autoRefresh = true,
   refreshInterval = 2000,
+  strategyId,
+  strategyCodeSnapshot,
+  currentStrategyCode,
   onLoadResults,
   onManualComplete,
   onConfigChange,
   onStrategyNameChange,
   onAutoRefreshChange,
   onRefreshIntervalChange,
+  onEditStrategy,
+  onRerunBacktest,
 }) => {
   const [selectedMenu, setSelectedMenu] = useState('overview');
+
+  // 检查策略代码是否已变更
+  const strategyCodeChanged = strategyCodeSnapshot && currentStrategyCode && strategyCodeSnapshot !== currentStrategyCode;
 
   // 交易表格列定义
   const tradeColumns = [
@@ -311,60 +334,182 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
           </div>
         );
 
+      case 'strategy_code':
+        return (
+          <Card style={{ margin: 20 }} title="策略代码快照">
+            <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
+              <Alert
+                message="代码快照说明"
+                description="这是启动回测时的策略代码快照，用于复现和审计回测结果。"
+                type="info"
+                showIcon
+              />
+              
+              {strategyCodeChanged && (
+                <Alert
+                  message="⚠️ 策略代码已被修改"
+                  description={
+                    <div>
+                      <div style={{ marginBottom: 8 }}>
+                        当前策略库中的代码与回测时的代码不一致，编辑的将是最新版本。
+                      </div>
+                      <Button
+                        size="small"
+                        type="link"
+                        onClick={() => {
+                          Modal.info({
+                            title: '代码对比',
+                            width: 800,
+                            content: (
+                              <div>
+                                <p>回测时的代码快照与当前策略代码不同。</p>
+                                <p style={{ color: '#999', fontSize: 12 }}>
+                                  详细对比功能开发中，未来将支持逐行对比显示。
+                                </p>
+                              </div>
+                            ),
+                          });
+                        }}
+                      >
+                        查看差异对比
+                      </Button>
+                    </div>
+                  }
+                  type="warning"
+                  showIcon
+                />
+              )}
+              
+              <Space>
+                {strategyId && onEditStrategy && (
+                  <Button
+                    icon={<EditOutlined />}
+                    onClick={() => {
+                      if (strategyCodeChanged) {
+                        Modal.confirm({
+                          title: '策略代码已变更',
+                          icon: <ExclamationCircleOutlined />,
+                          content: (
+                            <div>
+                              <p>当前策略库中的代码与回测时的代码不一致。</p>
+                              <p>编辑的将是策略库中的<strong>最新版本</strong>，而非此回测使用的版本。</p>
+                            </div>
+                          ),
+                          okText: '继续编辑最新版本',
+                          cancelText: '取消',
+                          onOk: () => {
+                            onEditStrategy(strategyId);
+                          },
+                        });
+                      } else {
+                        onEditStrategy(strategyId);
+                      }
+                    }}
+                  >
+                    编辑此策略
+                  </Button>
+                )}
+                
+                <Button
+                  icon={<CopyOutlined />}
+                  onClick={() => {
+                    if (strategyCodeSnapshot) {
+                      navigator.clipboard.writeText(strategyCodeSnapshot);
+                      Modal.success({
+                        title: '复制成功',
+                        content: '策略代码已复制到剪贴板',
+                      });
+                    }
+                  }}
+                >
+                  复制代码
+                </Button>
+                
+                {onRerunBacktest && (
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={() => {
+                      Modal.confirm({
+                        title: '重新运行回测',
+                        content: '确定要使用相同配置重新运行回测吗？',
+                        okText: '确定',
+                        cancelText: '取消',
+                        onOk: () => {
+                          onRerunBacktest(config);
+                        },
+                      });
+                    }}
+                  >
+                    使用相同配置重新运行
+                  </Button>
+                )}
+              </Space>
+            </Space>
+            
+            {/* 只读代码编辑器 */}
+            <div style={{ border: '1px solid #d9d9d9', borderRadius: 4 }}>
+              <Editor
+                height="600px"
+                language="python"
+                value={strategyCodeSnapshot || '// 暂无代码快照'}
+                options={{
+                  readOnly: true,
+                  minimap: { enabled: true },
+                  scrollBeyondLastLine: false,
+                  wordWrap: 'on',
+                  fontSize: 14,
+                }}
+                theme="vs-dark"
+              />
+            </div>
+          </Card>
+        );
+
       case 'settings':
         return (
-          <Card style={{ margin: 20 }} title="回测参数配置">
+          <Card style={{ margin: 20 }} title="回测配置信息">
             <Form layout="vertical" size="small">
               <Form.Item label="策略名称">
                 <Input
                   value={strategyName}
-                  onChange={(e) => onStrategyNameChange?.(e.target.value)}
-                  placeholder="请输入策略名称"
+                  disabled
                 />
               </Form.Item>
 
               <Form.Item label="初始资金(万)">
                 <InputNumber
                   style={{ width: '100%' }}
-                  min={1}
-                  max={100000}
                   value={config.start_capital}
-                  onChange={(value) => onConfigChange?.({ ...config, start_capital: value || 1000 })}
+                  disabled
                 />
               </Form.Item>
 
               <Form.Item label="佣金费率(‰)">
                 <InputNumber
                   style={{ width: '100%' }}
-                  min={0}
-                  max={10}
-                  step={0.1}
-                  precision={2}
                   value={config.commission_rate}
-                  onChange={(value) => onConfigChange?.({ ...config, commission_rate: value || 1 })}
+                  disabled
                 />
               </Form.Item>
 
               <Form.Item label="开始日期">
                 <Input
                   value={config.start_date}
-                  onChange={(e) => onConfigChange?.({ ...config, start_date: e.target.value })}
-                  placeholder="YYYYMMDD"
+                  disabled
                 />
               </Form.Item>
 
               <Form.Item label="结束日期">
                 <Input
                   value={config.end_date}
-                  onChange={(e) => onConfigChange?.({ ...config, end_date: e.target.value })}
-                  placeholder="YYYYMMDD"
+                  disabled
                 />
               </Form.Item>
 
               <Form.Item label="数据频率">
                 <Select
                   value={config.frequency}
-                  onChange={(value) => onConfigChange?.({ ...config, frequency: value })}
+                  disabled
                 >
                   <Select.Option value="1d">日线</Select.Option>
                   <Select.Option value="1m">分钟线</Select.Option>
@@ -374,13 +519,20 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
               <Form.Item label="基准指数">
                 <Select
                   value={config.standard_symbol}
-                  onChange={(value) => onConfigChange?.({ ...config, standard_symbol: value })}
+                  disabled
                 >
                   <Select.Option value="000001.SH">上证指数</Select.Option>
                   <Select.Option value="000300.SH">沪深300</Select.Option>
                   <Select.Option value="000905.SH">中证500</Select.Option>
                 </Select>
               </Form.Item>
+              
+              <Alert
+                message="配置为只读"
+                description="回测配置在回测启动后不可修改。如需修改，请重新运行回测。"
+                type="info"
+                showIcon
+              />
             </Form>
           </Card>
         );

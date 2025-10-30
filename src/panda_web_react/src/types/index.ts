@@ -7,6 +7,9 @@ export interface Strategy {
   description?: string;
   created_at?: string;
   updated_at?: string;
+  // 🆕 工作台新增字段
+  default_backtest_config?: BacktestConfig;  // 默认回测配置
+  backtest_count?: number;  // 回测次数统计
 }
 
 // 回测配置
@@ -34,6 +37,10 @@ export interface BacktestRecord {
   end_date?: string;
   created_at: string;
   updated_at?: string;
+  // 🆕 工作台新增字段
+  strategy_id?: string;  // 关联的策略ID
+  strategy_code_snapshot?: string;  // 回测时的策略代码快照
+  config?: BacktestConfig;  // 完整的回测配置
 }
 
 // 回测进度
@@ -178,5 +185,38 @@ export interface BacktestMonitorData {
   latest_positions?: MonitorPositionData[];
   equity_curve?: EquityCurvePoint[];
   error?: string;
+}
+
+// 🆕 工作台Tab类型
+export type WorkspaceTabType = 'strategy' | 'backtest' | 'management';
+
+// 🆕 工作台Tab数据
+export interface WorkspaceTab {
+  id: string;  // 唯一标识
+  type: WorkspaceTabType;
+  title: string;
+  closable: boolean;  // 是否可关闭
+  
+  // 策略Tab特有数据
+  strategyData?: {
+    strategyId: string;  // 策略ID，'new'表示新建策略
+    strategyName: string;
+    code: string;
+    description?: string;
+    unsavedChanges: boolean;  // 是否有未保存的修改
+    defaultConfig?: BacktestConfig;  // 默认回测配置
+  };
+  
+  // 回测Tab特有数据
+  backtestData?: {
+    backtestId: string;
+    backtestName: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    progress?: number;
+    strategyId?: string;  // 关联的策略ID
+    strategyName?: string;
+    strategyCodeSnapshot?: string;  // 代码快照
+    config?: BacktestConfig;
+  };
 }
 
