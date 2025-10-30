@@ -18,6 +18,7 @@ import {
 } from '@ant-design/icons';
 import StrategyEditor, { defaultCode } from './components/StrategyEditor';
 import BacktestResults from './components/BacktestResults';
+import EnhancedBacktestResults from './components/EnhancedBacktestResults';
 import BacktestManagement from './components/BacktestManagement';
 import { strategyApi, backtestApi } from './services/api';
 import type {
@@ -306,7 +307,7 @@ const App: React.FC = () => {
       key: 'result',
       label: '回测结果',
       children: (
-        <BacktestResults
+        <EnhancedBacktestResults
           backtesting={backtesting}
           currentBacktestId={currentBacktestId}
           backtestProgress={backtestProgress}
@@ -318,10 +319,10 @@ const App: React.FC = () => {
           dataStats={dataStats}
           config={config}
           strategyName={strategyName}
-          onConfigChange={setConfig}
-          onStrategyNameChange={setStrategyName}
           onLoadResults={() => loadBacktestResults()}
           onManualComplete={manualCompleteBacktest}
+          onConfigChange={setConfig}
+          onStrategyNameChange={setStrategyName}
         />
       ),
     },

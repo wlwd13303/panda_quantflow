@@ -1,12 +1,11 @@
 import logging
 from fastapi import HTTPException, status
-from panda_server.config.database import mongodb
+from panda_server.dao.backtest_dao import BacktestLogDAO
 from common.backtest.model.backtest_user_strategy_log import BacktestUserStrategyLogModel
 from panda_server.models.backtest.query_user_strategy_log_response import QueryBacktestUserStrategyLogListResponse, QueryBacktestUserStrategyLogListResponseData
 
 logger = logging.getLogger(__name__)
 
-COLLECTION_NAME = "panda_user_strategy_log"
 
 async def backtest_user_strategy_log_get_logic(
     relation_id: str,
@@ -21,12 +20,10 @@ async def backtest_user_strategy_log_get_logic(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid relation_id",
         )
-    collection = mongodb.get_collection(COLLECTION_NAME)
-    query = {"relation_id": relation_id}
-    if last_sort is not None:
-        query["sort"] = {"$gt": last_sort}
-    cursor = collection.find(query).sort("sort", 1).limit(limit)
-    data_list = await cursor.to_list(length=None)
+    
+    # 使用 SQLite DAO 获取日志数据
+    data_list = await BacktestLogDAO.list_by_relation_id(relation_id, last_sort, limit)
+    
     validated_items = []
     for data in data_list:
         try:
@@ -34,6 +31,7 @@ async def backtest_user_strategy_log_get_logic(
             validated_items.append(validated)
         except Exception as e:
             logger.warning(f"User strategy log data validation failed: {e}, raw: {data}")
+    
     current = data_list[-1]["sort"] if data_list else None
     cursor_info = {
         "current": current,

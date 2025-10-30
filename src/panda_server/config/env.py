@@ -14,10 +14,10 @@ LOG_CONSOLE_ANSI = os.getenv("LOG_CONSOLE_ANSI", "true")
 # MongoDB 连接配置,其次默认从配置文件中加载
 MONGO_URI = os.getenv("MONGO_URI", "localhost:27017")
 DATABASE_NAME = os.getenv("DATABASE_NAME", "panda")
-MONGO_USER = os.getenv("MONGO_USER", "panda")
-MONGO_PASSWORD = os.getenv("MONGO_PASSWORD", "panda")
+MONGO_USER = os.getenv("MONGO_USER", "")  # 本地 MongoDB 通常无需认证
+MONGO_PASSWORD = os.getenv("MONGO_PASSWORD", "")  # 本地 MongoDB 通常无需认证
 MONGO_AUTH_DB = os.getenv("MONGO_AUTH_DB", "admin")
-MONGO_TYPE = os.getenv("MONGO_TYPE", "replica_set")  # 'single' 或 'replica_set'
+MONGO_TYPE = os.getenv("MONGO_TYPE", "single")  # 'single' 或 'replica_set' - 本地默认使用 single
 MONGO_REPLICA_SET = os.getenv("MONGO_REPLICA_SET", "rs0")
 
 
@@ -37,3 +37,7 @@ PANDA_SERVER_WORKFLOW_WORKERS = os.getenv("PANDA_SERVER_WORKFLOW_WORKERS", 5)
 
 # LLM 相关配置
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", None)
+
+# SQLite 数据库配置
+# 本地数据（策略、回测等）存储路径
+SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/panda_local.db")

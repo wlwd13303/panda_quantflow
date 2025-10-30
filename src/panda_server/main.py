@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from panda_server.config.database import mongodb
+from panda_server.config.sqlite_database import sqlite_db
 from panda_server.config.env import *
 from panda_plugins.utils.work_node_loader import load_all_nodes
 from panda_server.messaging.consumer_manager import QueueConsumerManager
@@ -49,8 +50,14 @@ sys.path.append(str(BASE_DIR / "src"))
 async def lifespan(app: FastAPI):
     """Application lifecycle management"""
 
-    # MongoDB connection logic
-    logger.info("Connecting to MongoDB...")
+    # SQLite connection logic - 用于本地策略、回测等数据
+    logger.info("Initializing SQLite database for local data...")
+    sqlite_db.set_db_path(SQLITE_DB_PATH)
+    await sqlite_db.init_database()
+    logger.info("SQLite database initialization completed")
+
+    # MongoDB connection logic - 用于行情和财务数据
+    logger.info("Connecting to MongoDB for market data...")
     await mongodb.connect_db()
     logger.info("MongoDB connection successful")
     
@@ -83,6 +90,10 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown logic
+    logger.info("Closing SQLite database...")
+    await sqlite_db.close_db()
+    logger.info("SQLite database closed")
+    
     logger.info("Closing MongoDB connection...")
     await mongodb.close_db()
     logger.info("MongoDB connection closed")

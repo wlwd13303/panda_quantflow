@@ -33,6 +33,10 @@ from panda_backtest.data.context.strategy_context import StrategyContext
 from panda_backtest.system.panda_log import SRLogger
 import json
 import pandas as pd
+from pathlib import Path
+import asyncio
+from panda_server.config.sqlite_database import sqlite_db
+from panda_server.config.env import SQLITE_DB_PATH
 
 
 class Run(object):
@@ -41,6 +45,28 @@ class Run(object):
     def start(handle_message):
         # # LogFactory.init_logger() - 已替换为统一日志配置
 
+        # 初始化 SQLite 数据库路径（必须在其他操作之前）
+        # 获取项目根目录并解析数据库路径
+        project_root = Path(__file__).resolve().parent.parent.parent.parent
+        db_path = project_root / SQLITE_DB_PATH
+        sqlite_db.set_db_path(str(db_path))
+        
+        # 初始化数据库表结构（如果需要）
+        try:
+            # 尝试创建新的事件循环来运行异步初始化
+            asyncio.run(sqlite_db.init_database())
+        except RuntimeError:
+            # 如果事件循环已经在运行，使用当前循环
+            loop = asyncio.get_event_loop()
+            if not loop.is_running():
+                loop.run_until_complete(sqlite_db.init_database())
+            else:
+                # 如果循环正在运行，创建一个新线程来运行
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, sqlite_db.init_database())
+                    future.result()
+        
         # 系统核心上下文 创建q
         strategy_context = StrategyContext()
         

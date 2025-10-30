@@ -11,7 +11,8 @@ import logging
 import json
 from panda_backtest.util.log.remote_log_factory import RemoteLogFactory
 from panda_backtest.extensions.trade_reverse_future.result.fund_reverse_result import FundReverseResult
-from panda_backtest.extensions.trade_reverse_future.result.result_db import ResultDb
+# 切换到 SQLite 版本
+from panda_backtest.extensions.trade_reverse_future.result.result_sqlite import ResultDb
 from panda_backtest.extensions.trade_reverse_future.result.standard_symbol_result import StandSymbolResult
 from panda_backtest.backtest_common.result.base_all_result import BaseAllTradeReverseResult
 from panda_backtest.extensions.trade_reverse_future.result.trade_reverse_result import TradeReverseResult

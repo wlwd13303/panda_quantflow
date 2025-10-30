@@ -8,6 +8,7 @@ dependencies = [
     # 本地项目依赖
     "panda_factor @ file:///C:/work/panda_factor/panda_factor",
     # 核心依赖
+    "aiosqlite>=0.17.0",
     "numpy>=1.22,<2.0",
     "pandas>=2.2.3",
     "fastapi>=0.68.0",
@@ -19,6 +20,7 @@ dependencies = [
     "pymysql>=1.1.0",
     "DBUtils>=3.0.2",
     "motor>=3.0.0",
+    "aiosqlite>=0.17.0",  # SQLite 异步支持
     # 日志和配置
     "loguru>=0.6.0",
     "PyYAML>=6.0",
