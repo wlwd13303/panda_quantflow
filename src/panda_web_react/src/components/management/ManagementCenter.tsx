@@ -9,7 +9,7 @@ import {
 import StrategyList from './StrategyList';
 import BacktestManagement from '../BacktestManagement';
 import BacktestMonitor from '../BacktestMonitor';
-import type { Strategy } from '@/types';
+import type { Strategy, BacktestRecord } from '@/types';
 
 const { Sider, Content } = Layout;
 
@@ -22,7 +22,7 @@ interface ManagementCenterProps {
   onDeleteStrategy: (strategyId: string) => Promise<void>;
   onNewStrategy: () => void;
   onRefreshStrategies: () => void;
-  onViewBacktest: (backtestId: string) => void;
+  onViewBacktest: (backtestId: string, record: BacktestRecord) => void;
 }
 
 const ManagementCenter: React.FC<ManagementCenterProps> = ({

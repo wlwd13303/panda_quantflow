@@ -5,7 +5,6 @@ import tempfile
 import asyncio
 from bson import ObjectId
 from datetime import datetime
-from panda_server.config.database import mongodb
 from panda_server.dao.backtest_dao import BacktestDAO
 from panda_server.models.backtest.backtest_start_request import (
     BacktestStartRequest,
@@ -13,8 +12,6 @@ from panda_server.models.backtest.backtest_start_request import (
 )
 
 logger = logging.getLogger(__name__)
-
-COLLECTION_NAME = "panda_back_test"
 
 
 async def start_backtest(request: BacktestStartRequest) -> BacktestStartResponse:
@@ -37,21 +34,27 @@ async def start_backtest(request: BacktestStartRequest) -> BacktestStartResponse
         with open(strategy_file, 'w', encoding='utf-8') as f:
             f.write(request.strategy_code)
         
-        # 3. 初始化回测记录
-        backtest_record = {
-            "_id": ObjectId(back_test_id),
-            "strategy_name": request.strategy_name,
-            "start_date": request.start_date,
-            "end_date": request.end_date,
-            "start_capital": request.start_capital,
-            "status": "running",  # running, completed, failed
-            "progress": 0,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now(),
-        }
-        
-        collection = mongodb.get_collection(COLLECTION_NAME)
-        await collection.insert_one(backtest_record)
+        # 3. 使用 SQLite 保存回测记录（包含策略代码快照）
+        await BacktestDAO.create(
+            run_id=back_test_id,
+            strategy_name=request.strategy_name,
+            strategy_code=request.strategy_code,  # 保存策略代码快照
+            start_date=request.start_date,
+            end_date=request.end_date,
+            start_capital=request.start_capital,
+            commission_rate=request.commission_rate,
+            frequency=request.frequency,
+            standard_symbol=request.standard_symbol,
+            matching_type=request.matching_type,
+            account_id=request.account_id,
+            account_type=request.account_type,
+            slippage=request.slippage,
+            margin_rate=request.margin_rate,
+            start_future_capital=request.start_future_capital,
+            start_fund_capital=request.start_fund_capital,
+            status="running",
+            progress=0
+        )
         
         # 4. 构建回测参数
         handle_message = {
@@ -108,7 +111,6 @@ async def _run_backtest_async(handle_message: dict, strategy_file: str):
         strategy_file: 策略文件路径
     """
     back_test_id = handle_message['back_test_id']
-    collection = mongodb.get_collection(COLLECTION_NAME)
     
     try:
         logger.info(f"开始执行回测: {back_test_id}")
@@ -117,14 +119,12 @@ async def _run_backtest_async(handle_message: dict, strategy_file: str):
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, _run_backtest_sync, handle_message)
         
-        # 更新回测状态为完成
-        await collection.update_one(
-            {"_id": ObjectId(back_test_id)},
-            {"$set": {
-                "status": "completed",
-                "progress": 100,
-                "updated_at": datetime.now()
-            }}
+        # 使用 SQLite 更新回测状态为完成
+        await BacktestDAO.update(
+            run_id=back_test_id,
+            status="completed",
+            progress=100,
+            completed_at=datetime.now()
         )
         
         logger.info(f"回测完成: {back_test_id}")
@@ -134,14 +134,11 @@ async def _run_backtest_async(handle_message: dict, strategy_file: str):
         import traceback
         logger.error(traceback.format_exc())
         
-        # 更新回测状态为失败
-        await collection.update_one(
-            {"_id": ObjectId(back_test_id)},
-            {"$set": {
-                "status": "failed",
-                "error": str(e),
-                "updated_at": datetime.now()
-            }}
+        # 使用 SQLite 更新回测状态为失败
+        await BacktestDAO.update(
+            run_id=back_test_id,
+            status="failed",
+            error_message=str(e)
         )
     finally:
         # 清理临时策略文件

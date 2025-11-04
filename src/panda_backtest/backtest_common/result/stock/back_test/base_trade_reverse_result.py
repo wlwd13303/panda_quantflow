@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# @Time   : 18-3-27 下午5:02
-# @Author : wlb
-# @File   : trade_reverse_result.py
-# @desc   :
 from panda_backtest.backtest_common.constant.string_constant import STOCK_DIVIDEND_INFO, ETF_SPLIT_INFO
 import logging
 

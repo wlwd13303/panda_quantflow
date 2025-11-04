@@ -16,7 +16,7 @@ import type { BacktestRecord } from '@/types';
 import { backtestApi } from '@/services/api';
 
 interface BacktestManagementProps {
-  onViewBacktest: (backId: string) => void;
+  onViewBacktest: (backId: string, record: BacktestRecord) => void;
 }
 
 const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest }) => {
@@ -228,7 +228,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
           <Button
             size="small"
             icon={<EyeOutlined />}
-            onClick={() => onViewBacktest(record.run_id || record._id || '')}
+            onClick={() => onViewBacktest(record.run_id || record._id || '', record)}
           >
             查看
           </Button>

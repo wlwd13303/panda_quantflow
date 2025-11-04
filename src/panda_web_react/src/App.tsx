@@ -6,6 +6,16 @@ import StrategyEditorTab, { defaultStrategyCode } from './components/strategy/St
 import EnhancedBacktestResults from './components/EnhancedBacktestResults';
 import ManagementCenter from './components/management/ManagementCenter';
 import { strategyApi, backtestApi } from './services/api';
+import {
+  saveTabs,
+  loadTabs,
+  saveActiveTab,
+  loadActiveTab,
+  saveStrategyDraft,
+  loadStrategyDraft,
+  deleteStrategyDraft,
+  clearStorage,
+} from './utils/workspaceStorage';
 import type {
   Strategy,
   BacktestConfig,
@@ -21,6 +31,33 @@ import './App.css';
 
 const { Content } = Layout;
 
+// 生成回测标签页名称的辅助函数
+const generateBacktestTabName = (record: BacktestRecord): string => {
+  let tabName = record.strategy_name || '';
+  
+  // 如果策略名称为空或只是数字，使用更有意义的名称
+  if (!tabName || /^\d+$/.test(tabName.trim())) {
+    if (record.start_date && record.end_date) {
+      // 格式化日期，如果是标准的 YYYYMMDD 格式，转换为更友好的格式
+      const formatDate = (dateStr: string) => {
+        if (dateStr.length === 8 && /^\d{8}$/.test(dateStr)) {
+          return `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+        }
+        return dateStr;
+      };
+      
+      const startDate = formatDate(record.start_date);
+      const endDate = formatDate(record.end_date);
+      tabName = `回测 ${startDate}~${endDate}`;
+    } else {
+      const shortId = (record.run_id || record._id || '').substring(0, 8);
+      tabName = `回测 ${shortId}`;
+    }
+  }
+  
+  return tabName;
+};
+
 const App: React.FC = () => {
   // ==================== 状态管理 ====================
   
@@ -34,6 +71,7 @@ const App: React.FC = () => {
     },
   ]);
   const [activeTabId, setActiveTabId] = useState('management');
+  const [workspaceRestored, setWorkspaceRestored] = useState(false);
 
   // 策略列表
   const [strategies, setStrategies] = useState<Strategy[]>([]);
@@ -51,9 +89,116 @@ const App: React.FC = () => {
 
   // ==================== 初始化 ====================
   
+  // 恢复工作区状态
   useEffect(() => {
-    loadStrategies();
-    loadRunningBacktests();
+    const restoreWorkspace = async () => {
+      console.log('[App] 开始恢复工作区...');
+      
+      // 加载策略列表（必须先加载，后续需要用到）
+      await loadStrategies();
+      await loadRunningBacktests();
+
+      // 尝试从 localStorage 恢复标签页
+      const savedTabs = loadTabs();
+      const savedActiveTab = loadActiveTab();
+
+      if (savedTabs && savedTabs.length > 0) {
+        console.log('[App] 恢复标签页:', savedTabs.length);
+        
+        // 确保管理中心标签存在
+        const hasManagementTab = savedTabs.some(tab => tab.type === 'management');
+        const restoredTabs: WorkspaceTab[] = hasManagementTab
+          ? savedTabs
+          : [
+              {
+                id: 'management',
+                type: 'management',
+                title: '管理中心',
+                closable: false,
+              },
+              ...savedTabs,
+            ];
+
+        // 恢复策略标签的代码（从草稿或重新加载）
+        const tabsWithData = await Promise.all(
+          restoredTabs.map(async (tab) => {
+            if (tab.type === 'strategy' && tab.strategyData) {
+              // 尝试加载草稿
+              const draft = loadStrategyDraft(tab.strategyData.strategyId);
+              
+              if (draft && draft.code) {
+                // 使用草稿代码
+                console.log('[App] 使用草稿代码:', tab.strategyData.strategyId);
+                return {
+                  ...tab,
+                  strategyData: {
+                    ...tab.strategyData,
+                    code: draft.code,
+                    unsavedChanges: true,
+                  },
+                };
+              } else if (tab.strategyData.strategyId !== 'new') {
+                // 重新加载策略代码
+                const strategy = await loadStrategy(tab.strategyData.strategyId);
+                if (strategy) {
+                  console.log('[App] 重新加载策略:', tab.strategyData.strategyId);
+                  return {
+                    ...tab,
+                    strategyData: {
+                      ...tab.strategyData,
+                      code: strategy.code,
+                      description: strategy.description,
+                      unsavedChanges: false,
+                      defaultConfig: strategy.default_backtest_config,
+                    },
+                  };
+                }
+              } else {
+                // 新建策略，使用默认代码
+                return {
+                  ...tab,
+                  strategyData: {
+                    ...tab.strategyData,
+                    code: defaultStrategyCode,
+                    unsavedChanges: true,
+                  },
+                };
+              }
+            }
+
+            if (tab.type === 'backtest' && tab.backtestData) {
+              // 回测标签需要重新加载状态
+              const backtestId = tab.backtestData.backtestId;
+              
+              // 重新开始轮询（如果是运行中的回测）
+              if (tab.backtestData.status === 'running') {
+                startProgressPolling(backtestId); // 这会自动启动数据刷新
+              } else if (tab.backtestData.status === 'completed') {
+                // 重新加载完成的回测结果
+                loadBacktestResults(backtestId);
+              }
+            }
+
+            return tab;
+          })
+        );
+
+        setTabs(tabsWithData);
+
+        // 恢复激活的标签
+        if (savedActiveTab && tabsWithData.some(t => t.id === savedActiveTab)) {
+          setActiveTabId(savedActiveTab);
+        } else if (tabsWithData.length > 0) {
+          setActiveTabId(tabsWithData[0].id);
+        }
+
+        message.success('工作区已恢复');
+      }
+
+      setWorkspaceRestored(true);
+    };
+
+    restoreWorkspace();
 
     // 清理定时器
     return () => {
@@ -61,6 +206,22 @@ const App: React.FC = () => {
       Object.values(dataRefreshTimersRef.current).forEach(clearInterval);
     };
   }, []);
+
+  // 保存标签页状态到 localStorage
+  useEffect(() => {
+    if (!workspaceRestored) return; // 等待恢复完成后再保存
+    
+    saveTabs(tabs);
+    console.log('[App] 已保存标签页状态');
+  }, [tabs, workspaceRestored]);
+
+  // 保存激活的标签页
+  useEffect(() => {
+    if (!workspaceRestored) return;
+    
+    saveActiveTab(activeTabId);
+    console.log('[App] 已保存激活标签:', activeTabId);
+  }, [activeTabId, workspaceRestored]);
 
   // ==================== 策略相关函数 ====================
   
@@ -153,7 +314,7 @@ const App: React.FC = () => {
 
       const backtestId = result.back_test_id;
       
-      // 打开回测结果Tab
+      // 打开回测结果Tab，传递代码快照
       openBacktestTab(backtestId, backtestName || strategyName, strategyId, code);
       
       // 刷新运行中的回测列表
@@ -176,6 +337,30 @@ const App: React.FC = () => {
     progressTimersRef.current[backtestId] = setInterval(() => {
       checkBacktestProgress(backtestId);
     }, 2000);
+    
+    // 同时启动数据刷新定时器，实时加载回测数据
+    startDataRefreshPolling(backtestId);
+  };
+
+  const startDataRefreshPolling = (backtestId: string) => {
+    if (dataRefreshTimersRef.current[backtestId]) {
+      clearInterval(dataRefreshTimersRef.current[backtestId]);
+    }
+    
+    // 立即加载一次数据
+    loadBacktestResults(backtestId);
+    
+    // 每2秒刷新一次回测数据
+    dataRefreshTimersRef.current[backtestId] = setInterval(() => {
+      loadBacktestResults(backtestId);
+    }, 2000);
+  };
+
+  const stopDataRefreshPolling = (backtestId: string) => {
+    if (dataRefreshTimersRef.current[backtestId]) {
+      clearInterval(dataRefreshTimersRef.current[backtestId]);
+      delete dataRefreshTimersRef.current[backtestId];
+    }
   };
 
   const checkBacktestProgress = async (backtestId: string) => {
@@ -198,11 +383,14 @@ const App: React.FC = () => {
       }));
 
       if (data.status === 'completed' || data.status === 'failed') {
-        // 停止轮询
+        // 停止进度轮询
         if (progressTimersRef.current[backtestId]) {
           clearInterval(progressTimersRef.current[backtestId]);
           delete progressTimersRef.current[backtestId];
         }
+        
+        // 停止数据刷新轮询
+        stopDataRefreshPolling(backtestId);
         
         if (data.status === 'completed') {
           message.success('回测完成！');
@@ -224,7 +412,7 @@ const App: React.FC = () => {
     try {
       // 使用监控 API
       const monitorData = await backtestApi.getMonitorData(backtestId);
-      
+
       if (monitorData.success) {
         const dataStats: DataStats = {
           accountCount: monitorData.stats?.account_count || 0,
@@ -381,9 +569,41 @@ const App: React.FC = () => {
     }
   }, [tabs]);
 
+  const handleClearWorkspace = useCallback(() => {
+    // 清空 localStorage
+    clearStorage();
+    
+    // 停止所有定时器
+    Object.values(progressTimersRef.current).forEach(clearInterval);
+    Object.values(dataRefreshTimersRef.current).forEach(clearInterval);
+    progressTimersRef.current = {};
+    dataRefreshTimersRef.current = {};
+    
+    // 重置为初始状态（只保留管理中心）
+    setTabs([
+      {
+        id: 'management',
+        type: 'management',
+        title: '管理中心',
+        closable: false,
+      },
+    ]);
+    setActiveTabId('management');
+    
+    message.success('工作区已清空');
+  }, []);
+
   const closeTab = useCallback((tabId: string) => {
     const tab = tabs.find(t => t.id === tabId);
     if (!tab || !tab.closable) return;
+
+    // 如果是策略Tab，删除对应的草稿（除非有未保存的修改）
+    if (tab.type === 'strategy' && tab.strategyData) {
+      // 只有在没有未保存修改时才删除草稿
+      if (!tab.strategyData.unsavedChanges) {
+        deleteStrategyDraft(tab.strategyData.strategyId);
+      }
+    }
 
     // 如果是回测Tab，停止相关定时器
     if (tab.type === 'backtest' && tab.backtestData) {
@@ -421,6 +641,12 @@ const App: React.FC = () => {
     const result = await saveStrategy(data, strategyId);
     const newStrategyId = result.id || result._id;
 
+    // 删除草稿（因为已经保存了）
+    deleteStrategyDraft(strategyId);
+    if (strategyId !== newStrategyId) {
+      deleteStrategyDraft(newStrategyId);
+    }
+
     // 更新Tab
     setTabs(prevTabs => prevTabs.map(tab => {
       if (tab.id === tabId && tab.strategyData) {
@@ -455,6 +681,12 @@ const App: React.FC = () => {
   const handleCodeChange = (code: string, tabId: string) => {
     setTabs(prevTabs => prevTabs.map(tab => {
       if (tab.id === tabId && tab.strategyData) {
+        // 保存草稿到 localStorage
+        saveStrategyDraft(tab.strategyData.strategyId, code, {
+          strategyName: tab.strategyData.strategyName,
+          description: tab.strategyData.description,
+        });
+        
         return {
           ...tab,
           strategyData: {
@@ -488,7 +720,10 @@ const App: React.FC = () => {
             onStartBacktest={(config, backtestName, saveAsDefault, code, strategyName) =>
               handleStartBacktest(config, backtestName, saveAsDefault, code, strategyName, tab.strategyData!.strategyId)
             }
-            onViewBacktest={(backtestId) => openBacktestTab(backtestId, 'Backtest', tab.strategyData?.strategyId)}
+            onViewBacktest={(backtestId) => {
+              const shortId = backtestId.substring(0, 8);
+              openBacktestTab(backtestId, `回测 ${shortId}`, tab.strategyData?.strategyId);
+            }}
           />
         );
 
@@ -546,7 +781,15 @@ const App: React.FC = () => {
             onDeleteStrategy={deleteStrategy}
             onNewStrategy={() => openStrategyTab('new')}
             onRefreshStrategies={loadStrategies}
-            onViewBacktest={(backtestId) => openBacktestTab(backtestId, 'Backtest')}
+            onViewBacktest={(backtestId, record) => {
+              const tabName = generateBacktestTabName(record);
+              openBacktestTab(
+                backtestId,
+                tabName,
+                record.strategy_id,
+                record.strategy_code_snapshot
+              );
+            }}
           />
         );
 
@@ -566,8 +809,27 @@ const App: React.FC = () => {
         runningBacktests={runningBacktests}
         onNewStrategy={() => openStrategyTab('new')}
         onOpenStrategy={openStrategyTab}
-        onOpenBacktest={(backtestId) => openBacktestTab(backtestId, 'Backtest')}
+        onOpenBacktest={(backtestId) => {
+          // 从 runningBacktests 中找到对应的记录
+          const record = runningBacktests.find(
+            bt => (bt.run_id || bt._id) === backtestId
+          );
+          
+          if (record) {
+            const tabName = generateBacktestTabName(record);
+            openBacktestTab(
+              backtestId,
+              tabName,
+              record.strategy_id,
+              record.strategy_code_snapshot
+            );
+          } else {
+            // 如果找不到记录，使用默认名称
+            openBacktestTab(backtestId, `回测 ${backtestId.substring(0, 8)}`);
+          }
+        }}
         onOpenManagement={openManagementTab}
+        onClearWorkspace={handleClearWorkspace}
       />
 
       <Layout style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>

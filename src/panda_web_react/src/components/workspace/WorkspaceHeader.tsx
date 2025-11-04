@@ -1,12 +1,16 @@
 import React from 'react';
-import { Layout, Space, Button, Select, Badge, Tooltip } from 'antd';
+import { Layout, Space, Button, Select, Badge, Tooltip, Modal } from 'antd';
 import {
   PlusOutlined,
   FolderOutlined,
   BarChartOutlined,
   CodeOutlined,
+  ClearOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import type { Strategy, BacktestRecord } from '@/types';
+
+const { confirm } = Modal;
 
 const { Header } = Layout;
 
@@ -17,6 +21,7 @@ interface WorkspaceHeaderProps {
   onOpenStrategy: (strategyId: string) => void;
   onOpenBacktest: (backtestId: string) => void;
   onOpenManagement: () => void;
+  onClearWorkspace?: () => void;
 }
 
 const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
@@ -26,7 +31,23 @@ const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   onOpenStrategy,
   onOpenBacktest,
   onOpenManagement,
+  onClearWorkspace,
 }) => {
+  // 清空工作区确认
+  const handleClearWorkspace = () => {
+    confirm({
+      title: '确认清空工作区？',
+      icon: <ExclamationCircleOutlined />,
+      content: '这将关闭所有标签页并清除所有未保存的草稿。已保存的策略不会受影响。',
+      okText: '确认清空',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: () => {
+        onClearWorkspace?.();
+      },
+    });
+  };
+
   // 格式化回测显示文本
   const formatBacktestLabel = (backtest: BacktestRecord) => {
     const statusIcon = backtest.status === 'running' ? '⚡' : '✅';
@@ -155,6 +176,18 @@ const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
         >
           管理中心
         </Button>
+
+        {onClearWorkspace && (
+          <Tooltip title="清空所有标签页和未保存的草稿">
+            <Button
+              icon={<ClearOutlined />}
+              onClick={handleClearWorkspace}
+              danger
+            >
+              清空工作区
+            </Button>
+          </Tooltip>
+        )}
       </Space>
     </Header>
   );

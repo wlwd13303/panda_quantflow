@@ -62,8 +62,8 @@ const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
   };
 
   // 处理Tab关闭
-  const handleTabClose = (tabId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleTabClose = (tabId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     
     const tab = tabs.find(t => t.id === tabId);
     if (!tab) return;
@@ -105,10 +105,7 @@ const WorkspaceTabs: React.FC<WorkspaceTabsProps> = ({
       onChange={onTabChange}
       onEdit={(targetKey, action) => {
         if (action === 'remove' && typeof targetKey === 'string') {
-          const tab = tabs.find(t => t.id === targetKey);
-          if (tab?.closable) {
-            handleTabClose(targetKey, {} as React.MouseEvent);
-          }
+          handleTabClose(targetKey);
         }
       }}
       items={tabItems}
