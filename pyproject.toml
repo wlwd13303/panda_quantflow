@@ -58,6 +58,7 @@ dependencies = [
     "openai>=1.0.0",
     "dotenv>=0.9.9",
     "ipython>=9.2.0",
+    "TA-Lib",
 ]
 
 [dependency-groups]
