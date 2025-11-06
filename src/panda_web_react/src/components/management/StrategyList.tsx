@@ -96,16 +96,28 @@ const StrategyList: React.FC<StrategyListProps> = ({
       ),
     },
     {
-      title: '回测次数',
-      dataIndex: 'backtest_count',
-      key: 'backtest_count',
-      width: 100,
+      title: '最近回测',
+      dataIndex: 'last_backtest_time',
+      key: 'last_backtest_time',
+      width: 180,
       align: 'center' as const,
-      render: (count: number) => (
-        <Tag color={count > 0 ? 'blue' : 'default'}>
-          {count || 0}
-        </Tag>
-      ),
+      sorter: (a: Strategy, b: Strategy) => {
+        const dateA = a.last_backtest_time ? new Date(a.last_backtest_time).getTime() : 0;
+        const dateB = b.last_backtest_time ? new Date(b.last_backtest_time).getTime() : 0;
+        return dateA - dateB;
+      },
+      render: (lastTime: string, record: Strategy) => {
+        if (!lastTime || (record.backtest_count || 0) === 0) {
+          return <Tag color="default">未回测</Tag>;
+        }
+        return (
+          <Tooltip title={`共回测 ${record.backtest_count || 0} 次`}>
+            <span style={{ color: '#1890ff', cursor: 'pointer' }}>
+              {formatDateTime(lastTime)}
+            </span>
+          </Tooltip>
+        );
+      },
     },
     {
       title: '创建时间',

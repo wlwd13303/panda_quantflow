@@ -38,6 +38,7 @@ async def start_backtest(request: BacktestStartRequest) -> BacktestStartResponse
         await BacktestDAO.create(
             run_id=back_test_id,
             strategy_name=request.strategy_name,
+            strategy_id=request.strategy_id,  # 保存策略ID
             strategy_code=request.strategy_code,  # 保存策略代码快照
             start_date=request.start_date,
             end_date=request.end_date,

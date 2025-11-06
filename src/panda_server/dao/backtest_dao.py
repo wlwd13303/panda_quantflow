@@ -20,7 +20,7 @@ class BacktestDAO:
             async with sqlite_db.get_connection() as conn:
                 # 定义允许的字段（白名单，防止 SQL 注入）
                 allowed_fields = [
-                    'run_id', 'strategy_name', 'strategy_code', 'start_date', 'end_date',
+                    'run_id', 'strategy_name', 'strategy_id', 'strategy_code', 'start_date', 'end_date',
                     'start_capital', 'commission_rate', 'frequency', 'standard_symbol',
                     'matching_type', 'account_id', 'account_type', 'slippage',
                     'margin_rate', 'start_future_capital', 'start_fund_capital',
@@ -65,7 +65,7 @@ class BacktestDAO:
             async with sqlite_db.get_connection() as conn:
                 cursor = await conn.execute(
                     """
-                    SELECT id as _id, run_id, strategy_name, strategy_code, start_date, end_date,
+                    SELECT id as _id, run_id, strategy_name, strategy_id, strategy_code, start_date, end_date,
                            start_capital, commission_rate, frequency, standard_symbol,
                            matching_type, account_id, account_type, slippage, margin_rate,
                            start_future_capital, start_fund_capital, status, progress,
@@ -94,7 +94,7 @@ class BacktestDAO:
             async with sqlite_db.get_connection() as conn:
                 cursor = await conn.execute(
                     """
-                    SELECT id as _id, run_id, strategy_name, strategy_code, start_date, end_date,
+                    SELECT id as _id, run_id, strategy_name, strategy_id, strategy_code, start_date, end_date,
                            start_capital, commission_rate, frequency, standard_symbol,
                            matching_type, account_id, account_type, slippage, margin_rate,
                            start_future_capital, start_fund_capital, status, progress,
@@ -149,7 +149,7 @@ class BacktestDAO:
                 
                 cursor = await conn.execute(
                     f"""
-                    SELECT id as _id, run_id, strategy_name, strategy_code, start_date, end_date,
+                    SELECT id as _id, run_id, strategy_name, strategy_id, strategy_code, start_date, end_date,
                            start_capital, commission_rate, frequency, standard_symbol,
                            matching_type, account_id, account_type, slippage, margin_rate,
                            start_future_capital, start_fund_capital, status, progress,

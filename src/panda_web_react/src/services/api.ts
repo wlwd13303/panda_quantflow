@@ -110,7 +110,7 @@ export const backtestApi = {
       '/api/backtest/start',
       data
     );
-    return response.data.data || { back_test_id: response.data.back_test_id || '' };
+    return response.data.data || { back_test_id: (response.data as any).back_test_id || '' };
   },
 
   // 查询回测进度
@@ -121,7 +121,7 @@ export const backtestApi = {
         params: { back_id: backId },
       }
     );
-    return response.data.data || response.data;
+    return (response.data.data || response.data) as BacktestProgress;
   },
 
   // 获取账户数据
@@ -234,10 +234,50 @@ export const backtestApi = {
     );
     return response.data;
   },
+
+  // 获取回测详细信息（包含配置）
+  async getBacktestDetail(backId: string): Promise<BacktestRecord> {
+    const response = await apiClient.get<ApiResponse<BacktestRecord>>(
+      '/api/backtest/backtest',
+      {
+        params: { back_id: backId },
+      }
+    );
+    return (response.data.data || response.data) as BacktestRecord;
+  },
+};
+
+// ============ 行情数据相关 API ============
+
+export const quotationApi = {
+  // 获取指数行情数据
+  async getIndexData(
+    symbol: string,
+    startDate: string,
+    endDate: string
+  ): Promise<any[]> {
+    try {
+      const response = await apiClient.get('/instrument/queryLiveData', {
+        params: {
+          quotation: symbol,
+          quotationType: 'index',
+          period: '1d',
+          startDate: startDate,
+          endDate: endDate,
+          limit: 5000,
+        },
+      });
+      return response.data.data || [];
+    } catch (error) {
+      console.error('获取指数数据失败:', error);
+      return [];
+    }
+  },
 };
 
 export default {
   strategy: strategyApi,
   backtest: backtestApi,
+  quotation: quotationApi,
 };
 

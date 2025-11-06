@@ -293,10 +293,15 @@ const App: React.FC = () => {
     strategyId?: string
   ) => {
     try {
+      // 确保 strategy_id 正确传递（不传 'new' 或 undefined）
+      const validStrategyId = strategyId && strategyId !== 'new' ? strategyId : undefined;
+      
+      console.log('[App] 启动回测 - strategyId:', strategyId, '→ validStrategyId:', validStrategyId);
+      
       const result = await backtestApi.startBacktest({
         strategy_code: code,
         strategy_name: backtestName || strategyName,
-        strategy_id: strategyId !== 'new' ? strategyId : undefined,
+        strategy_id: validStrategyId,
         start_date: config.start_date,
         end_date: config.end_date,
         start_capital: config.start_capital * 10000,
@@ -410,8 +415,14 @@ const App: React.FC = () => {
 
   const loadBacktestResults = async (backtestId: string) => {
     try {
-      // 使用监控 API
-      const monitorData = await backtestApi.getMonitorData(backtestId);
+      // 并行获取监控数据和回测详细信息
+      const [monitorData, backtestDetail] = await Promise.all([
+        backtestApi.getMonitorData(backtestId),
+        backtestApi.getBacktestDetail(backtestId).catch(err => {
+          console.warn('获取回测详细信息失败:', err);
+          return null;
+        })
+      ]);
 
       if (monitorData.success) {
         const dataStats: DataStats = {
@@ -459,7 +470,26 @@ const App: React.FC = () => {
           cost: trade.amount ? Math.abs(Number(trade.amount)).toFixed(2) : '0.00',
         }));
 
-        // 缓存数据
+        // 解析回测配置
+        let config: BacktestConfig | undefined = undefined;
+        if (backtestDetail) {
+          // 从后端返回的字段构建配置对象
+          const fundStock = backtestDetail.fund_stock ? parseFloat(backtestDetail.fund_stock) : 0;
+          const commission = backtestDetail.commission ? parseFloat(backtestDetail.commission) : 1;
+          const matchingType = backtestDetail.bar_match ? parseInt(backtestDetail.bar_match) : 1;
+          
+          config = {
+            start_capital: fundStock / 10000, // 后端是元，前端是万
+            start_date: backtestDetail.start_date || '20240101',
+            end_date: backtestDetail.end_date || '20240201',
+            frequency: backtestDetail.back_interval || '1d',
+            commission_rate: commission,
+            standard_symbol: backtestDetail.benchmark || '000001.SH',
+            matching_type: matchingType,
+          };
+        }
+
+        // 缓存数据，包含配置
         setBacktestDataCache(prev => ({
           ...prev,
           [backtestId]: {
@@ -469,6 +499,7 @@ const App: React.FC = () => {
             accountData,
             dataStats,
             status: monitorData.status,
+            config,
           },
         }));
       }
@@ -486,7 +517,9 @@ const App: React.FC = () => {
     );
 
     if (existingTab) {
+      // 如果已打开，直接切换到该标签页
       setActiveTabId(existingTab.id);
+      message.info('策略已在标签页中打开，已切换至该标签');
       return;
     }
 
@@ -537,7 +570,9 @@ const App: React.FC = () => {
     );
 
     if (existingTab) {
+      // 如果已打开，直接切换到该标签页
       setActiveTabId(existingTab.id);
+      message.info('回测已在标签页中打开，已切换至该标签');
       return;
     }
 
@@ -639,11 +674,11 @@ const App: React.FC = () => {
     tabId: string
   ) => {
     const result = await saveStrategy(data, strategyId);
-    const newStrategyId = result.id || result._id;
+    const newStrategyId = result.id || result._id || strategyId;
 
     // 删除草稿（因为已经保存了）
     deleteStrategyDraft(strategyId);
-    if (strategyId !== newStrategyId) {
+    if (strategyId !== newStrategyId && newStrategyId) {
       deleteStrategyDraft(newStrategyId);
     }
 
@@ -737,6 +772,18 @@ const App: React.FC = () => {
           accountData: [],
           dataStats: { accountCount: 0, tradeCount: 0, positionCount: 0, profitCount: 0 },
           status: tab.backtestData.status,
+          config: undefined,
+        };
+
+        // 使用真实配置，如果没有则使用默认配置
+        const backtestConfig: BacktestConfig = backtestData.config || {
+          start_capital: 1000,
+          start_date: '20240101',
+          end_date: '20240201',
+          frequency: '1d',
+          commission_rate: 1,
+          standard_symbol: '000001.SH',
+          matching_type: 1,
         };
 
         return (
@@ -750,15 +797,7 @@ const App: React.FC = () => {
             positionData={backtestData.positionData}
             accountData={backtestData.accountData}
             dataStats={backtestData.dataStats}
-            config={{
-              start_capital: 1000,
-              start_date: '20240101',
-              end_date: '20240201',
-              frequency: '1d',
-              commission_rate: 1,
-              standard_symbol: '000001.SH',
-              matching_type: 1,
-            }}
+            config={backtestConfig}
             strategyName={tab.backtestData.strategyName || ''}
             strategyId={tab.backtestData.strategyId}
             strategyCodeSnapshot={tab.backtestData.strategyCodeSnapshot}
@@ -802,11 +841,22 @@ const App: React.FC = () => {
   
   const currentTab = tabs.find(t => t.id === activeTabId);
 
+  // 计算已打开的策略ID和回测ID列表
+  const openStrategyIds = tabs
+    .filter(tab => tab.type === 'strategy' && tab.strategyData?.strategyId)
+    .map(tab => tab.strategyData!.strategyId);
+
+  const openBacktestIds = tabs
+    .filter(tab => tab.type === 'backtest' && tab.backtestData?.backtestId)
+    .map(tab => tab.backtestData!.backtestId);
+
   return (
     <Layout style={{ height: '100vh' }}>
       <WorkspaceHeader
         strategies={strategies}
         runningBacktests={runningBacktests}
+        openStrategyIds={openStrategyIds}
+        openBacktestIds={openBacktestIds}
         onNewStrategy={() => openStrategyTab('new')}
         onOpenStrategy={openStrategyTab}
         onOpenBacktest={(backtestId) => {

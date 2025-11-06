@@ -215,115 +215,218 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
     );
   };
 
-  // 交易记录列
-  const tradeColumns = [
-    {
-      title: '日期',
-      dataIndex: 'date',
-      key: 'date',
-      width: 100,
-    },
-    {
-      title: '时间',
-      dataIndex: 'time',
-      key: 'time',
-      width: 80,
-    },
-    {
-      title: '股票代码',
-      dataIndex: 'symbol',
-      key: 'symbol',
-      width: 120,
-    },
-    {
-      title: '方向',
-      dataIndex: 'direction',
-      key: 'direction',
-      width: 80,
-      render: (direction: string, record: any) => {
-        const isBuy = record.side === 0 || direction === '买入';
-        return (
-          <Tag color={isBuy ? 'green' : 'red'}>
-            {direction || (isBuy ? '买入' : '卖出')}
-          </Tag>
-        );
+  // 生成交易记录列配置（包含日期和股票筛选）
+  const getTradeColumns = () => {
+    const trades = monitorData?.recent_trades || [];
+    
+    // 提取所有唯一日期并排序
+    const uniqueDates = Array.from(new Set(trades.map(t => t.date).filter(Boolean)))
+      .sort((a, b) => (b || '').localeCompare(a || ''));
+    
+    const dateFilters = uniqueDates.map(date => ({
+      text: (() => {
+        if (!date) return 'N/A';
+        if (date.length === 8) {
+          return `${date.substring(0, 4)}-${date.substring(4, 6)}-${date.substring(6, 8)}`;
+        }
+        return date;
+      })(),
+      value: date || '',
+    }));
+    
+    // 提取所有唯一股票代码并排序
+    const uniqueSymbols = Array.from(new Set(trades.map(t => t.symbol).filter(Boolean)))
+      .sort();
+    
+    const symbolFilters = uniqueSymbols.map(symbol => ({
+      text: symbol || 'N/A',
+      value: symbol || '',
+    }));
+    
+    return [
+      {
+        title: '日期',
+        dataIndex: 'date',
+        key: 'date',
+        width: 110,
+        align: 'center' as const,
+        filters: dateFilters,
+        filterSearch: true,
+        onFilter: (value: any, record: any) => record.date === value,
+        render: (date: string) => {
+          if (!date) return 'N/A';
+          if (date.length === 8) {
+            return `${date.substring(0, 4)}-${date.substring(4, 6)}-${date.substring(6, 8)}`;
+          }
+          return date;
+        },
       },
-    },
-    {
-      title: '价格',
-      dataIndex: 'price',
-      key: 'price',
-      width: 100,
-      align: 'right' as const,
-      render: (val: number) => formatNumber(val),
-    },
-    {
-      title: '数量',
-      dataIndex: 'volume',
-      key: 'volume',
-      width: 100,
-      align: 'right' as const,
-      render: (val: number) => formatNumber(val, 0),
-    },
-    {
-      title: '成交额',
-      dataIndex: 'amount',
-      key: 'amount',
-      width: 120,
-      align: 'right' as const,
-      render: (val: number) => formatNumber(val),
-    },
-  ];
+      {
+        title: '时间',
+        dataIndex: 'time',
+        key: 'time',
+        width: 80,
+        align: 'center' as const,
+      },
+      {
+        title: '股票代码',
+        dataIndex: 'symbol',
+        key: 'symbol',
+        width: 120,
+        align: 'center' as const,
+        filters: symbolFilters,
+        filterSearch: true,
+        onFilter: (value: any, record: any) => record.symbol === value,
+      },
+      {
+        title: '方向',
+        dataIndex: 'direction',
+        key: 'direction',
+        width: 80,
+        align: 'center' as const,
+        filters: [
+          { text: '买入', value: '买入' },
+          { text: '卖出', value: '卖出' },
+        ],
+        onFilter: (value: any, record: any) => {
+          const isBuy = record.side === 0 || record.direction === '买入';
+          return value === '买入' ? isBuy : !isBuy;
+        },
+        render: (direction: string, record: any) => {
+          const isBuy = record.side === 0 || direction === '买入';
+          return (
+            <Tag color={isBuy ? 'green' : 'red'}>
+              {direction || (isBuy ? '买入' : '卖出')}
+            </Tag>
+          );
+        },
+      },
+      {
+        title: '价格',
+        dataIndex: 'price',
+        key: 'price',
+        width: 100,
+        align: 'right' as const,
+        render: (val: number) => formatNumber(val),
+      },
+      {
+        title: '数量',
+        dataIndex: 'volume',
+        key: 'volume',
+        width: 100,
+        align: 'right' as const,
+        render: (val: number) => formatNumber(val, 0),
+      },
+      {
+        title: '成交额',
+        dataIndex: 'amount',
+        key: 'amount',
+        width: 120,
+        align: 'right' as const,
+        render: (val: number) => formatNumber(val),
+      },
+    ];
+  };
 
-  // 持仓列
-  const positionColumns = [
-    {
-      title: '股票代码',
-      dataIndex: 'symbol',
-      key: 'symbol',
-      width: 120,
-    },
-    {
-      title: '持仓量',
-      dataIndex: 'volume',
-      key: 'volume',
-      width: 100,
-      align: 'right' as const,
-      render: (val: number) => formatNumber(val, 0),
-    },
-    {
-      title: '市值',
-      dataIndex: 'market_value',
-      key: 'market_value',
-      width: 120,
-      align: 'right' as const,
-      render: (val: number) => formatNumber(val),
-    },
-    {
-      title: '盈亏',
-      dataIndex: 'profit',
-      key: 'profit',
-      width: 120,
-      align: 'right' as const,
-      render: (val: number) => (
-        <span style={{ color: val >= 0 ? '#3f8600' : '#cf1322' }}>
-          {formatNumber(val)}
-        </span>
-      ),
-    },
-    {
-      title: '收益率',
-      dataIndex: 'profit_rate',
-      key: 'profit_rate',
-      width: 100,
-      align: 'right' as const,
-      render: (val: number) => (
-        <span style={{ color: val >= 0 ? '#3f8600' : '#cf1322' }}>
-          {formatNumber(val * 100, 2)}%
-        </span>
-      ),
-    },
-  ];
+  // 生成持仓列配置（包含日期和股票筛选）
+  const getPositionColumns = () => {
+    const positions = monitorData?.latest_positions || [];
+    
+    // 提取所有唯一日期并排序
+    const uniqueDates = Array.from(new Set(positions.map(p => p.date).filter(Boolean)))
+      .sort((a, b) => (b || '').localeCompare(a || ''));
+    
+    const dateFilters = uniqueDates.map(date => ({
+      text: (() => {
+        if (!date) return 'N/A';
+        if (date.length === 8) {
+          return `${date.substring(0, 4)}-${date.substring(4, 6)}-${date.substring(6, 8)}`;
+        }
+        return date;
+      })(),
+      value: date || '',
+    }));
+    
+    // 提取所有唯一股票代码并排序
+    const uniqueSymbols = Array.from(new Set(positions.map(p => p.symbol).filter(Boolean)))
+      .sort();
+    
+    const symbolFilters = uniqueSymbols.map(symbol => ({
+      text: symbol || 'N/A',
+      value: symbol || '',
+    }));
+    
+    return [
+      {
+        title: '日期',
+        dataIndex: 'date',
+        key: 'date',
+        width: 110,
+        fixed: 'left' as const,
+        align: 'center' as const,
+        filters: dateFilters,
+        filterSearch: true,
+        onFilter: (value: any, record: any) => record.date === value,
+        render: (date: string) => {
+          if (!date) return 'N/A';
+          if (date.length === 8) {
+            return `${date.substring(0, 4)}-${date.substring(4, 6)}-${date.substring(6, 8)}`;
+          }
+          return date;
+        },
+      },
+      {
+        title: '股票代码',
+        dataIndex: 'symbol',
+        key: 'symbol',
+        width: 120,
+        align: 'center' as const,
+        filters: symbolFilters,
+        filterSearch: true,
+        onFilter: (value: any, record: any) => record.symbol === value,
+      },
+      {
+        title: '持仓量',
+        dataIndex: 'volume',
+        key: 'volume',
+        width: 100,
+        align: 'right' as const,
+        render: (val: number) => formatNumber(val, 0),
+      },
+      {
+        title: '市值',
+        dataIndex: 'market_value',
+        key: 'market_value',
+        width: 120,
+        align: 'right' as const,
+        render: (val: number) => formatNumber(val),
+      },
+      {
+        title: '盈亏',
+        dataIndex: 'profit',
+        key: 'profit',
+        width: 120,
+        align: 'right' as const,
+        render: (val: number) => (
+          <span style={{ color: val >= 0 ? '#3f8600' : '#cf1322' }}>
+            {formatNumber(val)}
+          </span>
+        ),
+      },
+      {
+        title: '收益率',
+        dataIndex: 'profit_rate',
+        key: 'profit_rate',
+        width: 100,
+        align: 'right' as const,
+        render: (val: number) => (
+          <span style={{ color: val >= 0 ? '#3f8600' : '#cf1322' }}>
+            {formatNumber(val * 100, 2)}%
+          </span>
+        ),
+      },
+    ];
+  };
 
   const stats = monitorData?.stats;
   const latestAccount = monitorData?.latest_account;
@@ -535,26 +638,28 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
             </Card>
 
             {/* 最近交易 */}
-            <Card title="🔄 最近5笔交易" style={{ marginBottom: 24 }}>
+            <Card title="🔄 交易记录">
               <Table
-                columns={tradeColumns}
+                columns={getTradeColumns()}
                 dataSource={monitorData.recent_trades || []}
-                pagination={false}
+                pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
                 size="small"
                 rowKey={(record, index) => `${record.date}_${record.time}_${index}`}
                 locale={{ emptyText: '暂无交易记录' }}
+                scroll={{ x: 800 }}
               />
             </Card>
 
             {/* 最新持仓 */}
             <Card title="📊 最新持仓">
               <Table
-                columns={positionColumns}
+                columns={getPositionColumns()}
                 dataSource={monitorData.latest_positions || []}
-                pagination={false}
+                pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
                 size="small"
-                rowKey={(record) => record.symbol || ''}
+                rowKey={(record) => `${record.date}_${record.symbol}` || ''}
                 locale={{ emptyText: '暂无持仓' }}
+                scroll={{ x: 800 }}
               />
               {monitorData.latest_positions && monitorData.latest_positions.length > 0 && (
                 <div style={{ marginTop: 10, color: '#999', fontSize: 12 }}>

@@ -226,10 +226,10 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
           <Tag color={hasData ? 'blue' : 'default'}>{profitData.length} 交易日</Tag>
         </Space>
         <Space size={4}>
-          <Tag color={metrics.totalReturnRate >= 0 ? 'success' : 'error'} style={{ margin: 0 }}>
+          <Tag color={metrics.totalReturnRate >= 0 ? 'error' : 'success'} style={{ margin: 0 }}>
             总收益率 {metrics.totalReturnRate >= 0 ? '+' : ''}{formatPercent(metrics.totalReturnRate)}
           </Tag>
-          <Tag color={metrics.sharpeRatio >= 1 ? 'success' : 'warning'} style={{ margin: 0 }}>
+          <Tag color={metrics.sharpeRatio >= 1 ? 'error' : 'warning'} style={{ margin: 0 }}>
             夏普 {formatNumber(metrics.sharpeRatio)}
           </Tag>
         </Space>
@@ -265,11 +265,11 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
                 <MetricCard
                   title="策略收益"
                   value={formatMoney(metrics.totalReturn)}
-                  color={metrics.totalReturn >= 0 ? '#52c41a' : '#ff4d4f'}
+                  color={metrics.totalReturn >= 0 ? '#ff4d4f' : '#52c41a'}
                   icon={metrics.totalReturn >= 0 ? <RiseOutlined /> : <FallOutlined />}
                   extra={
                     <Tag
-                      color={metrics.totalReturnRate >= 0 ? 'success' : 'error'}
+                      color={metrics.totalReturnRate >= 0 ? 'error' : 'success'}
                       style={{ fontSize: 11, padding: '0 4px', lineHeight: '18px' }}
                     >
                       {metrics.totalReturnRate >= 0 ? '+' : ''}{metrics.totalReturnRate.toFixed(2)}%
@@ -282,14 +282,14 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
                   title="年化收益率"
                   value={metrics.annualizedReturn.toFixed(2)}
                   suffix="%"
-                  color={metrics.annualizedReturn >= 0 ? '#52c41a' : '#ff4d4f'}
+                  color={metrics.annualizedReturn >= 0 ? '#ff4d4f' : '#52c41a'}
                 />
               </Col>
               <Col span={12}>
                 <MetricCard
                   title="超额收益"
                   value={formatMoney(metrics.excessReturn)}
-                  color={metrics.excessReturn >= 0 ? '#52c41a' : '#ff4d4f'}
+                  color={metrics.excessReturn >= 0 ? '#ff4d4f' : '#52c41a'}
                   extra={
                     <Text type="secondary" style={{ fontSize: 11 }}>
                       vs 基准
@@ -302,21 +302,21 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
                   title="超额年化"
                   value={metrics.excessReturnRate.toFixed(2)}
                   suffix="%"
-                  color={metrics.excessReturnRate >= 0 ? '#52c41a' : '#ff4d4f'}
+                  color={metrics.excessReturnRate >= 0 ? '#ff4d4f' : '#52c41a'}
                 />
               </Col>
               <Col span={12}>
                 <MetricCard
                   title="日均收益"
                   value={formatMoney(metrics.totalReturn / Math.max(profitData.length, 1))}
-                  color={metrics.totalReturn >= 0 ? '#52c41a' : '#ff4d4f'}
+                  color={metrics.totalReturn >= 0 ? '#ff4d4f' : '#52c41a'}
                 />
               </Col>
               <Col span={12}>
                 <MetricCard
                   title="日均超额收益"
                   value={formatMoney(metrics.excessReturn / Math.max(profitData.length, 1))}
-                  color={metrics.excessReturn >= 0 ? '#52c41a' : '#ff4d4f'}
+                  color={metrics.excessReturn >= 0 ? '#ff4d4f' : '#52c41a'}
                 />
               </Col>
             </Row>
@@ -365,9 +365,9 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
                 <MetricCard
                   title="夏普比率"
                   value={metrics.sharpeRatio.toFixed(3)}
-                  color={metrics.sharpeRatio >= 1 ? '#52c41a' : metrics.sharpeRatio >= 0.5 ? '#faad14' : '#ff4d4f'}
+                  color={metrics.sharpeRatio >= 1 ? '#ff4d4f' : metrics.sharpeRatio >= 0.5 ? '#faad14' : '#52c41a'}
                   extra={
-                    <Tag color={metrics.sharpeRatio >= 1 ? 'success' : 'warning'} style={{ fontSize: 10, padding: '0 3px' }}>
+                    <Tag color={metrics.sharpeRatio >= 1 ? 'error' : 'warning'} style={{ fontSize: 10, padding: '0 3px' }}>
                       {metrics.sharpeRatio >= 2 ? '优秀' : metrics.sharpeRatio >= 1 ? '良好' : '一般'}
                     </Tag>
                   }
@@ -382,7 +382,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
                 />
               </Col>
               <Col span={12}>
-                <MetricCard title="阿尔法 α" value={metrics.alpha.toFixed(2)} suffix="%" color={metrics.alpha >= 0 ? '#52c41a' : '#ff4d4f'} />
+                <MetricCard title="阿尔法 α" value={metrics.alpha.toFixed(2)} suffix="%" color={metrics.alpha >= 0 ? '#ff4d4f' : '#52c41a'} />
               </Col>
               <Col span={12}>
                 <MetricCard title="贝塔 β" value={metrics.beta.toFixed(3)} color="#722ed1" />
@@ -418,7 +418,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
                   title="盈利日数"
                   value={Math.round(profitData.length * metrics.winRate / 100)}
                   suffix="天"
-                  color="#52c41a"
+                  color="#ff4d4f"
                 />
               </Col>
               <Col span={8}>
@@ -426,7 +426,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
                   title="亏损日数"
                   value={profitData.length - Math.round(profitData.length * metrics.winRate / 100)}
                   suffix="天"
-                  color="#ff4d4f"
+                  color="#52c41a"
                 />
               </Col>
               <Col span={12}>
@@ -443,9 +443,9 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
                     <Progress
                       percent={metrics.winRate}
                       strokeColor={{
-                        '0%': '#ff4d4f',
+                        '0%': '#52c41a',
                         '50%': '#faad14',
-                        '100%': '#52c41a',
+                        '100%': '#ff4d4f',
                       }}
                       format={(percent) => (
                         <span style={{ fontSize: 14, fontWeight: 600, color: '#262626' }}>
@@ -460,9 +460,9 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
                 <MetricCard
                   title="盈亏比"
                   value={metrics.profitLossRatio.toFixed(2)}
-                  color={metrics.profitLossRatio >= 1 ? '#52c41a' : '#faad14'}
+                  color={metrics.profitLossRatio >= 1 ? '#ff4d4f' : '#faad14'}
                   extra={
-                    <Tag color={metrics.profitLossRatio >= 2 ? 'success' : metrics.profitLossRatio >= 1 ? 'warning' : 'error'} style={{ fontSize: 10, padding: '0 3px' }}>
+                    <Tag color={metrics.profitLossRatio >= 2 ? 'error' : metrics.profitLossRatio >= 1 ? 'warning' : 'success'} style={{ fontSize: 10, padding: '0 3px' }}>
                       {metrics.profitLossRatio >= 2 ? '优秀' : metrics.profitLossRatio >= 1 ? '良好' : '偏低'}
                     </Tag>
                   }
@@ -513,7 +513,7 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
                   title="最终资金"
                   value={(config.start_capital * 10000 + metrics.totalReturn).toLocaleString('zh-CN')}
                   suffix="元"
-                  color={metrics.totalReturn >= 0 ? '#52c41a' : '#ff4d4f'}
+                  color={metrics.totalReturn >= 0 ? '#ff4d4f' : '#52c41a'}
                 />
               </Col>
             </Row>

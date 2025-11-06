@@ -10,6 +10,7 @@ export interface Strategy {
   // 🆕 工作台新增字段
   default_backtest_config?: BacktestConfig;  // 默认回测配置
   backtest_count?: number;  // 回测次数统计
+  last_backtest_time?: string;  // 最近回测时间
 }
 
 // 回测配置
@@ -41,6 +42,12 @@ export interface BacktestRecord {
   strategy_id?: string;  // 关联的策略ID
   strategy_code_snapshot?: string;  // 回测时的策略代码快照
   config?: BacktestConfig;  // 完整的回测配置
+  // 后端返回的原始配置字段
+  fund_stock?: string;  // 股票资金（单位：元）
+  commission?: string;  // 手续费率
+  benchmark?: string;  // 基准指数
+  back_interval?: string;  // 回测频率
+  bar_match?: string;  // Bar匹配方式（matching_type）
 }
 
 // 回测进度

@@ -60,9 +60,9 @@ class SQLiteDatabase:
                 )
             """)
             
-            # 创建策略表索引
+            # 创建策略表唯一索引（确保策略名称不重复）
             await conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_strategy_name 
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_strategy_name_unique 
                 ON panda_strategy(name)
             """)
             await conn.execute("""
@@ -76,6 +76,7 @@ class SQLiteDatabase:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     run_id TEXT UNIQUE NOT NULL,
                     strategy_name TEXT NOT NULL,
+                    strategy_id TEXT,
                     strategy_code TEXT,
                     start_date TEXT,
                     end_date TEXT,

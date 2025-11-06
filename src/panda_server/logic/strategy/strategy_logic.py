@@ -32,6 +32,13 @@ async def create_strategy(request: CreateStrategyRequest) -> StrategyResponse:
         )
     except Exception as e:
         logger.error(f"创建策略失败: {e}")
+        # 检查是否是名称重复错误
+        error_msg = str(e).lower()
+        if "unique" in error_msg and "name" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"策略名称 '{request.name}' 已存在，请使用其他名称"
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"创建策略失败: {str(e)}"
@@ -128,6 +135,13 @@ async def update_strategy(strategy_id: str, request: UpdateStrategyRequest) -> S
         )
     except Exception as e:
         logger.error(f"更新策略失败: {e}")
+        # 检查是否是名称重复错误
+        error_msg = str(e).lower()
+        if "unique" in error_msg and "name" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"策略名称 '{request.name}' 已存在，请使用其他名称"
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"更新策略失败: {str(e)}"

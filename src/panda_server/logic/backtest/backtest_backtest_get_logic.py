@@ -25,5 +25,12 @@ async def backtest_backtest_get_logic(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Backtest ID not found: {back_id}",
         )
-    response_data = QueryBacktestResultResponseData.model_validate(result)
-    return QueryBacktestBacktestResponse(data=response_data) 
+    
+    try:
+        response_data = QueryBacktestResultResponseData.model_validate(result)
+        return QueryBacktestBacktestResponse(data=response_data)
+    except Exception as e:
+        logger.error(f"Failed to validate backtest result for {back_id}: {e}")
+        logger.error(f"Result data keys: {list(result.keys()) if result else 'None'}")
+        logger.error(f"Result _id value: {result.get('_id') if result else 'None'}")
+        raise 

@@ -31,6 +31,7 @@ import {
   EditOutlined,
   CopyOutlined,
   ExclamationCircleOutlined,
+  StockOutlined,
 } from '@ant-design/icons';
 import Editor from '@monaco-editor/react';
 import type {
@@ -43,6 +44,7 @@ import type {
 } from '@/types';
 import PerformanceMetrics from './PerformanceMetrics';
 import EnhancedProfitChart from './EnhancedProfitChart';
+import TradeAnalysis from './TradeAnalysis';
 
 const { Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -86,6 +88,7 @@ const menuItems: MenuItem[] = [
   { key: 'overview', icon: <LineChartOutlined />, label: '收益概述' },
   { key: 'trades', icon: <TransactionOutlined />, label: '交易详情' },
   { key: 'positions', icon: <FundOutlined />, label: '持仓信息' },
+  { key: 'trade_analysis', icon: <StockOutlined />, label: '交易分析' },
   { key: 'analysis', icon: <BarChartOutlined />, label: '绩效分析' },
   { key: 'logs', icon: <FileTextOutlined />, label: '日志输出' },
   { key: 'strategy_code', icon: <CodeOutlined />, label: '策略代码' },
@@ -123,113 +126,207 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
   // 检查策略代码是否已变更
   const strategyCodeChanged = strategyCodeSnapshot && currentStrategyCode && strategyCodeSnapshot !== currentStrategyCode;
 
-  // 交易表格列定义
-  const tradeColumns = [
-    {
-      title: '日期',
-      dataIndex: 'date',
-      key: 'date',
-      width: 100,
-      render: (date: string) => String(date).substring(0, 8).replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
-    },
-    { title: '股票代码', dataIndex: 'code', key: 'code', width: 110 },
-    {
-      title: '方向',
-      dataIndex: 'direction',
-      key: 'direction',
-      width: 70,
-      render: (direction: string) => (
-        <Tag color={direction === 'buy' ? 'green' : 'red'}>
-          {direction === 'buy' ? '买入' : '卖出'}
-        </Tag>
-      ),
-    },
-    {
-      title: '数量',
-      dataIndex: 'amount',
-      key: 'amount',
-      width: 90,
-      align: 'right' as const,
-      render: (amount: number) => amount.toLocaleString(),
-    },
-    {
-      title: '价格',
-      dataIndex: 'price',
-      key: 'price',
-      width: 90,
-      align: 'right' as const,
-      render: (price: string) => `¥${price}`,
-    },
-    {
-      title: '金额',
-      dataIndex: 'cost',
-      key: 'cost',
-      width: 120,
-      align: 'right' as const,
-      render: (cost: string) => `¥${parseFloat(cost).toLocaleString()}`,
-    },
-  ];
+  // 生成交易表格列配置（包含日期和股票筛选）
+  const getTradeColumns = () => {
+    // 提取所有唯一日期并排序
+    const uniqueDates = Array.from(new Set(tradeData.map(t => t.date).filter(Boolean)))
+      .sort((a, b) => (b || '').localeCompare(a || ''));
+    
+    const dateFilters = uniqueDates.map(date => ({
+      text: String(date).substring(0, 8).replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
+      value: date || '',
+    }));
+    
+    // 提取所有唯一股票代码并排序
+    const uniqueSymbols = Array.from(new Set(tradeData.map(t => t.code).filter(Boolean)))
+      .sort();
+    
+    const symbolFilters = uniqueSymbols.map(symbol => ({
+      text: symbol || 'N/A',
+      value: symbol || '',
+    }));
+    
+    return [
+      {
+        title: '日期',
+        dataIndex: 'date',
+        key: 'date',
+        width: 110,
+        align: 'center' as const,
+        filters: dateFilters,
+        filterSearch: true,
+        onFilter: (value: any, record: TradeData) => record.date === value,
+        render: (date: string) => String(date).substring(0, 8).replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
+      },
+      {
+        title: '股票代码',
+        dataIndex: 'code',
+        key: 'code',
+        width: 110,
+        align: 'center' as const,
+        filters: symbolFilters,
+        filterSearch: true,
+        onFilter: (value: any, record: TradeData) => record.code === value,
+      },
+      {
+        title: '方向',
+        dataIndex: 'direction',
+        key: 'direction',
+        width: 80,
+        align: 'center' as const,
+        filters: [
+          { text: '买入', value: 'buy' },
+          { text: '卖出', value: 'sell' },
+        ],
+        onFilter: (value: any, record: TradeData) => record.direction === value,
+        render: (direction: string) => (
+          <Tag color={direction === 'buy' ? 'red' : 'green'}>
+            {direction === 'buy' ? '买入' : '卖出'}
+          </Tag>
+        ),
+      },
+      {
+        title: '数量',
+        dataIndex: 'amount',
+        key: 'amount',
+        width: 90,
+        align: 'right' as const,
+        render: (amount: number) => amount.toLocaleString(),
+      },
+      {
+        title: '价格',
+        dataIndex: 'price',
+        key: 'price',
+        width: 90,
+        align: 'right' as const,
+        render: (price: string) => `¥${price}`,
+      },
+      {
+        title: '金额',
+        dataIndex: 'cost',
+        key: 'cost',
+        width: 120,
+        align: 'right' as const,
+        render: (cost: string) => `¥${parseFloat(cost).toLocaleString()}`,
+      },
+    ];
+  };
 
-  // 持仓表格列定义（与监控 API 数据字段匹配）
-  const positionColumns = [
-    {
-      title: '股票代码',
-      dataIndex: 'symbol',
-      key: 'symbol',
-      width: 120,
-      render: (symbol: string, record: PositionData) => 
-        symbol || record.contract_code || record.code || 'N/A',
-    },
-    {
-      title: '持仓量',
-      dataIndex: 'volume',
-      key: 'volume',
-      width: 100,
-      align: 'right' as const,
-      render: (volume: number) => (volume || 0).toLocaleString(),
-    },
-    {
-      title: '市值',
-      dataIndex: 'market_value',
-      key: 'market_value',
-      width: 120,
-      align: 'right' as const,
-      render: (market_value: number) => {
-        const val = market_value || 0;
-        return `¥${val.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // 生成持仓列配置（包含日期和股票筛选）
+  const getPositionColumns = () => {
+    // 提取所有唯一日期并排序
+    const uniqueDates = Array.from(new Set(positionData.map(p => p.date || p.gmt_create).filter(Boolean)))
+      .sort((a, b) => (b || '').localeCompare(a || ''));
+    
+    const dateFilters = uniqueDates.map(date => ({
+      text: (() => {
+        if (!date) return 'N/A';
+        if (date.length === 8) {
+          return `${date.substring(0, 4)}-${date.substring(4, 6)}-${date.substring(6, 8)}`;
+        }
+        return date;
+      })(),
+      value: date || '',
+    }));
+    
+    // 提取所有唯一股票代码并排序
+    const uniqueSymbols = Array.from(new Set(positionData.map(p => p.symbol || p.contract_code || p.code).filter(Boolean)))
+      .sort();
+    
+    const symbolFilters = uniqueSymbols.map(symbol => ({
+      text: symbol || 'N/A',
+      value: symbol || '',
+    }));
+    
+    return [
+      {
+        title: '日期',
+        dataIndex: 'date',
+        key: 'date',
+        width: 110,
+        fixed: 'left' as const,
+        align: 'center' as const,
+        filters: dateFilters,
+        filterSearch: true,
+        onFilter: (value: any, record: PositionData) => {
+          const recordDate = record.date || record.gmt_create || '';
+          return recordDate === value;
+        },
+        render: (date: string, record: PositionData) => {
+          const dateValue = date || record.gmt_create;
+          if (!dateValue) return 'N/A';
+          if (dateValue.length === 8) {
+            return `${dateValue.substring(0, 4)}-${dateValue.substring(4, 6)}-${dateValue.substring(6, 8)}`;
+          }
+          return dateValue;
+        },
       },
-    },
-    {
-      title: '盈亏',
-      dataIndex: 'profit',
-      key: 'profit',
-      width: 120,
-      align: 'right' as const,
-      render: (profit: number) => {
-        const val = profit || 0;
-        return (
-          <span style={{ color: val >= 0 ? '#3f8600' : '#cf1322', fontWeight: 500 }}>
-            {val >= 0 ? '+' : ''}¥{val.toFixed(2)}
-          </span>
-        );
+      {
+        title: '股票代码',
+        dataIndex: 'symbol',
+        key: 'symbol',
+        width: 120,
+        align: 'center' as const,
+        filters: symbolFilters,
+        filterSearch: true,
+        onFilter: (value: any, record: PositionData) => {
+          const recordSymbol = record.symbol || record.contract_code || record.code || '';
+          return recordSymbol === value;
+        },
+        render: (symbol: string, record: PositionData) => 
+          symbol || record.contract_code || record.code || 'N/A',
       },
-    },
-    {
-      title: '收益率',
-      dataIndex: 'profit_rate',
-      key: 'profit_rate',
-      width: 100,
-      align: 'right' as const,
-      render: (profit_rate: number) => {
-        const val = (profit_rate || 0) * 100;
-        return (
-          <span style={{ color: val >= 0 ? '#3f8600' : '#cf1322' }}>
-            {val >= 0 ? '+' : ''}{val.toFixed(2)}%
-          </span>
-        );
+      {
+        title: '持仓量',
+        dataIndex: 'volume',
+        key: 'volume',
+        width: 100,
+        align: 'right' as const,
+        render: (volume: number) => (volume || 0).toLocaleString(),
       },
-    },
-  ];
+      {
+        title: '市值',
+        dataIndex: 'market_value',
+        key: 'market_value',
+        width: 120,
+        align: 'right' as const,
+        render: (market_value: number) => {
+          const val = market_value || 0;
+          return `¥${val.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        },
+      },
+      {
+        title: '盈亏',
+        dataIndex: 'profit',
+        key: 'profit',
+        width: 120,
+        align: 'right' as const,
+        render: (profit: number) => {
+          const val = profit || 0;
+          return (
+            <span style={{ color: val >= 0 ? '#cf1322' : '#3f8600', fontWeight: 500 }}>
+              {val >= 0 ? '+' : ''}¥{val.toFixed(2)}
+            </span>
+          );
+        },
+      },
+      {
+        title: '收益率',
+        dataIndex: 'profit_rate',
+        key: 'profit_rate',
+        width: 100,
+        align: 'right' as const,
+        render: (profit_rate: number) => {
+          const val = (profit_rate || 0) * 100;
+          return (
+            <span style={{ color: val >= 0 ? '#cf1322' : '#3f8600' }}>
+              {val >= 0 ? '+' : ''}{val.toFixed(2)}%
+            </span>
+          );
+        },
+      },
+    ];
+  };
 
   const latestAccount = accountData.length > 0 ? accountData[accountData.length - 1] : null;
 
@@ -245,7 +342,15 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
 
             {/* 净值曲线 */}
             <div style={{ padding: '0 20px 20px 20px' }}>
-              <EnhancedProfitChart profitData={profitData} config={config} />
+              <EnhancedProfitChart 
+                profitData={profitData} 
+                config={{
+                  start_capital: config.start_capital,
+                  start_date: config.start_date,
+                  end_date: config.end_date,
+                  standard_symbol: config.standard_symbol
+                }} 
+              />
             </div>
 
           </div>
@@ -256,7 +361,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
           <Card style={{ margin: 20 }} title="交易详情">
             {tradeData.length > 0 ? (
               <Table
-                columns={tradeColumns}
+                columns={getTradeColumns()}
                 dataSource={tradeData}
                 pagination={{
                   pageSize: 20,
@@ -265,8 +370,8 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
                   showQuickJumper: true,
                 }}
                 size="small"
-                scroll={{ y: 500 }}
-                rowKey={(record, index) => index?.toString() || '0'}
+                scroll={{ x: 800, y: 500 }}
+                rowKey={(record, index) => `${record.date}_${record.code}_${index}` || index?.toString() || '0'}
               />
             ) : (
               <Empty description="暂无交易数据" />
@@ -279,7 +384,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
           <Card style={{ margin: 20 }} title="持仓信息">
             {positionData.length > 0 ? (
               <Table
-                columns={positionColumns}
+                columns={getPositionColumns()}
                 dataSource={positionData}
                 pagination={{
                   pageSize: 20,
@@ -288,8 +393,8 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
                   showQuickJumper: true,
                 }}
                 size="small"
-                scroll={{ y: 500 }}
-                rowKey={(record, index) => index?.toString() || '0'}
+                scroll={{ x: 800, y: 500 }}
+                rowKey={(record, index) => `${record.date}_${record.symbol}_${index}` || index?.toString() || '0'}
               />
             ) : (
               <Empty description="暂无持仓数据" />
@@ -324,10 +429,30 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
           </Card>
         );
 
+      case 'trade_analysis':
+        return (
+          <TradeAnalysis
+            tradeData={tradeData}
+            positionData={positionData}
+            backtestId={currentBacktestId}
+          />
+        );
+
       case 'analysis':
         return (
           <div>
             <PerformanceMetrics profitData={profitData} config={config} />
+            <div style={{ padding: '0 20px 20px 20px' }}>
+              <EnhancedProfitChart 
+                profitData={profitData} 
+                config={{
+                  start_capital: config.start_capital,
+                  start_date: config.start_date,
+                  end_date: config.end_date,
+                  standard_symbol: config.standard_symbol
+                }} 
+              />
+            </div>
             <Card style={{ margin: 20 }} title="详细分析">
               <Text type="secondary">更多分析图表开发中...</Text>
             </Card>

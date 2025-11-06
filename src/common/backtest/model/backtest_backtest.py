@@ -47,21 +47,27 @@ class BacktestBaseModel(BaseModel):
     """
     回测模型类
     用于表示回测的基本信息和结果
+    支持 MongoDB 和 SQLite 两种数据源的字段映射
     """
     run_type: Optional[str] = Field(default=None, description="运行类型")
+    run_id: Optional[str] = Field(default=None, description="回测运行ID")
     strategy_id: Optional[str] = Field(default=None, description="策略ID")
+    strategy_name: Optional[str] = Field(default=None, description="策略名称")
     fund_stock: Optional[str] = Field(default=None, description="股票资金")
     fund_futures: Optional[str] = Field(default=None, description="期货资金")
     fund_funds: Optional[str] = Field(default=None, description="基金资金")
-    benchmark: Optional[str] = Field(default=None, description="基准指数")
-    commission: Optional[str] = Field(default=None, description="手续费率")
-    margin: Optional[str] = Field(default=None, description="保证金率")
+    benchmark: Optional[str] = Field(default=None, alias="standard_symbol", description="基准指数")
+    commission: Optional[str] = Field(default=None, alias="commission_rate", description="手续费率")
+    margin: Optional[str] = Field(default=None, alias="margin_rate", description="保证金率")
     slippage: Optional[str] = Field(default=None, description="滑点")
     account_type: Optional[str] = Field(default=None, description="账户类型")
     start_date: Optional[str] = Field(default=None, description="开始日期")
     end_date: Optional[str] = Field(default=None, description="结束日期")
-    back_interval: Optional[str] = Field(default=None, description="回测间隔")
-    bar_match: Optional[str] = Field(default=None, description="Bar匹配方式")
+    start_capital: Optional[str] = Field(default=None, description="初始资金")
+    start_future_capital: Optional[str] = Field(default=None, description="初始期货资金")
+    start_fund_capital: Optional[str] = Field(default=None, description="初始基金资金")
+    back_interval: Optional[str] = Field(default=None, alias="frequency", description="回测间隔")
+    bar_match: Optional[str] = Field(default=None, alias="matching_type", description="Bar匹配方式")
     strategy_code: Optional[str] = Field(default=None, description="策略代码")
     account_id: Optional[str] = Field(default=None, description="账户ID")
     future_account_id: Optional[str] = Field(default=None, description="期货账户ID")
@@ -69,7 +75,13 @@ class BacktestBaseModel(BaseModel):
     date_type: Optional[str] = Field(default=None, description="日期类型")
     fund_rate_data: Optional[str] = Field(default=None, description="资金费率数据")
     run_params: Optional[str] = Field(default=None, description="运行参数")
-    run_status: Optional[str] = Field(default=None, description="运行状态")
+    run_status: Optional[str] = Field(default=None, alias="status", description="运行状态")
+    progress: Optional[str] = Field(default=None, description="进度")
+    error_message: Optional[str] = Field(default=None, description="错误消息")
+    result: Optional[str] = Field(default=None, description="回测结果")
+    created_at: Optional[str] = Field(default=None, description="创建时间")
+    updated_at: Optional[str] = Field(default=None, description="更新时间")
+    completed_at: Optional[str] = Field(default=None, description="完成时间")
     gmt_create: Optional[str] = Field(default=None, description="创建时间")
     alpha: Optional[str] = Field(default=None, description="Alpha值")
     back_profit: Optional[str] = Field(default=None, description="回测收益")
@@ -90,9 +102,10 @@ class BacktestBaseModel(BaseModel):
     volatility: Optional[str] = Field(default=None, description="波动率")
 
     @field_validator(
-        'run_status', 'alpha', 'back_profit', 'back_profit_year', 'benchmark_profit', 'benchmark_profit_year',
+        'run_status', 'progress', 'alpha', 'back_profit', 'back_profit_year', 'benchmark_profit', 'benchmark_profit_year',
         'beta', 'downside_risk', 'information_ratio', 'kama_ratio', 'max_drawdown', 'sharpe', 'sortino',
-        'time_consume', 'tracking_error', 'volatility', mode='before'
+        'time_consume', 'tracking_error', 'volatility', 'start_capital', 'start_future_capital', 'start_fund_capital',
+        'commission', 'margin', 'slippage', 'account_type', 'bar_match', mode='before'
     )
     def num_to_str(cls, v):
         if v is not None:
@@ -104,6 +117,7 @@ class BacktestBaseModel(BaseModel):
         populate_by_name = True
         from_attributes = True
         arbitrary_types_allowed = True
+        extra = "ignore"  # Ignore extra fields from SQLite that don't match the model
         json_schema_extra = {"description": "Backtest Model"}
 
     

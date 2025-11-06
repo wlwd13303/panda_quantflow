@@ -17,6 +17,8 @@ const { Header } = Layout;
 interface WorkspaceHeaderProps {
   strategies: Strategy[];
   runningBacktests: BacktestRecord[];
+  openStrategyIds: string[]; // 已打开的策略ID列表
+  openBacktestIds: string[]; // 已打开的回测ID列表
   onNewStrategy: () => void;
   onOpenStrategy: (strategyId: string) => void;
   onOpenBacktest: (backtestId: string) => void;
@@ -27,6 +29,8 @@ interface WorkspaceHeaderProps {
 const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   strategies,
   runningBacktests,
+  openStrategyIds,
+  openBacktestIds,
   onNewStrategy,
   onOpenStrategy,
   onOpenBacktest,
@@ -109,20 +113,34 @@ const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
               optionFilterProp="children"
               dropdownMatchSelectWidth={300}
             >
-              {strategies.map((strategy) => (
-                <Select.Option key={strategy.id || strategy._id} value={strategy.id || strategy._id || ''}>
-                  <Space>
-                    <CodeOutlined />
-                    <span>{strategy.name}</span>
-                    {strategy.backtest_count !== undefined && strategy.backtest_count > 0 && (
-                      <Badge
-                        count={strategy.backtest_count}
-                        style={{ backgroundColor: '#52c41a' }}
-                      />
-                    )}
-                  </Space>
-                </Select.Option>
-              ))}
+              {strategies.map((strategy) => {
+                const strategyId = strategy.id || strategy._id || '';
+                const isOpen = openStrategyIds.includes(strategyId);
+                
+                return (
+                  <Select.Option key={strategyId} value={strategyId}>
+                    <Space>
+                      <CodeOutlined />
+                      <span style={{ fontWeight: isOpen ? 600 : 400 }}>
+                        {strategy.name}
+                      </span>
+                      {isOpen && (
+                        <Badge 
+                          status="processing" 
+                          text="已打开"
+                          style={{ fontSize: '12px', color: '#1890ff' }}
+                        />
+                      )}
+                      {strategy.backtest_count !== undefined && strategy.backtest_count > 0 && (
+                        <Badge
+                          count={strategy.backtest_count}
+                          style={{ backgroundColor: '#52c41a' }}
+                        />
+                      )}
+                    </Space>
+                  </Select.Option>
+                );
+              })}
             </Select>
           </Tooltip>
 
@@ -143,18 +161,32 @@ const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
                 value={undefined}
                 dropdownMatchSelectWidth={350}
               >
-              {runningBacktests.map((backtest) => (
-                <Select.Option key={backtest.run_id || backtest._id} value={backtest.run_id || backtest._id || ''}>
-                  <Space>
-                    <span>{formatBacktestLabel(backtest)}</span>
-                    {backtest.start_date && backtest.end_date && (
-                      <span style={{ fontSize: '12px', color: '#999' }}>
-                        [{backtest.start_date} ~ {backtest.end_date}]
+              {runningBacktests.map((backtest) => {
+                const backtestId = backtest.run_id || backtest._id || '';
+                const isOpen = openBacktestIds.includes(backtestId);
+                
+                return (
+                  <Select.Option key={backtestId} value={backtestId}>
+                    <Space>
+                      <span style={{ fontWeight: isOpen ? 600 : 400 }}>
+                        {formatBacktestLabel(backtest)}
                       </span>
-                    )}
-                  </Space>
-                </Select.Option>
-              ))}
+                      {isOpen && (
+                        <Badge 
+                          status="processing" 
+                          text="已打开"
+                          style={{ fontSize: '12px', color: '#1890ff' }}
+                        />
+                      )}
+                      {backtest.start_date && backtest.end_date && (
+                        <span style={{ fontSize: '12px', color: '#999' }}>
+                          [{backtest.start_date} ~ {backtest.end_date}]
+                        </span>
+                      )}
+                    </Space>
+                  </Select.Option>
+                );
+              })}
               </Select>
             </Tooltip>
           )}

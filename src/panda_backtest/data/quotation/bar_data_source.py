@@ -94,7 +94,7 @@ class BarDataSource(BaseBarDataSource):
         # 未命中缓存，准备查询
         stock_type = self.stock_info_map[symbol]['type']
         if stock_type == 1:
-            collection = "index_daily_price"
+            collection = "index_market"
         elif stock_type == 2:
             collection = "etf_daily_quotation_v2"
         else:
@@ -280,7 +280,7 @@ class BarDataSource(BaseBarDataSource):
 
             if len(index_list) > 0:
                 # start = time.time()
-                collection = "index_daily_quotation"
+                collection = "index_market"
                 self.init_stock_list_daily_quotation_by_collection(index_list, trade_date, freq, collection)
                 # print('指数初始化耗时：' + str(time.time() - start))
         else:

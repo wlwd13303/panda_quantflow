@@ -48,7 +48,7 @@ class QuotationDataLogic:
                 quotation, quotation_type, period, start_date, end_date
             )
             
-            logger.info(f"查询行情数据: collection={collection_name}, query={query}")
+            logger.info(f"查询行情数据: collection={collection_name}, query={query}, limit={limit}")
             
             # 查询数据
             result = self.quotation_mongo_db.mongo_find(
@@ -56,13 +56,16 @@ class QuotationDataLogic:
                 collection_name=collection_name,
                 query=query,
                 projection={'_id': 0},
-                limit=limit,
                 sort=[('trade_date', -1), ('time', -1)] if period != '1d' else [('date', -1)]
             )
             
             # 反转结果，使其按时间正序排列
             if result:
                 result = list(reversed(result))
+            
+            # 手动限制返回条数
+            if result and limit and len(result) > limit:
+                result = result[:limit]
             
             logger.info(f"查询到 {len(result) if result else 0} 条数据")
             return result or []
@@ -123,7 +126,7 @@ class QuotationDataLogic:
                 }
         elif quotation_type == "index":
             if period == "1d":
-                collection_name = "index_daily_price"
+                collection_name = "index_market"
                 query = {
                     "symbol": quotation,
                     "date": {"$gte": start_date, "$lte": end_date}

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { Card, DatePicker, Space, Checkbox, Row, Col, Empty } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Card, DatePicker, Space, Checkbox, Row, Col, Empty, Spin, message } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import type { ProfitData } from '@/types';
 import dayjs from 'dayjs';
+import { quotationApi } from '@/services/api';
 
 const { RangePicker } = DatePicker;
 
@@ -12,6 +13,7 @@ interface EnhancedProfitChartProps {
     start_capital: number;
     start_date: string;
     end_date: string;
+    standard_symbol?: string; // 基准指数代码
   };
 }
 
@@ -20,6 +22,40 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
   const [showStrategy, setShowStrategy] = useState(true);
   const [showExcess, setShowExcess] = useState(true);
   const [showBenchmark, setShowBenchmark] = useState(true);
+  const [indexData, setIndexData] = useState<any[]>([]);
+  const [loadingIndex, setLoadingIndex] = useState(false);
+
+  // 获取指数数据
+  useEffect(() => {
+    const fetchIndexData = async () => {
+      const standardSymbol = config.standard_symbol || '000001.SH';
+      if (!config.start_date || !config.end_date || profitData.length === 0) {
+        return;
+      }
+
+      try {
+        setLoadingIndex(true);
+        const data = await quotationApi.getIndexData(
+          standardSymbol,
+          config.start_date,
+          config.end_date
+        );
+        
+        if (data && data.length > 0) {
+          setIndexData(data);
+        } else {
+          console.warn('未获取到指数数据，将使用模拟数据');
+        }
+      } catch (error) {
+        console.error('获取指数数据失败:', error);
+        message.warning('获取基准指数数据失败，将使用模拟数据');
+      } finally {
+        setLoadingIndex(false);
+      }
+    };
+
+    fetchIndexData();
+  }, [config.start_date, config.end_date, config.standard_symbol, profitData.length]);
 
   // 过滤数据根据日期范围
   const getFilteredData = () => {
@@ -57,10 +93,34 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
       return netValue.toFixed(4);
     });
 
-    // 基准净值曲线（模拟，假设年化8%的线性增长）
-    const benchmarkEquity = filteredData.map((_, index) => {
+    // 基准净值曲线（从真实指数数据计算，或使用模拟数据）
+    const benchmarkEquity = filteredData.map((item, index) => {
+      if (indexData && indexData.length > 0) {
+        // 使用真实指数数据
+        const dateStr = String(item.date || item.gmt_create_time || item.gmt_create || '').substring(0, 8);
+        
+        // 在指数数据中查找对应日期的数据
+        const indexItem = indexData.find(idx => {
+          const idxDate = String(idx.date || idx.trade_date || '').substring(0, 8);
+          return idxDate === dateStr;
+        });
+        
+        if (indexItem && indexData.length > 0 && indexData[0]) {
+          // 计算相对于起始点的净值
+          // 支持多种可能的字段名: close, Close, price, last
+          const currentClose = Number(indexItem.close || indexItem.Close || indexItem.price || indexItem.last || 0);
+          const startClose = Number(indexData[0].close || indexData[0].Close || indexData[0].price || indexData[0].last || 1);
+          
+          if (startClose > 0 && currentClose > 0) {
+            const netValue = currentClose / startClose;
+            return netValue.toFixed(4);
+          }
+        }
+      }
+      
+      // 如果没有真实数据，使用模拟数据（假设年化8%的线性增长）
       const days = index;
-      const dailyReturn = 0.08 / 252; // 年化8%转换为日收益
+      const dailyReturn = 0.08 / 252;
       const netValue = 1 + (dailyReturn * days);
       return netValue.toFixed(4);
     });
@@ -124,10 +184,14 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
     const latestNetValue = strategyEquity.length > 0 ? parseFloat(strategyEquity[strategyEquity.length - 1]) : 1;
     const totalReturn = ((latestNetValue - 1) * 100).toFixed(2);
 
+    // 判断是否使用了真实指数数据
+    const usingRealIndexData = indexData && indexData.length > 0;
+    const benchmarkName = config.standard_symbol || '000001.SH';
+    
     return {
       title: {
         text: '策略净值曲线',
-        subtext: `累计收益率: ${totalReturn}%`,
+        subtext: `累计收益率: ${totalReturn}% | 基准: ${benchmarkName} ${usingRealIndexData ? '(真实数据)' : '(模拟数据)'}`,
         left: 10,
         textStyle: { fontSize: 14, fontWeight: 'normal' }
       },
@@ -291,7 +355,7 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
                 <div style={{ 
                   fontSize: 18, 
                   fontWeight: 'bold', 
-                  color: metrics.totalReturn >= 0 ? '#52c41a' : '#ff4d4f',
+                  color: metrics.totalReturn >= 0 ? '#ff4d4f' : '#52c41a',
                   marginTop: 4,
                 }}>
                   {metrics.totalReturn >= 0 ? '+' : ''}{metrics.totalReturn.toFixed(2)}%
@@ -327,7 +391,11 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
       </div>
       
       {/* 图表 */}
-      {filteredData.length > 0 ? (
+      {loadingIndex ? (
+        <div style={{ height: 450, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Spin tip="正在加载基准指数数据..." />
+        </div>
+      ) : filteredData.length > 0 ? (
         <ReactECharts 
           option={getChartOption()} 
           style={{ height: 450 }}

@@ -69,11 +69,19 @@ def initialize(context):
     context.prev_sar_position = 0
     context.sar_just_turned_up = False  # SAR是否刚从下方转到上方
     
-    # 突破窗口期管理
+    # 第一阶段：突破窗口期管理
     context.in_sar_window = False  # 是否在SAR买入窗口期内
     context.window_start_date = None
     context.window_days_count = 0
     context.breakthrough_candidates = []  # 突破候选点列表
+    
+    # 第二阶段：涨幅窗口期管理（SAR转向后）
+    context.price_surge_threshold = 6.0  # 涨幅阈值（%）
+    context.surge_window_days = 24  # 涨幅窗口期（交易日）
+    context.in_surge_window = False  # 是否在涨幅窗口期内
+    context.sar_trigger_price = None  # SAR转向时的价格（基准价）
+    context.surge_window_start_date = None  # 涨幅窗口期开始日期
+    context.surge_window_days_count = 0  # 涨幅窗口期已过天数
     
     # 持仓管理
     context.entry_price = None  # 入场价格
@@ -86,7 +94,9 @@ def initialize(context):
     SRLogger.info(f"股票代码: {context.stock_id}")
     SRLogger.info(f"突破幅度阈值: {context.min_breakthrough_percent}%")
     SRLogger.info(f"成交量放大倍数: {context.volume_surge_ratio}x")
-    SRLogger.info(f"SAR买入窗口期: {context.sar_window_days}天")
+    SRLogger.info(f"阶段1-SAR窗口期: {context.sar_window_days}天")
+    SRLogger.info(f"阶段2-涨幅阈值: {context.price_surge_threshold}%")
+    SRLogger.info(f"阶段2-涨幅窗口期: {context.surge_window_days}天")
     SRLogger.info(f"止盈比例: {context.take_profit_percent}%")
     SRLogger.info(f"止损比例: {context.stop_loss_percent}%")
     SRLogger.info("=== 初始化完成 ===\n")
@@ -192,7 +202,7 @@ def check_basic_breakthrough(context, price, volume):
 
 
 def update_breakthrough_window(context):
-    """更新突破窗口期状态"""
+    """更新第一阶段：突破窗口期状态"""
     if context.in_sar_window:
         context.window_days_count += 1
         
@@ -201,12 +211,26 @@ def update_breakthrough_window(context):
             context.in_sar_window = False
             context.window_start_date = None
             context.window_days_count = 0
-            SRLogger.info(f'⏰ SAR买入窗口期已过期 ({context.sar_window_days}天)')
+            SRLogger.info(f'⏰ 阶段1-SAR窗口期已过期 ({context.sar_window_days}天)')
             context.breakthrough_candidates.clear()
 
 
+def update_surge_window(context):
+    """更新第二阶段：涨幅窗口期状态"""
+    if context.in_surge_window:
+        context.surge_window_days_count += 1
+        
+        # 检查窗口期是否过期
+        if context.surge_window_days_count >= context.surge_window_days:
+            context.in_surge_window = False
+            context.surge_window_start_date = None
+            context.surge_window_days_count = 0
+            context.sar_trigger_price = None
+            SRLogger.info(f'⏰ 阶段2-涨幅窗口期已过期 ({context.surge_window_days}天)，未达到{context.price_surge_threshold}%涨幅')
+
+
 def add_breakthrough_candidate(context, price, volume):
-    """添加突破候选点并开启窗口期"""
+    """第一阶段：添加突破候选点并开启SAR窗口期"""
     current_date = context.now
     
     # 记录突破候选点
@@ -219,29 +243,62 @@ def add_breakthrough_candidate(context, price, volume):
     }
     context.breakthrough_candidates.append(candidate)
     
-    # 开启SAR买入窗口期
+    # 开启第一阶段：SAR买入窗口期
     if not context.in_sar_window:
         context.in_sar_window = True
         context.window_start_date = current_date
         context.window_days_count = 0
-        SRLogger.info(f'突破检测到，开启SAR买入窗口期 ({context.sar_window_days}天): '
+        SRLogger.info(f'🎯 阶段1：突破检测到，开启SAR窗口期 ({context.sar_window_days}天): '
                      f'价格={price:.2f}, 阻力位={context.current_resistance:.2f}')
 
 
-def is_sar_buy_signal(context):
-    """检查SAR是否给出买入信号"""
+def start_surge_window(context, price):
+    """第二阶段：SAR转向后，开启涨幅窗口期"""
+    current_date = context.now
+    
+    # 记录SAR转向时的价格作为基准
+    context.sar_trigger_price = price
+    
+    # 开启第二阶段：涨幅窗口期
+    context.in_surge_window = True
+    context.surge_window_start_date = current_date
+    context.surge_window_days_count = 0
+    
+    # 关闭第一阶段窗口期
+    context.in_sar_window = False
+    context.window_start_date = None
+    context.window_days_count = 0
+    context.breakthrough_candidates.clear()
+    
+    SRLogger.info(f'🎯 阶段2：SAR转向确认，开启涨幅窗口期 ({context.surge_window_days}天): '
+                 f'基准价={price:.2f}, SAR={context.current_sar:.2f}, '
+                 f'目标涨幅≥{context.price_surge_threshold}%')
+
+
+def is_sar_turn_signal(context):
+    """检查SAR是否转向（第一阶段）"""
     if not context.use_sar_filter:
         return True
     
-    # 必须在窗口期内且SAR刚转向
+    # 必须在第一阶段窗口期内且SAR刚转向
     return context.in_sar_window and context.sar_just_turned_up
 
 
-def check_breakthrough_validity(context):
-    """检查突破的有效性 - 窗口期内SAR确认"""
-    if context.in_sar_window and is_sar_buy_signal(context):
-        SRLogger.info(f'✅ SAR买入信号触发: 窗口期第{context.window_days_count}天')
+def check_price_surge(context, current_price):
+    """检查价格涨幅是否达到阈值（第二阶段）"""
+    if not context.in_surge_window or context.sar_trigger_price is None:
+        return False
+    
+    # 计算相对SAR转向价的涨幅
+    surge_ratio = (current_price - context.sar_trigger_price) / context.sar_trigger_price * 100
+    
+    # 判断是否达到涨幅阈值
+    if surge_ratio >= context.price_surge_threshold:
+        SRLogger.info(f'✅ 阶段2完成：涨幅达标 {surge_ratio:.2f}% (阈值{context.price_surge_threshold}%)')
+        SRLogger.info(f'   基准价={context.sar_trigger_price:.2f}, 当前价={current_price:.2f}, '
+                     f'窗口期第{context.surge_window_days_count}天')
         return True
+    
     return False
 
 
@@ -249,10 +306,16 @@ def get_current_position_size(context):
     """获取当前持仓数量"""
     try:
         account = context.stock_account_dict.get(context.account)
-        if account and hasattr(account, 'position_dict'):
-            position = account.position_dict.get(context.stock_id)
-            if position:
-                return position.today_amount + position.enable_amount
+        if account and hasattr(account, 'positions'):
+            # 使用 positions 属性（兼容研报策略的方式）
+            position = account.positions.get(context.stock_id)
+            if position and hasattr(position, 'quantity'):
+                return position.quantity
+            # 回退到旧的方式
+            if hasattr(account, 'position_dict'):
+                position = account.position_dict.get(context.stock_id)
+                if position:
+                    return position.today_amount + position.enable_amount
         return 0
     except Exception as e:
         SRLogger.error(f"获取持仓失败: {str(e)}")
@@ -260,19 +323,28 @@ def get_current_position_size(context):
 
 
 def execute_buy(context, price):
-    """执行买入操作"""
+    """执行买入操作（第三阶段）"""
     try:
-        orders = {context.stock_id: context.position_size}
-        target_stock_group_order(context.account, orders, 0)
+        # 使用 order_shares 方式下单（与研报策略保持一致）
+        order_shares(context.account, context.stock_id, context.position_size)
         
         context.entry_price = price
         context.position_held = True
         
-        # 关闭窗口期
+        # 关闭所有窗口期
         context.in_sar_window = False
         context.window_start_date = None
         context.window_days_count = 0
         context.breakthrough_candidates.clear()
+        
+        context.in_surge_window = False
+        context.surge_window_start_date = None
+        context.surge_window_days_count = 0
+        
+        # 计算买入时相对SAR基准价的涨幅
+        surge_from_sar = 0
+        if context.sar_trigger_price:
+            surge_from_sar = (price - context.sar_trigger_price) / context.sar_trigger_price * 100
         
         # 记录交易
         trade_record = {
@@ -282,13 +354,19 @@ def execute_buy(context, price):
             'size': context.position_size,
             'support': context.current_support,
             'resistance': context.current_resistance,
-            'sar': context.current_sar
+            'sar': context.current_sar,
+            'sar_trigger_price': context.sar_trigger_price,
+            'surge_from_sar': surge_from_sar
         }
         context.trade_records.append(trade_record)
         
         sar_info = f', SAR: {context.current_sar:.2f}' if context.current_sar else ''
-        SRLogger.info(f'📈 买入执行: 价格={price:.2f}, 数量={context.position_size}, '
-                     f'支撑位={context.current_support:.2f}, 阻力位={context.current_resistance:.2f}{sar_info}')
+        surge_info = f', 相对SAR基准涨幅: {surge_from_sar:.2f}%' if context.sar_trigger_price else ''
+        SRLogger.info(f'📈 三阶段买入完成: 价格={price:.2f}, 数量={context.position_size}, '
+                     f'支撑位={context.current_support:.2f}, 阻力位={context.current_resistance:.2f}{sar_info}{surge_info}')
+        
+        # 清空SAR基准价
+        context.sar_trigger_price = None
     except Exception as e:
         SRLogger.error(f"买入执行失败: {str(e)}")
 
@@ -296,9 +374,10 @@ def execute_buy(context, price):
 def execute_sell(context, price, reason):
     """执行卖出操作"""
     try:
-        # 清空持仓
-        orders = {context.stock_id: 0}
-        target_stock_group_order(context.account, orders, 0)
+        # 获取当前持仓并卖出（使用负数表示卖出）
+        current_position = get_current_position_size(context)
+        if current_position > 0:
+            order_shares(context.account, context.stock_id, -current_position)
         
         # 计算收益
         profit_ratio = 0
@@ -313,6 +392,7 @@ def execute_sell(context, price, reason):
             'date': context.now,
             'type': '卖出',
             'price': price,
+            'size': current_position,
             'reason': reason,
             'profit_ratio': profit_ratio,
             'sar': context.current_sar
@@ -320,7 +400,7 @@ def execute_sell(context, price, reason):
         context.trade_records.append(trade_record)
         
         sar_info = f', SAR: {context.current_sar:.2f}' if context.current_sar else ''
-        SRLogger.info(f'📉 卖出执行: {reason}, 价格={price:.2f}, 收益率={profit_ratio:.2f}%{sar_info}')
+        SRLogger.info(f'📉 卖出执行: {reason}, 价格={price:.2f}, 数量={current_position}, 收益率={profit_ratio:.2f}%{sar_info}')
     except Exception as e:
         SRLogger.error(f"卖出执行失败: {str(e)}")
 
@@ -331,23 +411,32 @@ def handle_data(context, bar_dict):
     
     # ========== 获取当前行情数据 ==========
     try:
-        quotation_df = stock_api_quotation(
-            symbol_list=[context.stock_id],
-            start_date=current_date,
-            end_date=current_date,
-            period="1d"
-        )
-        
-        if quotation_df.empty:
-            SRLogger.warning(f"⚠️ {current_date} 无行情数据")
-            return
-        
-        # 提取当前bar数据
-        current_data = quotation_df.iloc[0]
-        current_high = float(current_data['high'])
-        current_low = float(current_data['low'])
-        current_close = float(current_data['close'])
-        current_volume = float(current_data['volume'])
+        # 优先从 bar_dict 获取行情数据（更高效）
+        if context.stock_id in bar_dict:
+            bar = bar_dict[context.stock_id]
+            current_high = float(bar.high)
+            current_low = float(bar.low)
+            current_close = float(bar.close)
+            current_volume = float(bar.volume)
+        else:
+            # 如果 bar_dict 中没有，则从数据库查询
+            quotation_df = stock_api_quotation(
+                symbol_list=[context.stock_id],
+                start_date=current_date,
+                end_date=current_date,
+                period="1d"
+            )
+            
+            if quotation_df.empty:
+                SRLogger.warning(f"⚠️ {current_date} 无行情数据")
+                return
+            
+            # 提取当前bar数据
+            current_data = quotation_df.iloc[0]
+            current_high = float(current_data['high'])
+            current_low = float(current_data['low'])
+            current_close = float(current_data['close'])
+            current_volume = float(current_data['volume'])
         
     except Exception as e:
         SRLogger.error(f"获取行情数据失败: {str(e)}")
@@ -378,8 +467,11 @@ def handle_data(context, bar_dict):
     # 更新支撑阻力位
     context.current_support, context.current_resistance = identify_support_resistance(context)
     
-    # 更新突破窗口期状态
+    # 更新第一阶段窗口期状态
     update_breakthrough_window(context)
+    
+    # 更新第二阶段窗口期状态
+    update_surge_window(context)
     
     # ========== 记录每日状态 ==========
     daily_record = {
@@ -393,7 +485,10 @@ def handle_data(context, bar_dict):
         'sar_position': context.sar_position,
         'sar_just_turned_up': context.sar_just_turned_up,
         'in_sar_window': context.in_sar_window,
-        'window_days_count': context.window_days_count
+        'window_days_count': context.window_days_count,
+        'in_surge_window': context.in_surge_window,
+        'surge_window_days_count': context.surge_window_days_count,
+        'sar_trigger_price': context.sar_trigger_price if context.sar_trigger_price else 0
     }
     context.daily_records.append(daily_record)
     
@@ -401,15 +496,20 @@ def handle_data(context, bar_dict):
     # 获取实际持仓（用于确认订单执行情况）
     actual_position = get_current_position_size(context)
     
-    # 如果没有持仓，寻找买入机会
+    # 如果没有持仓，寻找买入机会（三阶段买入）
     if not context.position_held or actual_position == 0:
-        # 第一阶段：检查基础突破条件，开启窗口期
-        if not context.in_sar_window and check_basic_breakthrough(context, current_close, current_volume):
-            add_breakthrough_candidate(context, current_close, current_volume)
+        # 第一阶段：检查基础突破条件，开启SAR窗口期
+        if not context.in_sar_window and not context.in_surge_window:
+            if check_basic_breakthrough(context, current_close, current_volume):
+                add_breakthrough_candidate(context, current_close, current_volume)
         
-        # 第二阶段：在窗口期内检查SAR买入信号
-        elif check_breakthrough_validity(context):
-            SRLogger.info(f'💡 SAR买入条件满足: 价格={current_close:.2f}, SAR={context.current_sar:.2f}')
+        # 第二阶段：在SAR窗口期内检查SAR转向信号，开启涨幅窗口期
+        elif context.in_sar_window and is_sar_turn_signal(context):
+            SRLogger.info(f'✨ 阶段1完成：SAR转向信号触发，窗口期第{context.window_days_count}天')
+            start_surge_window(context, current_close)
+        
+        # 第三阶段：在涨幅窗口期内检查涨幅是否达标
+        elif context.in_surge_window and check_price_surge(context, current_close):
             execute_buy(context, current_close)
     
     # 如果有持仓，检查卖出条件
@@ -436,18 +536,96 @@ def handle_data(context, bar_dict):
 
 
 def before_trading(context):
-    """盘前处理（可选）"""
-    pass
+    """盘前处理"""
+    try:
+        account = context.stock_account_dict[context.account]
+        SRLogger.info(f"[{context.now}] 开盘前 - 账户总资产：{account.total_value:.2f}, "
+                     f"可用资金：{account.cash:.2f}, 持仓状态：{'有持仓' if context.position_held else '空仓'}")
+        
+        # 显示窗口期信息
+        if context.in_sar_window:
+            SRLogger.info(f"  ⏰ 阶段1-SAR窗口期：第{context.window_days_count}/{context.sar_window_days}天")
+        elif context.in_surge_window:
+            current_surge = 0
+            if context.sar_trigger_price and len(context.price_history) > 0:
+                current_price = context.price_history[-1]['close']
+                current_surge = (current_price - context.sar_trigger_price) / context.sar_trigger_price * 100
+            SRLogger.info(f"  ⏰ 阶段2-涨幅窗口期：第{context.surge_window_days_count}/{context.surge_window_days}天, "
+                         f"当前涨幅：{current_surge:.2f}% (目标≥{context.price_surge_threshold}%)")
+    except Exception as e:
+        SRLogger.error(f"盘前处理失败: {str(e)}")
 
 
 def after_trading(context):
-    """盘后处理（可选）"""
-    pass
+    """盘后处理"""
+    try:
+        account = context.stock_account_dict[context.account]
+        current_position = get_current_position_size(context)
+        
+        # 统计信息
+        SRLogger.info(f"[{context.now}] 收盘后统计：")
+        SRLogger.info(f"  - 账户总资产：{account.total_value:.2f}")
+        SRLogger.info(f"  - 持仓市值：{account.market_value:.2f}")
+        SRLogger.info(f"  - 可用资金：{account.cash:.2f}")
+        SRLogger.info(f"  - 持仓数量：{current_position} 股")
+        
+        # 如果有持仓，显示盈亏情况
+        if current_position > 0 and context.entry_price:
+            # 尝试获取当前价格
+            if len(context.price_history) > 0:
+                current_price = context.price_history[-1]['close']
+                profit_ratio = (current_price - context.entry_price) / context.entry_price * 100
+                profit_amount = (current_price - context.entry_price) * current_position
+                SRLogger.info(f"  - 浮动盈亏：{profit_ratio:.2f}% ({profit_amount:+.2f}元)")
+        
+        # 显示支撑阻力位
+        if context.current_support and context.current_resistance:
+            SRLogger.info(f"  - 支撑位：{context.current_support:.2f}, 阻力位：{context.current_resistance:.2f}")
+        
+        # 显示SAR信息
+        if context.current_sar:
+            sar_pos = "上方" if context.sar_position == 1 else "下方" if context.sar_position == -1 else "未确定"
+            SRLogger.info(f"  - SAR值：{context.current_sar:.2f} (在价格{sar_pos})")
+        
+        # 显示涨幅窗口期信息
+        if context.in_surge_window and context.sar_trigger_price:
+            if len(context.price_history) > 0:
+                current_price = context.price_history[-1]['close']
+                surge = (current_price - context.sar_trigger_price) / context.sar_trigger_price * 100
+                SRLogger.info(f"  - 涨幅窗口期：第{context.surge_window_days_count}天，"
+                             f"基准价={context.sar_trigger_price:.2f}，"
+                             f"当前涨幅={surge:.2f}% (目标≥{context.price_surge_threshold}%)")
+            
+    except Exception as e:
+        SRLogger.error(f"盘后处理失败: {str(e)}")
+
+
+def on_stock_trade_rtn(context, order, bar_dict):
+    """
+    股票交易回报
+    当订单成交时触发
+    """
+    try:
+        side_text = '买入' if order.side == 1 else '卖出'
+        SRLogger.info(f"✅ 交易回报 - {order.order_book_id}: {side_text} {order.filled_quantity}股 @ {order.avg_price:.2f}元")
+    except Exception as e:
+        SRLogger.error(f"交易回报处理失败: {str(e)}")
+
+
+def stock_order_cancel(context, order, bar_dict):
+    """
+    股票订单撤销回报
+    当订单被撤销时触发
+    """
+    try:
+        SRLogger.info(f"⚠️ 订单撤销 - {order.order_book_id}: {order.quantity}股订单被撤销")
+    except Exception as e:
+        SRLogger.error(f"订单撤销处理失败: {str(e)}")
 
 
 # ========== 策略说明文档 ==========
 """
-突破策略说明（SAR窗口期买入优化版）：
+突破策略说明（三阶段买入优化版 v3.0）：
 
 1. 策略参数：
    - 支撑阻力位识别周期：20天
@@ -459,25 +637,36 @@ def after_trading(context):
    - 止损比例：30%
    - SAR加速因子：0.02
    - SAR最大加速因子：0.2
-   - SAR买入窗口期：24个交易日
+   - 阶段1-SAR窗口期：24个交易日
+   - 阶段2-涨幅阈值：6%
+   - 阶段2-涨幅窗口期：24个交易日
 
-2. 两阶段买入逻辑（窗口期优化）：
-   **第一阶段：突破检测**
+2. 三阶段买入逻辑（更严格的买入条件）：⭐ 新增
+   
+   **第一阶段：突破检测 → 开启SAR窗口期**
    - 动态识别支撑位和阻力位（基于局部高低点）
-   - 价格突破阻力位且幅度超过2%
-   - 突破时成交量放大1.5倍以上
-   - 满足条件时开启24天SAR买入窗口期
-
-   **第二阶段：SAR买入**
+   - 价格突破阻力位且幅度 ≥ 2%
+   - 突破时成交量放大 ≥ 1.5倍
+   - 满足条件时开启24天SAR窗口期
+   
+   **第二阶段：SAR转向 → 开启涨幅窗口期**
    - 在24天窗口期内监控SAR转向信号
-   - SAR从价格下方转到上方时立即买入
-   - 买入后关闭窗口期
+   - SAR从价格下方转到上方时：
+     * 记录当前价格作为基准价
+     * 开启新的24天涨幅窗口期
+     * 关闭SAR窗口期
+   
+   **第三阶段：涨幅达标 → 执行买入** ⭐ 核心创新
+   - 在涨幅窗口期内监控价格变化
+   - 当价格相对SAR基准价上涨 ≥ 6% 时执行买入
+   - 买入后关闭所有窗口期
 
-3. 开仓逻辑：
-   - 两阶段验证：先突破确认，再SAR时机优化
-   - 给SAR更多时间窗口来提供买入信号
-   - 避免错过突破后的SAR转向机会
-   - 记录入场价格和当时的支撑阻力位及SAR值
+3. 开仓逻辑优势：
+   - **三重验证**：突破确认 → SAR转向 → 涨幅达标
+   - **避免假突破**：SAR转向后继续上涨才买入
+   - **趋势确认**：6%涨幅确保趋势真实性
+   - **时机优化**：在趋势明确后入场，提高胜率
+   - **灵活时间**：两个24天窗口期，总计最多48天观察期
 
 4. 止盈止损逻辑（不使用SAR）：
    - 止盈：相对入场价上涨20%
@@ -487,30 +676,41 @@ def after_trading(context):
 5. 风险控制：
    - 单次交易固定仓位
    - 严格的止盈止损机制
-   - 24天窗口期限制，避免无限等待
+   - 两个24天窗口期限制（阶段1+阶段2）
+   - 三重买入条件过滤
 
 6. 策略优势：
-   - **分离突破确认和买入时机** ⭐ 核心创新
-   - **增加买入机会**：24天窗口期提供更多SAR转向机会
-   - **时机优化**：突破确认趋势，SAR优化入场点
-   - **风险可控**：有明确的窗口期限制
-   - 完善的风险控制机制
-   - 适合趋势性行情
+   - **更高胜率**：三阶段过滤减少假突破 ⭐
+   - **趋势确认**：6%涨幅保证趋势真实性 ⭐
+   - **风险可控**：更严格的买入条件
+   - **避免追高**：SAR+涨幅双重确认
+   - 完善的窗口期管理
+   - 适合中长线趋势操作
 
 7. SAR指标应用：
-   - **买入时机优化**：在确认突破的前提下，等待最佳SAR转向时机
-   - **窗口期管理**：24天内有效，过期自动清除
+   - **第一阶段验证**：确认突破后的趋势方向
+   - **第二阶段触发**：SAR转向开启涨幅观察期
+   - **窗口期管理**：24+24天双窗口机制
    - **不参与卖出**：避免震荡期间频繁转向造成过早离场
 
 8. 使用方式：
    - 在PandaAI Quantflow的股票回测节点中，将本策略代码粘贴到"策略代码"输入框
    - 设置回测参数：初始资金、基准指数、佣金率、回测日期等
+   - 调整参数：
+     * context.price_surge_threshold = 6.0  # 涨幅阈值（可调）
+     * context.surge_window_days = 24       # 涨幅窗口期（可调）
    - 运行回测，查看回测结果和交易记录
    
 9. 注意事项：
-   - 突破后24天内必须出现SAR转向信号
-   - 适合有一定波动性的股票
-   - 窗口期可能会错过一些立即的突破机会
-   - 适合中长线趋势操作，重质量不重速度
+   - 买入条件更严格，交易频率会降低
+   - 适合强趋势股票，震荡股可能无法入场
+   - 总观察期最长可达48天（24+24）
+   - 6%涨幅阈值可根据股票特性调整（建议范围3-10%）
+   - 适合中长线趋势操作，重质量不重数量
+
+10. 版本更新：
+   - v3.0 (2025-11): 增加三阶段买入逻辑，涨幅确认机制
+   - v2.0 (2025-11): 两阶段SAR窗口期优化
+   - v1.0 (2025-05): 基础突破策略
 """
 

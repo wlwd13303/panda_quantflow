@@ -7,6 +7,7 @@ class BacktestStartRequest(BaseModel):
     """启动回测请求"""
     strategy_code: str = Field(..., description="策略代码内容")
     strategy_name: Optional[str] = Field("临时策略", description="策略名称")
+    strategy_id: Optional[str] = Field(None, description="策略ID（关联策略库）")
     
     # 回测时间配置
     start_date: str = Field(..., description="回测开始日期 YYYYMMDD")

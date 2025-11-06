@@ -16,10 +16,10 @@ def initialize(context):
     """
     策略初始化
     """
-    print("=== 多因子选股策略初始化 ===")
+    SRLogger.info("=== 多因子选股策略初始化 ===")
     
     # 策略参数设置
-    context.stock_account = '15032863'  # 股票账户
+    context.stock_account = '8888'      # 股票账户（标准账户ID）
     context.max_stocks = 10             # 最大持仓股票数量
     context.rebalance_period = 5        # 调仓周期（天）
     context.position_size = 0.08        # 单只股票仓位上限（8%）
@@ -46,39 +46,39 @@ def initialize(context):
     context.positions_cost = {}  # 记录持仓成本价
     context.last_rebalance_date = None
     
-    print(f"策略参数设置完成：")
-    print(f"  - 股票池数量：{len(context.stock_pool)}")
-    print(f"  - 最大持仓数：{context.max_stocks}")
-    print(f"  - 调仓周期：{context.rebalance_period}天")
-    print(f"  - 单股仓位上限：{context.position_size*100}%")
+    SRLogger.info(f"策略参数设置完成：")
+    SRLogger.info(f"  - 股票池数量：{len(context.stock_pool)}")
+    SRLogger.info(f"  - 最大持仓数：{context.max_stocks}")
+    SRLogger.info(f"  - 调仓周期：{context.rebalance_period}天")
+    SRLogger.info(f"  - 单股仓位上限：{context.position_size*100}%")
 
 def before_trading(context):
     """
     开盘前处理
     """
     account = context.stock_account_dict[context.stock_account]
-    print(f"[{context.now}] 开盘前 - 账户总价值：{account.total_value:.2f}, 可用资金：{account.cash:.2f}")
+    SRLogger.info(f"[{context.now}] 开盘前 - 账户总价值：{account.total_value:.2f}, 可用资金：{account.cash:.2f}")
 
 def handle_data(context, bar_dict):
     """
     主策略逻辑
     """
     current_date = context.now
-    
+    print(f"=== [{context.now}] ===\n")
     # 检查是否到达调仓日
     if not should_rebalance(context, current_date):
         # 非调仓日进行风险控制
         risk_management(context, bar_dict)
         return
-    
-    print(f"\n=== [{current_date}] 开始调仓 ===")
+
+    SRLogger.info(f"\n=== [{current_date}] 开始调仓 ===")
     
     # 获取当前可交易的股票（有行情数据的股票）
     available_stocks = [stock for stock in context.stock_pool if stock in bar_dict]
-    print(f"可交易股票数量：{len(available_stocks)}")
+    SRLogger.info(f"可交易股票数量：{len(available_stocks)}")
     
     if len(available_stocks) == 0:
-        print("无可交易股票，跳过本次调仓")
+        SRLogger.info("无可交易股票，跳过本次调仓")
         return
     
     # 计算多因子评分
@@ -86,7 +86,7 @@ def handle_data(context, bar_dict):
     
     # 选择目标股票
     target_stocks = select_target_stocks(context, stock_scores)
-    print(f"选中目标股票：{target_stocks}")
+    SRLogger.info(f"选中目标股票：{target_stocks}")
     
     # 执行调仓操作
     rebalance_portfolio(context, bar_dict, target_stocks)
@@ -94,7 +94,7 @@ def handle_data(context, bar_dict):
     # 更新调仓日期
     context.last_rebalance_date = current_date
     
-    print(f"=== [{current_date}] 调仓完成 ===\n")
+    SRLogger.info(f"=== [{current_date}] 调仓完成 ===\n")
 
 def after_trading(context):
     """
@@ -105,11 +105,11 @@ def after_trading(context):
     
     # 统计持仓信息
     total_positions = len([pos for pos in positions.values() if pos.quantity > 0])
-    print(f"[{context.now}] 收盘后统计：")
-    print(f"  - 持仓股票数：{total_positions}")
-    print(f"  - 账户总价值：{account.total_value:.2f}")
-    print(f"  - 持仓市值：{account.market_value:.2f}")
-    print(f"  - 可用资金：{account.cash:.2f}")
+    SRLogger.info(f"[{context.now}] 收盘后统计：")
+    SRLogger.info(f"  - 持仓股票数：{total_positions}")
+    SRLogger.info(f"  - 账户总价值：{account.total_value:.2f}")
+    SRLogger.info(f"  - 持仓市值：{account.market_value:.2f}")
+    SRLogger.info(f"  - 可用资金：{account.cash:.2f}")
 
 def should_rebalance(context, current_date):
     """
@@ -164,7 +164,7 @@ def calculate_multi_factor_scores(context, bar_dict, stocks):
             scores[stock] = total_score
             
         except Exception as e:
-            print(f"计算{stock}因子评分时出错：{e}")
+            SRLogger.error(f"计算{stock}因子评分时出错：{e}")
             scores[stock] = 0
     
     return scores
@@ -179,9 +179,9 @@ def select_target_stocks(context, stock_scores):
     # 选择前N只股票
     target_stocks = [stock for stock, score in sorted_stocks[:context.max_stocks]]
     
-    print("股票评分排名（前10）：")
+    SRLogger.info("股票评分排名（前10）：")
     for i, (stock, score) in enumerate(sorted_stocks[:10]):
-        print(f"  {i+1}. {stock}: {score:.2f}")
+        SRLogger.info(f"  {i+1}. {stock}: {score:.2f}")
     
     return target_stocks
 
@@ -195,12 +195,12 @@ def rebalance_portfolio(context, bar_dict, target_stocks):
     # 计算目标仓位
     target_value_per_stock = account.total_value * context.position_size
     
-    print(f"目标仓位分配：每只股票 {target_value_per_stock:.2f} 元")
+    SRLogger.info(f"目标仓位分配：每只股票 {target_value_per_stock:.2f} 元")
     
     # 卖出不在目标列表中的股票
     for stock, position in current_positions.items():
         if position.quantity > 0 and stock not in target_stocks:
-            print(f"卖出 {stock}: {position.quantity} 股")
+            SRLogger.info(f"卖出 {stock}: {position.quantity} 股")
             order_shares(context.stock_account, stock, -position.quantity)
             # 移除成本价记录
             if stock in context.positions_cost:
@@ -218,7 +218,7 @@ def rebalance_portfolio(context, bar_dict, target_stocks):
         quantity_diff = target_quantity - current_quantity
         
         if abs(quantity_diff) >= 100:  # 最小交易单位
-            print(f"调整 {stock}: 当前{current_quantity}股 -> 目标{target_quantity}股 (变动{quantity_diff}股)")
+            SRLogger.info(f"调整 {stock}: 当前{current_quantity}股 -> 目标{target_quantity}股 (变动{quantity_diff}股)")
             order_shares(context.stock_account, stock, quantity_diff)
             
             # 更新成本价记录
@@ -247,26 +247,26 @@ def risk_management(context, bar_dict):
         
         # 止损检查
         if return_rate <= context.stop_loss:
-            print(f"止损卖出 {stock}: 成本价{cost_price:.2f}, 当前价{current_price:.2f}, 亏损{return_rate*100:.1f}%")
+            SRLogger.info(f"止损卖出 {stock}: 成本价{cost_price:.2f}, 当前价{current_price:.2f}, 亏损{return_rate*100:.1f}%")
             order_shares(context.stock_account, stock, -position.quantity)
             if stock in context.positions_cost:
                 del context.positions_cost[stock]
         
         # 止盈检查
         elif return_rate >= context.take_profit:
-            print(f"止盈卖出 {stock}: 成本价{cost_price:.2f}, 当前价{current_price:.2f}, 盈利{return_rate*100:.1f}%")
+            SRLogger.info(f"止盈卖出 {stock}: 成本价{cost_price:.2f}, 当前价{current_price:.2f}, 盈利{return_rate*100:.1f}%")
             order_shares(context.stock_account, stock, -position.quantity)
             if stock in context.positions_cost:
                 del context.positions_cost[stock]
 
-def on_stock_trade_rtn(context, order):
+def on_stock_trade_rtn(context, order, bar_dict):
     """
     股票交易回报
     """
-    print(f"交易回报 - {order.order_book_id}: {order.side}{'买入' if order.side == 1 else '卖出'} {order.filled_quantity}股")
+    SRLogger.info(f"交易回报 - {order.order_book_id}: {order.side}{'买入' if order.side == 1 else '卖出'} {order.filled_quantity}股")
 
-def stock_order_cancel(context, order):
+def stock_order_cancel(context, order, bar_dict):
     """
     股票订单撤销回报
     """
-    print(f"订单撤销 - {order.order_book_id}: {order.quantity}股订单被撤销")
+    SRLogger.info(f"订单撤销 - {order.order_book_id}: {order.quantity}股订单被撤销")

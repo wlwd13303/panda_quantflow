@@ -71,13 +71,24 @@ class StrategyDAO:
                 row = await cursor.fetchone()
                 total = row[0] if row else 0
                 
-                # 获取分页数据
+                # 获取分页数据，并关联回测统计信息
                 offset = (page - 1) * page_size
                 cursor = await conn.execute(
                     """
-                    SELECT id as _id, name, code, description, user_id, created_at, updated_at
-                    FROM panda_strategy
-                    ORDER BY updated_at DESC
+                    SELECT 
+                        s.id as _id, 
+                        s.name, 
+                        s.code, 
+                        s.description, 
+                        s.user_id, 
+                        s.created_at, 
+                        s.updated_at,
+                        COALESCE(COUNT(DISTINCT CASE WHEN b.strategy_id IS NOT NULL THEN b.run_id END), 0) as backtest_count,
+                        MAX(b.created_at) as last_backtest_time
+                    FROM panda_strategy s
+                    LEFT JOIN panda_back_test b ON CAST(s.id AS TEXT) = b.strategy_id AND b.strategy_id IS NOT NULL
+                    GROUP BY s.id, s.name, s.code, s.description, s.user_id, s.created_at, s.updated_at
+                    ORDER BY s.updated_at DESC
                     LIMIT ? OFFSET ?
                     """,
                     (page_size, offset)

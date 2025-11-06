@@ -14,6 +14,9 @@ class StrategyModel(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
     user_id: Optional[str] = Field(None, description="用户ID")
+    # 回测统计字段
+    backtest_count: Optional[int] = Field(0, description="回测次数")
+    last_backtest_time: Optional[datetime] = Field(None, description="最近回测时间")
     
     class Config:
         populate_by_name = True

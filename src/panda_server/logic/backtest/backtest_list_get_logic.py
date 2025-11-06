@@ -20,13 +20,18 @@ async def backtest_list_get_logic(page: int = 1, page_size: int = 20, status: st
         # 使用 SQLite DAO 获取回测列表
         items, total = await BacktestDAO.list_all(page, page_size, status)
         
-        # 转换ID为字符串格式
+        # 转换ID为字符串格式，并映射字段名
         for item in items:
             if "_id" in item:
                 item["_id"] = str(item["_id"])
                 # 如果没有run_id，用_id填充
                 if "run_id" not in item:
                     item["run_id"] = item["_id"]
+            
+            # 将 strategy_code 字段映射为 strategy_code_snapshot
+            # 因为在回测启动时，strategy_code 就是代码快照
+            if "strategy_code" in item:
+                item["strategy_code_snapshot"] = item["strategy_code"]
         
         return {
             "success": True,

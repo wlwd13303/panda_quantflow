@@ -60,7 +60,7 @@ async def get_monitor_data(back_id: str) -> Dict[str, Any]:
                     'profit_rate': profit_rate,
                 }
         
-        # 3. 获取最近5笔交易
+        # 3. 获取所有交易记录
         recent_trades = []
         trade_list, _ = await BacktestTradeDAO.list_by_back_id(back_id, page=1, page_size=999999)
         if trade_list:
@@ -69,7 +69,7 @@ async def get_monitor_data(back_id: str) -> Dict[str, Any]:
                 trade_list,
                 key=lambda x: (x.get('date', ''), x.get('time', '')),
                 reverse=True
-            )[:5]
+            )
             
             for trade in sorted_trades:
                 # direction 转换：0 (SIDE_BUY) -> "买入", 1 (SIDE_SELL) -> "卖出"
@@ -98,34 +98,33 @@ async def get_monitor_data(back_id: str) -> Dict[str, Any]:
                     'amount': amount,
                 })
         
-        # 4. 获取最新日期的持仓（按日期分组，取最新日期的所有持仓）
+        # 4. 获取所有历史持仓记录（按日期倒序排列）
         latest_positions = []
         position_list, _ = await BacktestPositionDAO.list_by_back_id(back_id, page=1, page_size=999999)
         if position_list:
-            # 找出最新日期
-            dates = [p.get('date', '') for p in position_list if p.get('date')]
-            if dates:
-                latest_date = max(dates)
-                # 获取最新日期的所有持仓
-                positions_on_date = [p for p in position_list if p.get('date') == latest_date]
-                
-                for pos in positions_on_date:
-                    latest_positions.append({
-                        'date': pos.get('date'),
-                        'symbol': pos.get('symbol'),
-                        'volume': pos.get('volume'),
-                        'market_value': pos.get('market_value'),
-                        'profit': pos.get('profit'),
-                        'profit_rate': pos.get('profit_rate'),
-                    })
+            # 按日期排序（最新的在前）
+            sorted_positions = sorted(
+                position_list,
+                key=lambda x: x.get('date', ''),
+                reverse=True
+            )
+            
+            for pos in sorted_positions:
+                latest_positions.append({
+                    'date': pos.get('date'),
+                    'symbol': pos.get('symbol'),
+                    'volume': pos.get('volume'),
+                    'market_value': pos.get('market_value'),
+                    'profit': pos.get('profit'),
+                    'profit_rate': pos.get('profit_rate'),
+                })
         
-        # 5. 获取净值曲线数据（最近50个数据点）
+        # 5. 获取净值曲线数据（完整数据）
         equity_curve = []
         if account_list:
             sorted_accounts = sorted(account_list, key=lambda x: x.get('date', ''))
-            recent_accounts = sorted_accounts[-50:] if len(sorted_accounts) > 50 else sorted_accounts
             
-            for acc in recent_accounts:
+            for acc in sorted_accounts:
                 total_value = acc.get('total_value')
                 if total_value is not None:
                     equity_curve.append({
