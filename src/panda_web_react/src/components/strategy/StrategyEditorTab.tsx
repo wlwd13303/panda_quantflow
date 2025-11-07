@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Layout, message, Button, Space } from 'antd';
-import { DiffOutlined } from '@ant-design/icons';
+import { DiffOutlined, SaveOutlined } from '@ant-design/icons';
 import Editor from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import StrategyToolbar from './StrategyToolbar';
@@ -93,6 +93,7 @@ const StrategyEditorTab: React.FC<StrategyEditorTabProps> = ({
   const [strategyName, setStrategyName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
   const [unsavedChanges, setUnsavedChanges] = useState(strategyId === 'new');
+  const [codeChanged, setCodeChanged] = useState(false); // 独立追踪代码变化
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
@@ -100,16 +101,35 @@ const StrategyEditorTab: React.FC<StrategyEditorTabProps> = ({
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
   const initialCodeRef = useRef(initialCode);
   const savedCodeRef = useRef(initialCode); // 保存已保存的代码版本
+  const lastStrategyIdRef = useRef(strategyId); // 追踪策略ID变化
+  const isFirstRenderRef = useRef(true); // 追踪是否首次渲染
 
-  // 监听初始代码变化（用于加载策略时）
+  // 监听策略切换（用于加载不同的策略时）
   useEffect(() => {
-    if (initialCode !== initialCodeRef.current) {
+    // 首次渲染时，初始化 savedCodeRef
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      console.log('🎬 首次渲染，初始化 savedCodeRef:', initialCode.length);
+      return;
+    }
+
+    // 如果策略ID变化了，说明切换到了不同的策略
+    if (strategyId !== lastStrategyIdRef.current) {
+      console.log('🔄 策略切换，重置 savedCodeRef:', {
+        oldStrategyId: lastStrategyIdRef.current,
+        newStrategyId: strategyId,
+        codeLength: initialCode.length
+      });
       setCode(initialCode);
       initialCodeRef.current = initialCode;
-      savedCodeRef.current = initialCode; // 更新已保存的代码版本
-      setUnsavedChanges(false);
+      savedCodeRef.current = initialCode; // 只在策略切换时更新已保存版本
+      lastStrategyIdRef.current = strategyId;
+      setUnsavedChanges(strategyId === 'new');
+      setCodeChanged(false);
     }
-  }, [initialCode]);
+    // 如果策略ID没变，initialCode 的变化是由于草稿恢复或其他原因
+    // 我们不更新 savedCodeRef，让对比功能继续工作
+  }, [strategyId, initialCode]);
 
   // 监听初始名称和描述变化
   useEffect(() => {
@@ -124,7 +144,9 @@ const StrategyEditorTab: React.FC<StrategyEditorTabProps> = ({
   const handleCodeChange = (value: string | undefined) => {
     const newCode = value || '';
     setCode(newCode);
+    const hasCodeChanged = newCode !== savedCodeRef.current;
     setUnsavedChanges(true);
+    setCodeChanged(hasCodeChanged);
     onCodeChange(newCode);
   };
 
@@ -149,6 +171,7 @@ const StrategyEditorTab: React.FC<StrategyEditorTabProps> = ({
       setStrategyName(data.name);
       setDescription(data.description || '');
       setUnsavedChanges(false);
+      setCodeChanged(false); // 重置代码变化标记
       initialCodeRef.current = code;
       savedCodeRef.current = code; // 更新已保存的代码版本
       message.success('策略保存成功');
@@ -157,6 +180,18 @@ const StrategyEditorTab: React.FC<StrategyEditorTabProps> = ({
     } finally {
       setSaving(false);
     }
+  };
+
+  // 快速保存按钮处理函数
+  const handleQuickSave = async () => {
+    if (!strategyName || strategyName.trim() === '') {
+      message.warning('请先输入策略名称');
+      return;
+    }
+    await handleSaveStrategy({
+      name: strategyName,
+      description: description,
+    });
   };
 
   const handleStartBacktest = async (
@@ -193,17 +228,27 @@ const StrategyEditorTab: React.FC<StrategyEditorTabProps> = ({
             background: '#fafafa'
           }}>
             <span style={{ fontSize: 14, fontWeight: 500 }}>策略代码</span>
-            {unsavedChanges && (
-              <Space>
-                <Button
-                  size="small"
-                  icon={<DiffOutlined />}
-                  onClick={() => setShowDiff(true)}
-                >
-                  查看变更
-                </Button>
-              </Space>
-            )}
+            <Space>
+              <Button
+                type="primary"
+                size="small"
+                icon={<SaveOutlined />}
+                onClick={handleQuickSave}
+                loading={saving}
+              >
+                保存策略
+              </Button>
+              <Button
+                size="small"
+                icon={<DiffOutlined />}
+                onClick={() => setShowDiff(true)}
+                disabled={!codeChanged}
+                type={codeChanged ? 'default' : undefined}
+                style={codeChanged ? { borderColor: '#1890ff', color: '#1890ff' } : undefined}
+              >
+                查看变更
+              </Button>
+            </Space>
           </div>
           <div style={{ flex: 1, padding: '16px 16px 16px 24px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <Editor

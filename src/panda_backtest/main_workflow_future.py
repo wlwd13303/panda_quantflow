@@ -9,6 +9,7 @@ from panda_backtest.backtest_common.system.compile.strategy import Strategy
 from panda_backtest.backtest_common.system.compile.strategy_utils import FileStrategyLoader
 import traceback
 from panda_backtest.system.panda_log import SRLogger
+from panda_backtest.api.api import init_sr_logger  # 提前导入
 import logging
 import os
 import time
@@ -64,6 +65,9 @@ def start(code:str,start_future_capital:int,future_account_id:str,start_date:str
 
     DevInit.init_log_env('panda')
     DevInit.init_remote_sr_log(back_test_id, handle_message['run_params'], strategy_context)
+    
+    # ⭐ 重要：更新 api.py 中的 SRLogger 引用，使策略代码能够使用正确的 logger
+    init_sr_logger()
 
     # 全局动态字典初始化
     global_args = {}

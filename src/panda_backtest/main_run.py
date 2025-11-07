@@ -26,15 +26,11 @@ import json
 import time
 from importlib import import_module
 from panda_backtest.config.dev_init import DevInit
-from common.connector.mongodb_handler import DatabaseHandler
-from common.config.config import config
-from panda_backtest.backtest_common.exception.error_exception import ErrorException
-from panda_backtest.backtest_common.risk.risk_control_manager import RiskControlManager
+from panda_backtest.api.api import init_sr_logger
 from panda_backtest.backtest_common.system.context.core_context import CoreContext
 from panda_backtest.backtest_common.system.event.engine import Engine
 from panda_backtest.backtest_common.system.compile.strategy import Strategy
 from panda_backtest.backtest_common.system.compile.strategy_utils import FileStrategyLoader
-import traceback
 from panda_backtest.data.context.strategy_context import StrategyContext
 import os
 import threading
@@ -67,12 +63,9 @@ def main_run(kwargs=None):
             elif run_params_item[0] == 1:
                 param_dict[run_params_item[1]] = run_params_item[2]
             elif run_params_item[0] == 2:
-                # 假设 run_params_item[2] 是一个 JSON 字符串
                 try:
-                    # 如果是 JSON 字符串，先解析它为 Python 对象
-                    json_data = json.loads(run_params_item[2])  # 将 JSON 字符串转换为 Python 字典或列表
-                    # 将 JSON 转换为 DataFrame
-                    df = pd.json_normalize(json_data)  # 或者 pd.DataFrame(json_data)，根据实际结构使用
+                    json_data = json.loads(run_params_item[2])
+                    df = pd.json_normalize(json_data)
                     param_dict[run_params_item[1]] = df
                 except Exception as e:
                     print(f"Error loading JSON DataFrame : {e}")
@@ -83,6 +76,7 @@ def main_run(kwargs=None):
     back_test_id = kwargs.get('back_test_id', None)
     DevInit.init_log_env('sunrise')
     DevInit.init_remote_sr_log(back_test_id, 'no_run_params', strategy_context)
+    init_sr_logger()
     from panda_backtest.system.panda_log import SRLogger
 
     # 系统核心上下文 创建q

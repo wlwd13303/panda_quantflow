@@ -182,25 +182,26 @@ const StrategyToolbar: React.FC<StrategyToolbarProps> = ({
             />
           </Form.Item>
 
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            onClick={handleSave}
-            loading={saving}
-            block
-            disabled={!unsavedChanges && strategyId !== 'new'}
-          >
-            {strategyId === 'new' ? '保存新策略' : '保存修改'}
-          </Button>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              onClick={handleSave}
+              loading={saving}
+              block
+            >
+              {strategyId === 'new' ? '保存新策略' : '保存策略'}
+            </Button>
 
-          {unsavedChanges && (
-            <Alert
-              message="有未保存的修改"
-              type="warning"
-              showIcon
-              style={{ marginTop: 12 }}
-            />
-          )}
+            {unsavedChanges && (
+              <Alert
+                message="有未保存的修改"
+                type="warning"
+                showIcon
+                style={{ fontSize: 12 }}
+              />
+            )}
+          </Space>
         </Form>
       </Card>
 

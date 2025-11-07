@@ -647,7 +647,28 @@ class BacktestLogDAO:
                     )
                 
                 rows = await cursor.fetchall()
-                logs = [dict(row) for row in rows]
+                logs = []
+                for row in rows:
+                    row_dict = dict(row)
+                    # 字段映射：SQLite -> 前端模型
+                    # message -> run_info（前端优先使用 run_info 显示日志内容）
+                    # log_level -> level
+                    # timestamp -> exhibit_time
+                    log_item = {
+                        'id': row_dict.get('id'),
+                        '_id': str(row_dict.get('id')),  # 前端模型使用 _id 作为主键
+                        'relation_id': row_dict.get('relation_id'),
+                        'back_id': row_dict.get('back_id'),
+                        'level': row_dict.get('log_level'),  # SQLite: log_level -> 前端: level
+                        'run_info': row_dict.get('message'),  # SQLite: message -> 前端: run_info
+                        'opz_params_str': '',  # 可选字段
+                        'exhibit_time': row_dict.get('timestamp'),  # SQLite: timestamp -> 前端: exhibit_time
+                        'insert_time': row_dict.get('timestamp'),
+                        'sort': row_dict.get('sort'),
+                        'content_type': '0',  # 默认值
+                        'source': '0'  # 默认值
+                    }
+                    logs.append(log_item)
                 
                 return logs
         except Exception as e:

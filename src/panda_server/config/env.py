@@ -125,4 +125,24 @@ DEEPSEEK_API_KEY = _get_env_value("DEEPSEEK_API_KEY", None)
 
 # SQLite 数据库配置
 # 本地数据（策略、回测等）存储路径
-SQLITE_DB_PATH = _get_env_value("SQLITE_DB_PATH", "data/panda_local.db")
+SQLITE_DB_PATH_RAW = _get_env_value("SQLITE_DB_PATH", "data/panda_local.db")
+
+def get_sqlite_db_path() -> Path:
+    """
+    获取 SQLite 数据库的完整路径
+    
+    如果 SQLITE_DB_PATH 是绝对路径，直接返回
+    如果是相对路径，则基于项目根目录解析
+    
+    Returns:
+        Path: SQLite 数据库文件的完整路径
+    """
+    db_path = Path(SQLITE_DB_PATH_RAW)
+    if db_path.is_absolute():
+        return db_path
+    else:
+        # 相对路径：基于项目根目录解析
+        return project_root / db_path
+
+# 导出解析后的路径（字符串形式，用于向后兼容）
+SQLITE_DB_PATH = str(get_sqlite_db_path())

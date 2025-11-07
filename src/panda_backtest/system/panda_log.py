@@ -14,9 +14,7 @@ import pandas
 import queue
 import threading
 import asyncio
-from common.connector.mongodb_handler import DatabaseHandler
 from panda_backtest.util.time.time_util import TimeUtil
-from common.config.config import config
 from panda_server.dao.backtest_dao import BacktestDAO
 
 class SRLogger:
@@ -116,25 +114,39 @@ class SRLogger:
 
     @staticmethod
     def log_provide(content, log_type, content_type=0, source=0, risk_control_name=None):
-        insert_content = dict()
-        insert_content['level'] = log_type
-        insert_content['relation_id'] = SRLogger._back_test_id
-        insert_content['opz_params_str'] = SRLogger._opz_params_str
-        insert_content['insert_time'] = TimeUtil.datetime_to_utc(datetime.datetime.now())
-        insert_content['exhibit_time'] = TimeUtil.datetime_to_utc(SRLogger._strategy_context.trade_time)
-        # 如果 strategy_context 为 None，则 exhibit_time 设置为空
-        # if SRLogger._strategy_context and hasattr(SRLogger._strategy_context, 'trade_time'):
-        #     insert_content['exhibit_time'] = TimeUtil.datetime_to_utc(SRLogger._strategy_context.trade_time)
-        # else:
-        #     insert_content['exhibit_time'] = None  # 设置为空
-        insert_content['run_info'] = content
-        insert_content['sort'] = SRLogger._sort
-        insert_content['content_type'] = content_type
-        insert_content['source'] = source
-        if risk_control_name is not None:
-            insert_content['risk_control_name'] = risk_control_name
-        SRLogger._sort = SRLogger._sort + 1
-        SRLogger._log_queue.put_nowait(insert_content)
+        try:
+            insert_content = dict()
+            insert_content['level'] = log_type
+            insert_content['relation_id'] = SRLogger._back_test_id
+            insert_content['opz_params_str'] = SRLogger._opz_params_str
+            insert_content['insert_time'] = TimeUtil.datetime_to_utc(datetime.datetime.now())
+            
+            # 安全获取 exhibit_time，避免 trade_time 为 None 导致异常
+            if SRLogger._strategy_context and hasattr(SRLogger._strategy_context, 'trade_time') and SRLogger._strategy_context.trade_time:
+                try:
+                    insert_content['exhibit_time'] = TimeUtil.datetime_to_utc(SRLogger._strategy_context.trade_time)
+                except Exception as e:
+                    # 如果转换失败，使用当前时间
+                    insert_content['exhibit_time'] = TimeUtil.datetime_to_utc(datetime.datetime.now())
+                    logging.warning(f"转换 trade_time 失败，使用当前时间: {e}")
+            else:
+                # 如果 trade_time 不可用，使用 insert_time
+                insert_content['exhibit_time'] = insert_content['insert_time']
+            
+            insert_content['run_info'] = content
+            insert_content['sort'] = SRLogger._sort
+            insert_content['content_type'] = content_type
+            insert_content['source'] = source
+            if risk_control_name is not None:
+                insert_content['risk_control_name'] = risk_control_name
+            SRLogger._sort = SRLogger._sort + 1
+            SRLogger._log_queue.put_nowait(insert_content)
+        except Exception as e:
+            # 如果日志记录失败，打印错误但不影响主流程
+            print(f"[SRLogger] 日志记录失败: {e}")
+            logging.error(f"日志记录失败: {e}")
+            import traceback
+            traceback.print_exc()
 
     @staticmethod
     def process_consume():
@@ -187,24 +199,99 @@ class SRLogger:
 
     @staticmethod
     def log_consume():
-        mongo_client = DatabaseHandler(config=config)
+        """消费日志队列，将日志写入 SQLite 数据库"""
         log_list = list()
         while True:
             try:
                 insert_content = SRLogger._log_queue.get(timeout=12 * 60 * 60)
                 if insert_content['level'] == -1:
                     print('日志线程收到结束信号')
-                    # 收到结束信号
+                    # 收到结束信号，批量写入剩余日志
                     if len(log_list) > 0:
-                        mongo_client.mongo_insert_many(config["MONGO_DB"], collection_name="panda_user_strategy_log", documents=log_list)
+                        SRLogger._batch_insert_logs_to_sqlite(log_list)
                         SRLogger._insert_flag = False
                         break
                 log_list.append(insert_content)
+                # 当日志累积到50条时，批量写入
                 if len(log_list) > 50:
                     insert_log_list = copy.deepcopy(log_list)
                     log_list = list()
-                    mongo_client.mongo_insert_many(config["MONGO_DB"], collection_name="panda_user_strategy_log", documents=insert_log_list)
+                    SRLogger._batch_insert_logs_to_sqlite(insert_log_list)
 
             except queue.Empty:
                 print('日志超时')
+                # 超时时写入剩余日志
+                if len(log_list) > 0:
+                    SRLogger._batch_insert_logs_to_sqlite(log_list)
                 break
+            except Exception as e:
+                logging.error(f"日志消费失败: {e}")
+                break
+    
+    @staticmethod
+    def _batch_insert_logs_to_sqlite(log_list):
+        """批量将日志插入 SQLite 数据库"""
+        try:
+            # 动态导入，避免循环依赖
+            from panda_server.dao.backtest_dao import BacktestLogDAO
+            from panda_server.config.sqlite_database import sqlite_db
+            from panda_server.config.env import SQLITE_DB_PATH
+            
+            # 确保数据库路径已设置（回测进程中需要手动初始化）
+            if sqlite_db.db_path is None:
+                print(f"[SRLogger] 初始化 SQLite 数据库路径: {SQLITE_DB_PATH}")
+                sqlite_db.set_db_path(SQLITE_DB_PATH)
+            
+            print(f"[SRLogger] 准备批量插入 {len(log_list)} 条日志到 SQLite")
+            
+            # 使用异步任务将日志批量插入 SQLite
+            async def batch_insert():
+                success_count = 0
+                error_count = 0
+                for log_item in log_list:
+                    try:
+                        # 字段映射：MongoDB -> SQLite
+                        # run_info -> message
+                        # exhibit_time 或 insert_time -> timestamp
+                        # level -> log_level
+                        await BacktestLogDAO.create(
+                            relation_id=log_item.get('relation_id', ''),
+                            back_id=log_item.get('relation_id', ''),  # 使用 relation_id 作为 back_id
+                            log_level=str(log_item.get('level', '')),
+                            message=log_item.get('run_info', ''),
+                            timestamp=log_item.get('exhibit_time') or log_item.get('insert_time'),
+                            sort=log_item.get('sort', 0)
+                        )
+                        success_count += 1
+                    except Exception as e:
+                        error_count += 1
+                        print(f"[SRLogger] 插入单条日志失败: {e}")
+                        logging.error(f"插入单条日志失败: {e}, log_item: {log_item}")
+                
+                print(f"[SRLogger] 批量插入完成: 成功 {success_count} 条, 失败 {error_count} 条")
+            
+            # 在同步上下文中运行异步函数
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 如果事件循环正在运行，创建新的线程来运行
+                    print("[SRLogger] 检测到运行中的事件循环，使用线程池执行异步任务")
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run, batch_insert())
+                        future.result(timeout=30)  # 30秒超时
+                else:
+                    # 如果事件循环未运行，直接运行
+                    print("[SRLogger] 事件循环未运行，直接执行异步任务")
+                    loop.run_until_complete(batch_insert())
+            except RuntimeError as e:
+                # 如果没有事件循环，创建一个新的
+                print(f"[SRLogger] RuntimeError: {e}，创建新的事件循环")
+                asyncio.run(batch_insert())
+            
+            print("[SRLogger] 日志批量写入流程完成")
+        except Exception as e:
+            import traceback
+            print(f"[SRLogger] 批量插入日志到 SQLite 失败: {e}")
+            print(f"[SRLogger] 错误堆栈:\n{traceback.format_exc()}")
+            logging.error(f"批量插入日志到 SQLite 失败: {e}\n{traceback.format_exc()}")

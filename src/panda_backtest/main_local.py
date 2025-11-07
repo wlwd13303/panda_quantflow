@@ -31,6 +31,7 @@ from panda_backtest.backtest_common.system.compile.strategy_utils import FileStr
 import traceback
 from panda_backtest.data.context.strategy_context import StrategyContext
 from panda_backtest.system.panda_log import SRLogger
+from panda_backtest.api.api import init_sr_logger
 import json
 import pandas as pd
 from pathlib import Path
@@ -46,10 +47,8 @@ class Run(object):
         # # LogFactory.init_logger() - 已替换为统一日志配置
 
         # 初始化 SQLite 数据库路径（必须在其他操作之前）
-        # 获取项目根目录并解析数据库路径
-        project_root = Path(__file__).resolve().parent.parent.parent.parent
-        db_path = project_root / SQLITE_DB_PATH
-        sqlite_db.set_db_path(str(db_path))
+        # SQLITE_DB_PATH 已经在 env.py 中统一解析为完整路径
+        sqlite_db.set_db_path(SQLITE_DB_PATH)
         
         # 初始化数据库表结构（如果需要）
         try:
@@ -95,6 +94,10 @@ class Run(object):
         back_test_id = handle_message['back_test_id']
         DevInit.init_log_env('panda')
         DevInit.init_remote_sr_log(back_test_id, handle_message.get('run_params', 'no_run_params'), strategy_context)
+        
+        # ⭐ 重要：更新 api.py 中的 SRLogger 引用，使策略代码能够使用正确的 logger
+        # 如果不调用此方法，策略代码中的 SRLogger 将是 LocalLogger（空实现），日志不会写入数据库
+        init_sr_logger()
 
         # 全局动态字典初始化
         global_args = {}
