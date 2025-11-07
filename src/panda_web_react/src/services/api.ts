@@ -68,8 +68,15 @@ export const strategyApi = {
     description?: string;
     default_backtest_config?: any;
   }): Promise<Strategy> {
-    const response = await apiClient.post<ApiResponse<Strategy>>('/api/strategy/', data);
-    return response.data.data!;
+    // 如果有 id，则更新现有策略；否则创建新策略
+    if (data.id) {
+      // 从 data 中移除 id 字段，因为 updateStrategy 的第一个参数已经是 id 了
+      const { id, ...updateData } = data;
+      return await this.updateStrategy(id, updateData);
+    } else {
+      const response = await apiClient.post<ApiResponse<Strategy>>('/api/strategy/', data);
+      return response.data.data!;
+    }
   },
 
   // 更新策略

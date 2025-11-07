@@ -53,7 +53,7 @@ class BarDataSource(BaseBarDataSource):
     #         stock_type = self.stock_info_map[symbol]['type']
     #
     #         if stock_type == 1:
-    #             collection = "index_daily_price"
+    #             collection = "index_market"
     #             # collection = "stock_market"
     #         elif stock_type == 2:
     #             collection = "etf_daily_quotation_v2"
