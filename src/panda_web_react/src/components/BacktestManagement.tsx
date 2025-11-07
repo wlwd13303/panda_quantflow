@@ -127,6 +127,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
       key: 'id',
       width: 220,
       ellipsis: true,
+      align: 'center' as const,
       render: (record: BacktestRecord) => (
         <Tooltip title={record.run_id || record._id}>
           {record.run_id || record._id}
@@ -138,6 +139,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
       dataIndex: 'strategy_name',
       key: 'strategy_name',
       width: 150,
+      align: 'center' as const,
       render: (text: string) => text || 'N/A',
     },
     {
@@ -145,6 +147,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
       dataIndex: 'status',
       key: 'status',
       width: 100,
+      align: 'center' as const,
       render: (status: string) => {
         const colorMap: Record<string, string> = {
           running: 'processing',
@@ -164,7 +167,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
       dataIndex: 'back_profit',
       key: 'back_profit',
       width: 120,
-      align: 'right' as const,
+      align: 'center' as const,
       render: (profit?: number) => {
         if (profit === undefined || profit === null) return '-';
         const color = profit >= 0 ? '#52c41a' : '#ff4d4f';
@@ -176,7 +179,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
       dataIndex: 'back_profit_year',
       key: 'back_profit_year',
       width: 120,
-      align: 'right' as const,
+      align: 'center' as const,
       render: (profit?: number) => {
         if (profit === undefined || profit === null) return '-';
         return `${(profit * 100).toFixed(2)}%`;
@@ -187,7 +190,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
       dataIndex: 'sharpe',
       key: 'sharpe',
       width: 100,
-      align: 'right' as const,
+      align: 'center' as const,
       render: (sharpe?: number) => {
         if (sharpe === undefined || sharpe === null) return '-';
         return sharpe.toFixed(2);
@@ -198,7 +201,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
       dataIndex: 'max_drawdown',
       key: 'max_drawdown',
       width: 120,
-      align: 'right' as const,
+      align: 'center' as const,
       render: (drawdown?: number) => {
         if (drawdown === undefined || drawdown === null) return '-';
         return <span style={{ color: '#ff4d4f' }}>{(drawdown * 100).toFixed(2)}%</span>;
@@ -208,6 +211,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
       title: '回测区间',
       key: 'date_range',
       width: 200,
+      align: 'center' as const,
       render: (record: BacktestRecord) =>
         `${record.start_date || 'N/A'} ~ ${record.end_date || 'N/A'}`,
     },
@@ -216,6 +220,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
       dataIndex: 'created_at',
       key: 'created_at',
       width: 180,
+      align: 'center' as const,
       render: formatDateTime,
     },
     {
@@ -223,6 +228,7 @@ const BacktestManagement: React.FC<BacktestManagementProps> = ({ onViewBacktest 
       key: 'action',
       width: 180,
       fixed: 'right' as const,
+      align: 'center' as const,
       render: (record: BacktestRecord) => (
         <Space size="small">
           <Button

@@ -190,7 +190,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
         dataIndex: 'amount',
         key: 'amount',
         width: 90,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (amount: number) => amount.toLocaleString(),
       },
       {
@@ -198,7 +198,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
         dataIndex: 'price',
         key: 'price',
         width: 90,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (price: string) => `¥${price}`,
       },
       {
@@ -206,7 +206,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
         dataIndex: 'cost',
         key: 'cost',
         width: 120,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (cost: string) => `¥${parseFloat(cost).toLocaleString()}`,
       },
     ];
@@ -281,7 +281,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
         dataIndex: 'volume',
         key: 'volume',
         width: 100,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (volume: number) => (volume || 0).toLocaleString(),
       },
       {
@@ -289,7 +289,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
         dataIndex: 'market_value',
         key: 'market_value',
         width: 120,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (market_value: number) => {
           const val = market_value || 0;
           return `¥${val.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -300,7 +300,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
         dataIndex: 'profit',
         key: 'profit',
         width: 120,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (profit: number) => {
           const val = profit || 0;
           return (
@@ -315,7 +315,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
         dataIndex: 'profit_rate',
         key: 'profit_rate',
         width: 100,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (profit_rate: number) => {
           const val = (profit_rate || 0) * 100;
           return (

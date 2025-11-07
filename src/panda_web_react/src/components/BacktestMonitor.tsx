@@ -306,7 +306,7 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
         dataIndex: 'price',
         key: 'price',
         width: 100,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (val: number) => formatNumber(val),
       },
       {
@@ -314,7 +314,7 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
         dataIndex: 'volume',
         key: 'volume',
         width: 100,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (val: number) => formatNumber(val, 0),
       },
       {
@@ -322,7 +322,7 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
         dataIndex: 'amount',
         key: 'amount',
         width: 120,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (val: number) => formatNumber(val),
       },
     ];
@@ -390,7 +390,7 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
         dataIndex: 'volume',
         key: 'volume',
         width: 100,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (val: number) => formatNumber(val, 0),
       },
       {
@@ -398,7 +398,7 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
         dataIndex: 'market_value',
         key: 'market_value',
         width: 120,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (val: number) => formatNumber(val),
       },
       {
@@ -406,7 +406,7 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
         dataIndex: 'profit',
         key: 'profit',
         width: 120,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (val: number) => (
           <span style={{ color: val >= 0 ? '#3f8600' : '#cf1322' }}>
             {formatNumber(val)}
@@ -418,7 +418,7 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
         dataIndex: 'profit_rate',
         key: 'profit_rate',
         width: 100,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (val: number) => (
           <span style={{ color: val >= 0 ? '#3f8600' : '#cf1322' }}>
             {formatNumber(val * 100, 2)}%

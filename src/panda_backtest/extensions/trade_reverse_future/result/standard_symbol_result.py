@@ -88,9 +88,10 @@ class StandSymbolResult(object):
 
     def end_date(self):
         bar_dict = QuotationData.get_instance().bar_dict
-        if bar_dict[self.standard_symbol].last != 0:
+        bar = bar_dict[self.standard_symbol]
+        if bar is not None and bar.last != 0:
             self.standard_symbol_value = self.standard_symbol_cash + \
-                                         self.standard_symbol_position * bar_dict[self.standard_symbol].last
+                                         self.standard_symbol_position * bar.last
 
         self.standard_portfolio.append(
             self.standard_symbol_value / self.start_capital / self.yes_standard_net_value - 1)
@@ -106,8 +107,9 @@ class StandSymbolResult(object):
             self.standard_symbol_position +
             self.standard_symbol_position * (dividend.share_trans_ratio + dividend.share_ratio))
         bar_dict = QuotationData.get_instance().bar_dict
-        if bar_dict[self.standard_symbol].last != 0:
-            self.standard_symbol_value = bar_dict[self.standard_symbol].last * self.standard_symbol_position
+        bar = bar_dict[self.standard_symbol]
+        if bar is not None and bar.last != 0:
+            self.standard_symbol_value = bar.last * self.standard_symbol_position
 
     def on_rtn_fund_dividend(self, dividend):
         if dividend.symbol != self.standard_symbol:

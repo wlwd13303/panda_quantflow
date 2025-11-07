@@ -8,6 +8,7 @@ from datetime import datetime
 
 from common.connector.mongodb_handler import DatabaseHandler
 from common.config.config import config
+from panda_server.logic.quotation.quotation_cache import quotation_cache
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,8 @@ class QuotationDataLogic:
         period: str = "1m",
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        limit: int = 500
+        limit: int = 500,
+        use_cache: bool = True
     ) -> List[dict]:
         """
         获取实时行情数据
@@ -38,36 +40,66 @@ class QuotationDataLogic:
             start_date: 开始日期 YYYYMMDD，可选
             end_date: 结束日期 YYYYMMDD，可选
             limit: 返回数据条数限制
+            use_cache: 是否使用缓存，默认True
             
         Returns:
             K线数据列表
         """
         try:
+            # 尝试从缓存获取数据
+            if use_cache:
+                cached_data = quotation_cache.get(
+                    quotation, quotation_type, period, start_date, end_date
+                )
+                if cached_data is not None:
+                    # 应用limit限制
+                    if limit and len(cached_data) > limit:
+                        return cached_data[:limit]
+                    return cached_data
             # 确定collection名称和查询条件
             collection_name, query = self._build_query(
                 quotation, quotation_type, period, start_date, end_date
             )
             
-            logger.info(f"查询行情数据: collection={collection_name}, query={query}, limit={limit}")
+            logger.info(f"查询行情数据: db_name={self.db_name}, collection={collection_name}, query={query}, limit={limit}")
             
             # 查询数据
+            sort_field = [('trade_date', -1), ('time', -1)] if period != '1d' else [('date', -1)]
+            logger.debug(f"排序字段: {sort_field}")
+            
             result = self.quotation_mongo_db.mongo_find(
                 db_name=self.db_name,
                 collection_name=collection_name,
                 query=query,
                 projection={'_id': 0},
-                sort=[('trade_date', -1), ('time', -1)] if period != '1d' else [('date', -1)]
+                sort=sort_field
             )
+            
+            logger.info(f"原始查询结果数量: {len(result) if result else 0}")
+            if result and len(result) > 0:
+                logger.debug(f"第一条数据样本: {result[0]}")
+                logger.debug(f"第一条数据的字段: {list(result[0].keys())}")
+                logger.debug(f"第一条数据是否有date字段: {'date' in result[0]}")
+                logger.debug(f"第一条数据是否有trade_date字段: {'trade_date' in result[0]}")
             
             # 反转结果，使其按时间正序排列
             if result:
                 result = list(reversed(result))
+                logger.debug(f"反转后结果数量: {len(result)}")
             
             # 手动限制返回条数
             if result and limit and len(result) > limit:
                 result = result[:limit]
+                logger.debug(f"限制后结果数量: {len(result)}")
             
             logger.info(f"查询到 {len(result) if result else 0} 条数据")
+            
+            # 存入缓存（在应用limit之前）
+            if use_cache and result:
+                quotation_cache.set(
+                    quotation, quotation_type, period, start_date, end_date, result
+                )
+            
             return result or []
             
         except Exception as e:

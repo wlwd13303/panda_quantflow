@@ -11,6 +11,7 @@ import type {
   PaginatedData,
   BacktestMonitorData,
 } from '@/types';
+import { quotationCache } from '@/utils/quotationCache';
 
 const API_BASE = 'http://localhost:8000';
 
@@ -257,13 +258,21 @@ export const backtestApi = {
 // ============ 行情数据相关 API ============
 
 export const quotationApi = {
-  // 获取指数行情数据
+  // 获取指数行情数据（带缓存）
   async getIndexData(
     symbol: string,
     startDate: string,
     endDate: string
   ): Promise<any[]> {
     try {
+      // 先检查缓存
+      const cachedData = quotationCache.get(symbol, startDate, endDate);
+      if (cachedData) {
+        return cachedData;
+      }
+
+      // 缓存未命中，从服务器获取数据
+      console.log(`[QuotationAPI] 从服务器获取数据: ${symbol}, ${startDate}-${endDate}`);
       const response = await apiClient.get('/instrument/queryLiveData', {
         params: {
           quotation: symbol,
@@ -274,11 +283,81 @@ export const quotationApi = {
           limit: 5000,
         },
       });
-      return response.data.data || [];
+
+      const data = response.data.data || [];
+      
+      // 将数据存入缓存
+      if (data.length > 0) {
+        quotationCache.set(symbol, startDate, endDate, data);
+      }
+
+      return data;
     } catch (error) {
       console.error('获取指数数据失败:', error);
       return [];
     }
+  },
+
+  // 获取股票K线数据
+  async getStockKLineData(
+    symbol: string,
+    startDate: string,
+    endDate: string
+  ): Promise<any[]> {
+    try {
+      // 转换股票代码格式（如果还没有后缀，添加.SH或.SZ）
+      const formattedSymbol = this.formatStockSymbol(symbol);
+      
+      console.log(`[QuotationAPI] 获取股票K线数据: ${symbol} -> ${formattedSymbol}, ${startDate}-${endDate}`);
+      const response = await apiClient.get('/instrument/queryLiveData', {
+        params: {
+          quotation: formattedSymbol,
+          quotationType: 'stock',
+          period: '1d',
+          startDate: startDate,
+          endDate: endDate,
+          limit: 5000,
+        },
+      });
+
+      const data = response.data.data || [];
+      return data;
+    } catch (error) {
+      console.error('获取股票K线数据失败:', error);
+      return [];
+    }
+  },
+
+  // 格式化股票代码，添加交易所后缀
+  formatStockSymbol(code: string): string {
+    // 如果已经有后缀，直接返回
+    if (code.includes('.')) {
+      return code;
+    }
+    
+    // 根据股票代码判断交易所
+    // 600xxx, 601xxx, 603xxx, 605xxx, 688xxx, 689xxx 是上海
+    // 000xxx, 001xxx, 002xxx, 003xxx, 300xxx 是深圳
+    const codeNum = parseInt(code);
+    if (isNaN(codeNum)) {
+      return code; // 无法解析，返回原值
+    }
+    
+    if (code.startsWith('6') || code.startsWith('9')) {
+      return `${code}.SH`;
+    } else {
+      return `${code}.SZ`;
+    }
+  },
+
+  // 清空行情缓存
+  clearCache(): void {
+    quotationCache.clear();
+  },
+
+  // 获取缓存统计信息
+  getCacheStats() {
+    return quotationCache.getStats();
   },
 };
 

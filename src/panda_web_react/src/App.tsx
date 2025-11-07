@@ -31,6 +31,26 @@ import './App.css';
 
 const { Content } = Layout;
 
+// 获取最近1年的日期范围（格式：YYYYMMDD）
+const getLastYearDateRange = (): { start_date: string; end_date: string } => {
+  const today = new Date();
+  const endDate = new Date(today);
+  const startDate = new Date(today);
+  startDate.setFullYear(today.getFullYear() - 1);
+  
+  const formatDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}${month}${day}`;
+  };
+  
+  return {
+    start_date: formatDate(startDate),
+    end_date: formatDate(endDate),
+  };
+};
+
 // 生成回测标签页名称的辅助函数
 const generateBacktestTabName = (record: BacktestRecord): string => {
   let tabName = record.strategy_name || '';
@@ -474,14 +494,18 @@ const App: React.FC = () => {
         let config: BacktestConfig | undefined = undefined;
         if (backtestDetail) {
           // 从后端返回的字段构建配置对象
-          const fundStock = backtestDetail.fund_stock ? parseFloat(backtestDetail.fund_stock) : 0;
+          // 优先使用 start_capital 字段（SQLite数据库），其次使用 fund_stock（MongoDB遗留字段）
+          const startCapital = backtestDetail.start_capital 
+            ? parseFloat(backtestDetail.start_capital) 
+            : (backtestDetail.fund_stock ? parseFloat(backtestDetail.fund_stock) : 0);
           const commission = backtestDetail.commission ? parseFloat(backtestDetail.commission) : 1;
           const matchingType = backtestDetail.bar_match ? parseInt(backtestDetail.bar_match) : 1;
           
+          const defaultDateRange = getLastYearDateRange();
           config = {
-            start_capital: fundStock / 10000, // 后端是元，前端是万
-            start_date: backtestDetail.start_date || '20240101',
-            end_date: backtestDetail.end_date || '20240201',
+            start_capital: startCapital / 10000, // 后端是元，前端是万
+            start_date: backtestDetail.start_date || defaultDateRange.start_date,
+            end_date: backtestDetail.end_date || defaultDateRange.end_date,
             frequency: backtestDetail.back_interval || '1d',
             commission_rate: commission,
             standard_symbol: backtestDetail.benchmark || '000001.SH',
@@ -776,10 +800,11 @@ const App: React.FC = () => {
         };
 
         // 使用真实配置，如果没有则使用默认配置
+        const defaultDateRange = getLastYearDateRange();
         const backtestConfig: BacktestConfig = backtestData.config || {
           start_capital: 1000,
-          start_date: '20240101',
-          end_date: '20240201',
+          start_date: defaultDateRange.start_date,
+          end_date: defaultDateRange.end_date,
           frequency: '1d',
           commission_rate: 1,
           standard_symbol: '000001.SH',

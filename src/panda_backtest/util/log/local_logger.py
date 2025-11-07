@@ -24,6 +24,11 @@ class LocalLogger(object):
         print(content)
 
     @staticmethod
+    def warning(content):
+        # print('================未配置远程日志，本地打印================')
+        print(content)
+
+    @staticmethod
     def debug(content):
         # print('================未配置远程日志，本地打印================')
         print(content)

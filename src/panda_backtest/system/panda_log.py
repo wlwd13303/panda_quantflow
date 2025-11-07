@@ -68,6 +68,15 @@ class SRLogger:
             SRLogger.log_provide(content, 2)
 
     @staticmethod
+    def warning(content):
+        if isinstance(content, pandas.DataFrame):
+            content = content.to_html()
+            SRLogger.log_provide(content, 2, 1)
+        else:
+            content = str(content)
+            SRLogger.log_provide(content, 2)
+
+    @staticmethod
     def debug(content):
         if isinstance(content, pandas.DataFrame):
             content = content.to_html()

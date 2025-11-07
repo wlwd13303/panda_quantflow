@@ -249,21 +249,21 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
         dataIndex: 'amount',
         key: 'amount',
         width: 90,
-        align: 'right' as const,
+        align: 'center' as const,
       },
       {
         title: '价格',
         dataIndex: 'price',
         key: 'price',
         width: 90,
-        align: 'right' as const,
+        align: 'center' as const,
       },
       {
         title: '金额',
         dataIndex: 'cost',
         key: 'cost',
         width: 100,
-        align: 'right' as const,
+        align: 'center' as const,
       },
     ];
   };
@@ -333,14 +333,14 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
         title: '数量',
         key: 'volume',
         width: 90,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (record: PositionData) => record.position || record.volume || 0,
       },
       {
         title: '成本价',
         key: 'cost',
         width: 90,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (record: PositionData) =>
           ((record.avg_price ?? record.cost_price ?? 0) || 0).toFixed(2),
       },
@@ -348,7 +348,7 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
         title: '当前价',
         key: 'current',
         width: 90,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (record: PositionData) =>
           ((record.now_price ?? record.current_price ?? 0) || 0).toFixed(2),
       },
@@ -356,7 +356,7 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
         title: '盈亏',
         key: 'profit',
         width: 100,
-        align: 'right' as const,
+        align: 'center' as const,
         render: (record: PositionData) => {
           const profit = (record.profit ?? 0) || 0;
           return (

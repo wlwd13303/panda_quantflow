@@ -78,6 +78,7 @@ const StrategyList: React.FC<StrategyListProps> = ({
       dataIndex: 'name',
       key: 'name',
       width: 200,
+      align: 'center' as const,
       filteredValue: searchText ? [searchText] : null,
       onFilter: (value: any, record: Strategy) =>
         record.name.toLowerCase().includes(value.toLowerCase()) ||
@@ -89,6 +90,7 @@ const StrategyList: React.FC<StrategyListProps> = ({
       dataIndex: 'description',
       key: 'description',
       ellipsis: true,
+      align: 'center' as const,
       render: (text: string) => (
         <Tooltip title={text}>
           <span>{text || '-'}</span>
@@ -124,6 +126,7 @@ const StrategyList: React.FC<StrategyListProps> = ({
       dataIndex: 'created_at',
       key: 'created_at',
       width: 180,
+      align: 'center' as const,
       render: formatDateTime,
       sorter: (a: Strategy, b: Strategy) => {
         const dateA = new Date(a.created_at || 0).getTime();
@@ -136,6 +139,7 @@ const StrategyList: React.FC<StrategyListProps> = ({
       dataIndex: 'updated_at',
       key: 'updated_at',
       width: 180,
+      align: 'center' as const,
       render: formatDateTime,
       sorter: (a: Strategy, b: Strategy) => {
         const dateA = new Date(a.updated_at || 0).getTime();
@@ -149,6 +153,7 @@ const StrategyList: React.FC<StrategyListProps> = ({
       key: 'action',
       width: 200,
       fixed: 'right' as const,
+      align: 'center' as const,
       render: (record: Strategy) => (
         <Space size="small">
           <Button

@@ -103,6 +103,7 @@ class BarDataSource(BaseBarDataSource):
         bar_dict = None  # ✅ 先初始化，避免 try 异常后 bar_dict 未定义
 
         try:
+            # 所有日线数据的 collection 都使用 'date' 字段
             bar_dict_list = self.quotation_mongo_db.mongo_find(
                 db_name=config["MONGO_DB"],
                 collection_name=collection,
@@ -299,7 +300,8 @@ class BarDataSource(BaseBarDataSource):
 
     def init_stock_list_daily_quotation_by_collection(self, symbol_list, trade_date, freq='1d', collection=None):
         if freq == '1d':
-            bar_cur = self.quotation_mongo_db.mongo_find(config["MONGO_DB"],collection_name=collection,query={"symbol": {'$in': symbol_list}, "trade_date": trade_date},projection={'_id': 0, 'insert_time': 0})
+            # 所有日线数据的 collection 都使用 'date' 字段
+            bar_cur = self.quotation_mongo_db.mongo_find(config["MONGO_DB"],collection_name=collection,query={"symbol": {'$in': symbol_list}, "date": trade_date},projection={'_id': 0, 'insert_time': 0})
             # bar_cur = collection.find({"symbol": {'$in': symbol_list}, "trade_date": trade_date},
             #                           {'_id': 0, 'insert_time': 0})
             for bar_dict in bar_cur:
