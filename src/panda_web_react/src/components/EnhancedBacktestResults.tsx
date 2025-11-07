@@ -45,6 +45,7 @@ import type {
 import PerformanceMetrics from './PerformanceMetrics';
 import EnhancedProfitChart from './EnhancedProfitChart';
 import TradeAnalysis from './TradeAnalysis';
+import LogOutput from './LogOutput';
 
 const { Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -404,29 +405,12 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
 
       case 'logs':
         return (
-          <Card style={{ margin: 20 }} title="日志输出">
-            <div style={{ 
-              background: '#f5f5f5', 
-              padding: 16, 
-              borderRadius: 4,
-              fontFamily: 'monospace',
-              fontSize: 12,
-              maxHeight: 600,
-              overflow: 'auto'
-            }}>
-              <Text type="secondary">回测日志功能开发中...</Text>
-              <br />
-              <Text type="secondary">策略名称: {strategyName}</Text>
-              <br />
-              <Text type="secondary">回测ID: {currentBacktestId}</Text>
-              <br />
-              <Text type="secondary">开始日期: {config.start_date}</Text>
-              <br />
-              <Text type="secondary">结束日期: {config.end_date}</Text>
-              <br />
-              <Text type="secondary">初始资金: ¥{(config.start_capital * 10000).toLocaleString()}</Text>
-            </div>
-          </Card>
+          <LogOutput
+            backtestId={currentBacktestId}
+            backtesting={backtesting}
+            autoRefresh={autoRefresh}
+            refreshInterval={refreshInterval}
+          />
         );
 
       case 'trade_analysis':

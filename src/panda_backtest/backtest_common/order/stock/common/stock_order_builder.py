@@ -6,6 +6,9 @@
 # @desc   :
 from panda_backtest.backtest_common.constant.string_constant import STOCK_ORDER_FAILED_MESSAGE, STOCK_GEM_QUANTITY_NOT_RIGHT, \
 STOCK_QUANTITY_NOT_RIGHT, STOCK_HAD_NO_INFO, SYMBOL_NO_QUOTATION, SYMBOL_PRICE_NOT_RIGHT
+from panda_backtest.backtest_common.constant.fee_constant import (
+    COMMISSION_RATE, MIN_COMMISSION, STAMP_TAX_RATE, TRANSFER_FEE_RATE
+)
 from panda_backtest.backtest_common.model.result.order import Order, ACTIVE, OPEN, SIDE_BUY, LIMIT, MARKET, REJECTED, CLOSE, SIDE_SELL
 from panda_backtest.backtest_common.order.common.order_quotation_verify import OrderQuotationVerify
 from panda_backtest.backtest_common.system.context.core_context import CoreContext
@@ -17,7 +20,8 @@ class StockOrderBuilder(object):
         self.order_count = 0
         self.stock_info_map = stock_info_map
         self.order_quotation_verify = OrderQuotationVerify()
-        self.rate = 0.0008
+        # 使用费率常量，保持向后兼容
+        self.rate = COMMISSION_RATE
 
     def init_stock_order(self, account, order_dict):
         self.order_count += 1
@@ -52,9 +56,12 @@ class StockOrderBuilder(object):
         if order_insert_type == 0:
             quantity = order_dict['quantity']
         else:
+            # 计算买入时的总费率（佣金 + 过户费，买入时无印花税）
+            # 注意：这里使用近似费率，实际费率会在成交时精确计算
+            buy_fee_rate = COMMISSION_RATE + TRANSFER_FEE_RATE
             quantity = min(
-                int(order_dict['amount'] / order_result.price * (1 + run_info.commission_multiplier * self.rate)),
-                int(order_dict['amount'] - 5 / order_result.price)
+                int(order_dict['amount'] / order_result.price * (1 + run_info.commission_multiplier * buy_fee_rate)),
+                int(order_dict['amount'] - MIN_COMMISSION / order_result.price)
             )
 
         order_result.quantity = int(quantity)
@@ -121,14 +128,25 @@ class StockOrderBuilder(object):
         if order_result.status == REJECTED:
             return order_result
 
-        rate = order_result.price * order_result.quantity * run_info.commission_multiplier * self.rate
-        # 佣金费不足5元，按5元算
-        if rate < 5:
-            rate = 5
-        if order_result.side == SIDE_BUY:
-            order_result.transaction_cost = rate
-        else:
-            order_result.transaction_cost = rate + order_result.price * order_result.quantity * 0.001
+        # 计算交易金额
+        trade_amount = order_result.price * order_result.quantity
+        
+        # 1. 计算佣金：佣金费率 * 交易金额 * 佣金倍率
+        commission = trade_amount * COMMISSION_RATE * run_info.commission_multiplier
+        # 佣金不足最低佣金，按最低佣金算
+        if commission < MIN_COMMISSION:
+            commission = MIN_COMMISSION
+        
+        # 2. 计算过户费：双向收取
+        transfer_fee = trade_amount * TRANSFER_FEE_RATE
+        
+        # 3. 计算印花税：仅卖出时收取
+        stamp_tax = 0.0
+        if order_result.side == SIDE_SELL:
+            stamp_tax = trade_amount * STAMP_TAX_RATE
+        
+        # 总交易成本
+        order_result.transaction_cost = commission + transfer_fee + stamp_tax
 
         return order_result
 

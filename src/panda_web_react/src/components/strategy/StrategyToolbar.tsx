@@ -49,10 +49,11 @@ interface StrategyToolbarProps {
   strategyId: string;
   strategyName: string;
   description?: string;
+  code: string;
   unsavedChanges: boolean;
   defaultConfig?: BacktestConfig;
   relatedBacktests?: BacktestRecord[];
-  onSaveStrategy: (data: { name: string; description?: string }) => void;
+  onSaveStrategy: (data: { name: string; description?: string; code: string }) => void;
   onUpdateStrategyInfo: (data: { name?: string; description?: string }) => void;
   onStartBacktest: (config: BacktestConfig, backtestName: string, saveAsDefault: boolean) => void;
   onViewBacktest: (backtestId: string) => void;
@@ -64,6 +65,7 @@ const StrategyToolbar: React.FC<StrategyToolbarProps> = ({
   strategyId,
   strategyName,
   description = '',
+  code,
   unsavedChanges,
   defaultConfig,
   relatedBacktests = [],
@@ -102,6 +104,7 @@ const StrategyToolbar: React.FC<StrategyToolbarProps> = ({
       onSaveStrategy({
         name: values.strategy_name,
         description: values.description,
+        code: code, // 传递代码内容
       });
     });
   };

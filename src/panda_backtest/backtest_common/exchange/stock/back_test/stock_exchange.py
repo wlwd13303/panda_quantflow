@@ -4,6 +4,9 @@ import logging
 from collections import defaultdict
 
 from panda_backtest.backtest_common.constant.string_constant import STOCK_ORDER_FAILED_MESSAGE, SYMBOL_CAN_NOT_CROSS
+from panda_backtest.backtest_common.constant.fee_constant import (
+    COMMISSION_RATE, MIN_COMMISSION, STAMP_TAX_RATE, TRANSFER_FEE_RATE
+)
 from panda_backtest.backtest_common.data.order.common.work_order_list import WorkOrderList
 from panda_backtest.backtest_common.exchange.stock.back_test.etf_split_manager import ETFSplitManager
 from panda_backtest.backtest_common.order.common.order_quotation_verify import OrderQuotationVerify
@@ -14,7 +17,7 @@ from panda_backtest.backtest_common.model.result.panda_backtest_trade import Pan
 from panda_backtest.backtest_common.data.quotation.quotation_data import QuotationData
 from panda_backtest.backtest_common.order.stock.common.stock_order_builder import StockOrderBuilder
 from panda_backtest.backtest_common.system.context.core_context import CoreContext
-from panda_backtest.backtest_common.model.result.order import Order, ACTIVE, REJECTED, LIMIT, SIDE_BUY, FILLED, CANCELLED, \
+from panda_backtest.backtest_common.model.result.order import Order, ACTIVE, REJECTED, LIMIT, SIDE_BUY, SIDE_SELL, FILLED, CANCELLED, \
     PartTradedNotQueueing, CLOSE
 from panda_backtest.backtest_common.system.event.event import ConstantEvent, Event
 
@@ -29,7 +32,8 @@ class StockExchange(object):
         self.quotation_mongo_db = quotation_mongo_db
         self.dividend_manager = DividendManager(self.quotation_mongo_db)
         self.stock_info_map = StockInfoMap(self.quotation_mongo_db)
-        self.rate = 0.0008
+        # 使用费率常量，保持向后兼容
+        self.rate = COMMISSION_RATE
         self.stock_order_builder = StockOrderBuilder(self.stock_info_map)
         self.etf_split_manager = ETFSplitManager(self.quotation_mongo_db)
 
@@ -264,14 +268,26 @@ class StockExchange(object):
             trade.trade_date = strategy_context.trade_date
             trade.gmt_create_time = strategy_context.hms
             trade.order_remark = order.remark
-            rate = trade.price * trade.volume * self.rate * run_info.commission_multiplier
-            # 佣金费不足5元，按5元算
-            if rate < 5:
-                rate = 5
-            if order.side == SIDE_BUY:
-                trade.cost = rate
-            else:
-                trade.cost = rate + trade.price * trade.volume * 0.001
+            
+            # 计算交易金额
+            trade_amount = trade.price * trade.volume
+            
+            # 1. 计算佣金：佣金费率 * 交易金额 * 佣金倍率
+            commission = trade_amount * COMMISSION_RATE * run_info.commission_multiplier
+            # 佣金不足最低佣金，按最低佣金算
+            if commission < MIN_COMMISSION:
+                commission = MIN_COMMISSION
+            
+            # 2. 计算过户费：双向收取
+            transfer_fee = trade_amount * TRANSFER_FEE_RATE
+            
+            # 3. 计算印花税：仅卖出时收取
+            stamp_tax = 0.0
+            if order.side == SIDE_SELL:
+                stamp_tax = trade_amount * STAMP_TAX_RATE
+            
+            # 总交易成本
+            trade.cost = commission + transfer_fee + stamp_tax
 
             # 推送委托数据
             self.work_order.remove_order(order.order_id)

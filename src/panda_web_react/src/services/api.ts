@@ -10,6 +10,7 @@ import type {
   ApiResponse,
   PaginatedData,
   BacktestMonitorData,
+  LogQueryResponse,
 } from '@/types';
 import { quotationCache } from '@/utils/quotationCache';
 
@@ -252,6 +253,23 @@ export const backtestApi = {
       }
     );
     return (response.data.data || response.data) as BacktestRecord;
+  },
+
+  // 获取回测日志
+  async getLogs(
+    relationId: string,
+    lastSort?: number,
+    limit: number = 100
+  ): Promise<LogQueryResponse> {
+    const params: any = { relation_id: relationId, limit };
+    if (lastSort !== undefined) {
+      params.last_sort = lastSort;
+    }
+    const response = await apiClient.get<ApiResponse<LogQueryResponse>>(
+      '/api/backtest/userstrategylog',
+      { params }
+    );
+    return response.data.data || { items: [], cursor: { limit } };
   },
 };
 

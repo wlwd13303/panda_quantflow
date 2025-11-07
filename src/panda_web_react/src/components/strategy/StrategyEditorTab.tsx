@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Layout, message } from 'antd';
+import { Layout, message, Button, Space } from 'antd';
+import { DiffOutlined } from '@ant-design/icons';
 import Editor from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import StrategyToolbar from './StrategyToolbar';
+import CodeDiffViewer from '../common/CodeDiffViewer';
 import type { BacktestConfig, BacktestRecord } from '@/types';
 
 const { Sider, Content } = Layout;
@@ -93,15 +95,18 @@ const StrategyEditorTab: React.FC<StrategyEditorTabProps> = ({
   const [unsavedChanges, setUnsavedChanges] = useState(strategyId === 'new');
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  const [showDiff, setShowDiff] = useState(false);
 
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
   const initialCodeRef = useRef(initialCode);
+  const savedCodeRef = useRef(initialCode); // 保存已保存的代码版本
 
   // 监听初始代码变化（用于加载策略时）
   useEffect(() => {
     if (initialCode !== initialCodeRef.current) {
       setCode(initialCode);
       initialCodeRef.current = initialCode;
+      savedCodeRef.current = initialCode; // 更新已保存的代码版本
       setUnsavedChanges(false);
     }
   }, [initialCode]);
@@ -145,6 +150,7 @@ const StrategyEditorTab: React.FC<StrategyEditorTabProps> = ({
       setDescription(data.description || '');
       setUnsavedChanges(false);
       initialCodeRef.current = code;
+      savedCodeRef.current = code; // 更新已保存的代码版本
       message.success('策略保存成功');
     } catch (error: any) {
       message.error('保存失败: ' + error.message);
@@ -175,59 +181,93 @@ const StrategyEditorTab: React.FC<StrategyEditorTabProps> = ({
   };
 
   return (
-    <Layout style={{ height: '100%', background: '#fff', display: 'flex', flexDirection: 'row' }}>
-      <Content style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ flex: 1, padding: '16px 16px 16px 24px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Editor
-            height="100%"
-            defaultLanguage="python"
-            value={code}
-            onChange={handleCodeChange}
-            onMount={handleEditorDidMount}
-            theme="vs-dark"
-            options={{
-              fontSize: 14,
-              minimap: { enabled: true },
-              automaticLayout: true,
-              scrollBeyondLastLine: false,
-              wordWrap: 'on',
-              tabSize: 4,
-              lineNumbers: 'on',
-              renderLineHighlight: 'all',
-              scrollbar: {
-                vertical: 'auto',
-                horizontal: 'auto',
-              },
-            }}
-          />
-        </div>
-      </Content>
+    <>
+      <Layout style={{ height: '100%', background: '#fff', display: 'flex', flexDirection: 'row' }}>
+        <Content style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ 
+            padding: '8px 16px', 
+            borderBottom: '1px solid #e8e8e8', 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            background: '#fafafa'
+          }}>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>策略代码</span>
+            {unsavedChanges && (
+              <Space>
+                <Button
+                  size="small"
+                  icon={<DiffOutlined />}
+                  onClick={() => setShowDiff(true)}
+                >
+                  查看变更
+                </Button>
+              </Space>
+            )}
+          </div>
+          <div style={{ flex: 1, padding: '16px 16px 16px 24px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <Editor
+              height="100%"
+              defaultLanguage="python"
+              value={code}
+              onChange={handleCodeChange}
+              onMount={handleEditorDidMount}
+              theme="vs-dark"
+              options={{
+                fontSize: 14,
+                minimap: { enabled: true },
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+                wordWrap: 'on',
+                tabSize: 4,
+                lineNumbers: 'on',
+                renderLineHighlight: 'all',
+                scrollbar: {
+                  vertical: 'auto',
+                  horizontal: 'auto',
+                },
+              }}
+            />
+          </div>
+        </Content>
 
-      <Sider
-        width={360}
-        style={{
-          background: '#f5f5f5',
-          borderLeft: '1px solid #e8e8e8',
-          height: '100%',
-          overflow: 'hidden',
-        }}
-      >
-        <StrategyToolbar
-          strategyId={strategyId}
-          strategyName={strategyName}
-          description={description}
-          unsavedChanges={unsavedChanges}
-          defaultConfig={defaultConfig}
-          relatedBacktests={relatedBacktests}
-          onSaveStrategy={handleSaveStrategy}
-          onUpdateStrategyInfo={handleUpdateStrategyInfo}
-          onStartBacktest={handleStartBacktest}
-          onViewBacktest={onViewBacktest}
-          saving={saving}
-          running={running}
-        />
-      </Sider>
-    </Layout>
+        <Sider
+          width={360}
+          style={{
+            background: '#f5f5f5',
+            borderLeft: '1px solid #e8e8e8',
+            height: '100%',
+            overflow: 'hidden',
+          }}
+        >
+          <StrategyToolbar
+            strategyId={strategyId}
+            strategyName={strategyName}
+            description={description}
+            code={code}
+            unsavedChanges={unsavedChanges}
+            defaultConfig={defaultConfig}
+            relatedBacktests={relatedBacktests}
+            onSaveStrategy={handleSaveStrategy}
+            onUpdateStrategyInfo={handleUpdateStrategyInfo}
+            onStartBacktest={handleStartBacktest}
+            onViewBacktest={onViewBacktest}
+            saving={saving}
+            running={running}
+          />
+        </Sider>
+      </Layout>
+
+      {/* 代码对比弹窗 */}
+      <CodeDiffViewer
+        visible={showDiff}
+        oldCode={savedCodeRef.current}
+        newCode={code}
+        oldTitle="已保存的代码"
+        newTitle="当前代码"
+        onClose={() => setShowDiff(false)}
+      />
+    </>
   );
 };
 

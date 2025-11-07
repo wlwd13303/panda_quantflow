@@ -227,3 +227,27 @@ export interface WorkspaceTab {
   };
 }
 
+// 回测日志数据
+export interface BacktestLog {
+  id?: string;
+  _id?: string;
+  content_type?: string;
+  exhibit_time?: string;
+  insert_time?: string;
+  level?: string;
+  opz_params_str?: string;
+  relation_id?: string;
+  run_info?: string;
+  sort?: string;
+  source?: string;
+}
+
+// 日志查询响应
+export interface LogQueryResponse {
+  items: BacktestLog[];
+  cursor: {
+    current?: number;
+    limit: number;
+  };
+}
+
