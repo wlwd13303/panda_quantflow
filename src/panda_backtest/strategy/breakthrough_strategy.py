@@ -36,7 +36,7 @@ def initialize(context):
     
     # ========== 基础配置 ==========
     context.account = '8888'
-    context.stock_id = "603207.SH"  # 跟踪的股票代码
+    context.stock_id = "002317.SZ"  # 跟踪的股票代码
     
     # ========== 策略参数 ==========
     context.lookback_period = 20  # 支撑阻力位识别周期
@@ -44,8 +44,8 @@ def initialize(context):
     context.volume_surge_ratio = 1.5  # 突破时成交量放大倍数
     context.support_holding_period = 5  # 支撑位至少维持的周期数
     context.max_pullback_percent = 5.0  # 最大回调幅度5%
-    context.take_profit_percent = 20.0  # 止盈比例20%
-    context.stop_loss_percent = 30.0  # 止损比例30%
+    context.take_profit_percent = 2000.0  # 止盈比例20%
+    context.max_drawdown_percent = 10.0  # 盈利后最大回撤比例10%
     context.position_size = 100  # 基础仓位大小（股）
     
     # SAR指标参数
@@ -86,6 +86,8 @@ def initialize(context):
     # 持仓管理
     context.entry_price = None  # 入场价格
     context.position_held = False  # 是否持仓
+    context.buy_trigger_price = None  # 买入时的基准价（SAR触发价，用于跌破卖出）
+    context.max_profit_price = None  # 持仓期间最高价格（用于回撤计算）
     
     # 记录管理
     context.trade_records = []  # 交易记录
@@ -98,7 +100,7 @@ def initialize(context):
     SRLogger.info(f"阶段2-涨幅阈值: {context.price_surge_threshold}%")
     SRLogger.info(f"阶段2-涨幅窗口期: {context.surge_window_days}天")
     SRLogger.info(f"止盈比例: {context.take_profit_percent}%")
-    SRLogger.info(f"止损比例: {context.stop_loss_percent}%")
+    SRLogger.info(f"盈利后最大回撤: {context.max_drawdown_percent}%")
     SRLogger.info("=== 初始化完成 ===\n")
 
 
@@ -346,6 +348,10 @@ def execute_buy(context, price):
         if context.sar_trigger_price:
             surge_from_sar = (price - context.sar_trigger_price) / context.sar_trigger_price * 100
         
+        # 保存买入时的基准价（用于跌破卖出判断）
+        context.buy_trigger_price = context.sar_trigger_price if context.sar_trigger_price else price
+        context.max_profit_price = price  # 初始化最高价为买入价
+        
         # 记录交易
         trade_record = {
             'date': context.now,
@@ -364,8 +370,9 @@ def execute_buy(context, price):
         surge_info = f', 相对SAR基准涨幅: {surge_from_sar:.2f}%' if context.sar_trigger_price else ''
         SRLogger.info(f'📈 三阶段买入完成: 价格={price:.2f}, 数量={context.position_size}, '
                      f'支撑位={context.current_support:.2f}, 阻力位={context.current_resistance:.2f}{sar_info}{surge_info}')
+        SRLogger.info(f'   基准价={context.buy_trigger_price:.2f} (跌破此价将卖出)')
         
-        # 清空SAR基准价
+        # 清空SAR基准价（但保留buy_trigger_price用于卖出判断）
         context.sar_trigger_price = None
     except Exception as e:
         SRLogger.error(f"买入执行失败: {str(e)}")
@@ -386,6 +393,8 @@ def execute_sell(context, price, reason):
         
         context.entry_price = None
         context.position_held = False
+        context.buy_trigger_price = None  # 清空基准价
+        context.max_profit_price = None  # 清空最高价
         
         # 记录交易
         trade_record = {
@@ -517,18 +526,31 @@ def handle_data(context, bar_dict):
         if context.entry_price is None:
             return
         
+        # 更新持仓期间最高价格（用于回撤计算）
+        if context.max_profit_price is None:
+            context.max_profit_price = current_close
+        else:
+            context.max_profit_price = max(context.max_profit_price, current_close)
+        
         # 计算收益率
         return_ratio = (current_close - context.entry_price) / context.entry_price * 100
         
         sell_reason = None
         
-        # 止盈条件
-        if return_ratio >= context.take_profit_percent:
+        # 卖出条件1：跌破基准价（SAR触发价）
+        if context.buy_trigger_price and current_close < context.buy_trigger_price:
+            sell_reason = f"跌破基准价 (当前价={current_close:.2f}, 基准价={context.buy_trigger_price:.2f})"
+        
+        # 卖出条件2：止盈条件
+        elif return_ratio >= context.take_profit_percent:
             sell_reason = f"止盈 (收益率={return_ratio:.2f}%)"
         
-        # 止损条件
-        elif return_ratio <= -context.stop_loss_percent:
-            sell_reason = f"止损 (收益率={return_ratio:.2f}%)"
+        # 卖出条件3：盈利后回撤10%
+        elif return_ratio > 0 and context.max_profit_price:
+            # 计算从最高点的回撤
+            drawdown_from_peak = (context.max_profit_price - current_close) / context.max_profit_price * 100
+            if drawdown_from_peak >= context.max_drawdown_percent:
+                sell_reason = f"盈利回撤 (最高价={context.max_profit_price:.2f}, 当前价={current_close:.2f}, 回撤={drawdown_from_peak:.2f}%)"
         
         # 执行卖出
         if sell_reason:
@@ -634,7 +656,7 @@ def stock_order_cancel(context, order, bar_dict):
    - 支撑位维持周期：5天
    - 最大回调幅度：5%
    - 止盈比例：20%
-   - 止损比例：30%
+   - 盈利后最大回撤：10%
    - SAR加速因子：0.02
    - SAR最大加速因子：0.2
    - 阶段1-SAR窗口期：24个交易日
@@ -668,16 +690,19 @@ def stock_order_cancel(context, order, bar_dict):
    - **时机优化**：在趋势明确后入场，提高胜率
    - **灵活时间**：两个24天窗口期，总计最多48天观察期
 
-4. 止盈止损逻辑（不使用SAR）：
-   - 止盈：相对入场价上涨20%
-   - 止损：相对入场价下跌30%
-   - **SAR不参与卖出决策，避免过早离场** ⭐
+4. 卖出逻辑（三条件卖出机制）：⭐ 更新
+   - **条件1：跌破基准价**：买入后如果价格跌破SAR触发价（基准价），立即卖出
+   - **条件2：止盈**：相对入场价上涨20%
+   - **条件3：盈利回撤**：买入且盈利后，从最高点回撤10%立即卖出
+   - **已取消30%止损**：不再使用固定止损比例
+   - **SAR不参与卖出决策**：避免过早离场 ⭐
 
 5. 风险控制：
    - 单次交易固定仓位
-   - 严格的止盈止损机制
+   - 三重卖出条件保护（跌破基准价、止盈、盈利回撤）
    - 两个24天窗口期限制（阶段1+阶段2）
    - 三重买入条件过滤
+   - 基准价保护机制（跌破即卖出）
 
 6. 策略优势：
    - **更高胜率**：三阶段过滤减少假突破 ⭐
@@ -709,6 +734,7 @@ def stock_order_cancel(context, order, bar_dict):
    - 适合中长线趋势操作，重质量不重数量
 
 10. 版本更新：
+   - v3.1 (2025-11): 优化卖出逻辑：增加跌破基准价卖出、取消30%止损、增加盈利回撤10%卖出
    - v3.0 (2025-11): 增加三阶段买入逻辑，涨幅确认机制
    - v2.0 (2025-11): 两阶段SAR窗口期优化
    - v1.0 (2025-05): 基础突破策略
