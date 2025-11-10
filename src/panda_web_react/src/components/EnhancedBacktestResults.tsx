@@ -32,6 +32,10 @@ import {
   CopyOutlined,
   ExclamationCircleOutlined,
   StockOutlined,
+  StopOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons';
 import Editor from '@monaco-editor/react';
 import type {
@@ -46,6 +50,8 @@ import PerformanceMetrics from './PerformanceMetrics';
 import EnhancedProfitChart from './EnhancedProfitChart';
 import TradeAnalysis from './TradeAnalysis';
 import LogOutput from './LogOutput';
+import PositionAnalysis from './PositionAnalysis';
+import PerformanceAnalysis from './PerformanceAnalysis';
 
 const { Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -54,7 +60,7 @@ interface EnhancedBacktestResultsProps {
   backtesting: boolean;
   currentBacktestId?: string;
   backtestProgress: number;
-  backtestStatus: 'pending' | 'running' | 'completed' | 'failed';
+  backtestStatus: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   profitData: ProfitData[];
   tradeData: TradeData[];
   positionData: PositionData[];
@@ -77,6 +83,7 @@ interface EnhancedBacktestResultsProps {
   // 🆕 策略操作回调
   onEditStrategy?: (strategyId: string) => void;
   onRerunBacktest?: (config: BacktestConfig) => void;
+  onCancelBacktest?: () => void;
 }
 
 type MenuItem = {
@@ -90,6 +97,8 @@ const menuItems: MenuItem[] = [
   { key: 'trades', icon: <TransactionOutlined />, label: '交易详情' },
   { key: 'positions', icon: <FundOutlined />, label: '持仓信息' },
   { key: 'trade_analysis', icon: <StockOutlined />, label: '交易分析' },
+  { key: 'position_analysis', icon: <BarChartOutlined />, label: '仓位分析' },
+  { key: 'performance_analysis', icon: <BarChartOutlined />, label: '性能分析' },
   { key: 'analysis', icon: <BarChartOutlined />, label: '绩效分析' },
   { key: 'logs', icon: <FileTextOutlined />, label: '日志输出' },
   { key: 'strategy_code', icon: <CodeOutlined />, label: '策略代码' },
@@ -121,6 +130,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
   onRefreshIntervalChange,
   onEditStrategy,
   onRerunBacktest,
+  onCancelBacktest,
 }) => {
   const [selectedMenu, setSelectedMenu] = useState('overview');
 
@@ -422,6 +432,22 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
           />
         );
 
+      case 'position_analysis':
+        return (
+          <PositionAnalysis
+            positionData={positionData}
+            profitData={profitData}
+            config={config}
+          />
+        );
+
+      case 'performance_analysis':
+        return (
+          <PerformanceAnalysis
+            backtestId={currentBacktestId}
+          />
+        );
+
       case 'analysis':
         return (
           <div>
@@ -651,6 +677,22 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
     }
   };
 
+  // 渲染状态标签
+  const renderStatusTag = () => {
+    switch (backtestStatus) {
+      case 'running':
+        return <Tag icon={<LoadingOutlined />} color="processing">运行中 ({backtestProgress.toFixed(0)}%)</Tag>;
+      case 'completed':
+        return <Tag icon={<CheckCircleOutlined />} color="success">已完成</Tag>;
+      case 'failed':
+        return <Tag icon={<CloseCircleOutlined />} color="error">失败</Tag>;
+      case 'cancelled':
+        return <Tag icon={<StopOutlined />} color="warning">已终止</Tag>;
+      default:
+        return <Tag color="default">待运行</Tag>;
+    }
+  };
+
   return (
     <Layout style={{ height: 'calc(100vh - 140px)', background: '#fff' }}>
       <Sider
@@ -669,6 +711,42 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
         />
       </Sider>
       <Layout style={{ background: '#f5f5f5' }}>
+        {/* 顶部状态栏 */}
+        {backtesting && onCancelBacktest && (
+          <div style={{ 
+            padding: '12px 20px', 
+            background: '#fff', 
+            borderBottom: '1px solid #e8e8e8',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <Space>
+              {renderStatusTag()}
+              <Text type="secondary">回测ID: {currentBacktestId}</Text>
+            </Space>
+            <Button
+              danger
+              icon={<StopOutlined />}
+              onClick={() => {
+                Modal.confirm({
+                  title: '确认终止回测',
+                  icon: <ExclamationCircleOutlined />,
+                  content: '终止后，回测将停止运行，已产生的数据将被保留。确定要终止吗？',
+                  okText: '确定终止',
+                  okType: 'danger',
+                  cancelText: '取消',
+                  onOk: () => {
+                    onCancelBacktest();
+                  },
+                });
+              }}
+            >
+              终止回测
+            </Button>
+          </div>
+        )}
+        
         <Content style={{ overflow: 'auto' }}>
           {renderContent()}
         </Content>

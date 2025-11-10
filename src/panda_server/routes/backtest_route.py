@@ -13,6 +13,7 @@ from panda_server.logic.backtest.backtest_start_logic import start_backtest, get
 from panda_server.logic.backtest.backtest_delete_logic import delete_backtest, batch_delete_backtests
 from panda_server.logic.backtest.backtest_list_get_logic import backtest_list_get_logic
 from panda_server.logic.backtest.backtest_monitor_logic import get_monitor_data
+from panda_server.logic.backtest.backtest_cancel_logic import cancel_backtest
 from panda_server.models.backtest.query_backtest_response import QueryBacktestBacktestResponse
 from panda_server.models.backtest.query_account_response import QueryBacktestAccountListResponse
 from panda_server.models.backtest.query_position_response import QueryBacktestPositionListResponse
@@ -340,4 +341,31 @@ async def get_backtest_monitor(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取监控数据失败: {str(e)}",
+        )
+
+
+@router.post("/cancel")
+async def cancel_backtest_route(
+    back_id: str = Query(..., description="回测ID")
+):
+    """
+    终止正在运行的回测
+    """
+    try:
+        result = await cancel_backtest(back_id)
+        if result["success"]:
+            return result
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result["message"]
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        logger.error(f"Unexpected error in cancel_backtest: {e}\n{stack_trace}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"终止回测失败: {str(e)}",
         ) 

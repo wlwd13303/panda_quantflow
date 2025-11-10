@@ -407,7 +407,7 @@ const App: React.FC = () => {
         return tab;
       }));
 
-      if (data.status === 'completed' || data.status === 'failed') {
+      if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
         // 停止进度轮询
         if (progressTimersRef.current[backtestId]) {
           clearInterval(progressTimersRef.current[backtestId]);
@@ -421,6 +421,10 @@ const App: React.FC = () => {
           message.success('回测完成！');
           // 加载最终结果
           await loadBacktestResults(backtestId);
+        } else if (data.status === 'cancelled') {
+          message.warning('回测已被终止');
+          // 加载当前结果
+          await loadBacktestResults(backtestId);
         } else {
           message.error('回测失败: ' + (data.error || '未知错误'));
         }
@@ -430,6 +434,46 @@ const App: React.FC = () => {
       }
     } catch (error: any) {
       console.error('查询回测进度失败:', error);
+    }
+  };
+
+  const cancelBacktest = async (backtestId: string) => {
+    try {
+      const result = await backtestApi.cancelBacktest(backtestId);
+      if (result.success) {
+        message.success(result.message || '回测终止请求已发送');
+        
+        // 立即更新状态
+        setTabs(prevTabs => prevTabs.map(tab => {
+          if (tab.type === 'backtest' && tab.backtestData?.backtestId === backtestId) {
+            return {
+              ...tab,
+              backtestData: {
+                ...tab.backtestData,
+                status: 'cancelled',
+              },
+            };
+          }
+          return tab;
+        }));
+        
+        // 停止轮询
+        if (progressTimersRef.current[backtestId]) {
+          clearInterval(progressTimersRef.current[backtestId]);
+          delete progressTimersRef.current[backtestId];
+        }
+        stopDataRefreshPolling(backtestId);
+        
+        // 加载当前结果
+        await loadBacktestResults(backtestId);
+        
+        // 刷新运行中的回测列表
+        loadRunningBacktests();
+      } else {
+        message.error(result.message || '终止回测失败');
+      }
+    } catch (error: any) {
+      message.error('终止回测失败: ' + error.message);
     }
   };
 
@@ -833,6 +877,7 @@ const App: React.FC = () => {
               // TODO: 实现重新运行回测
               message.info('重新运行回测功能开发中...');
             }}
+            onCancelBacktest={() => cancelBacktest(tab.backtestData!.backtestId)}
           />
         );
 

@@ -12,6 +12,7 @@ from common.config.config import config
 from panda_backtest.backtest_common.system.context.core_context import CoreContext
 from panda_backtest.backtest_common.system.event.event import Event, ConstantEvent
 from panda_backtest.util.log.remote_log_factory import RemoteLogFactory
+from panda_backtest.backtest_common.system.cancel_checker import CancelChecker, BacktestCancelledException
 
 
 class TradeTimeManager(object):
@@ -133,12 +134,19 @@ class TradeTimeManager(object):
 
         SRLogger = RemoteLogFactory.get_sr_logger()
 
+        # 创建回测中断检查器
+        back_test_id = run_info.run_id
+        cancel_checker = CancelChecker(back_test_id)
+
         # 获取行情数据
         if frequency == '1d':
             self.trade_date = self.all_date_list[0]
             total = len(rang_date_list)
             i = 0
             for nature_date in rang_date_list:
+                # 检查是否需要终止回测
+                cancel_checker.check_if_cancelled()
+                
                 day_start_time = time.time()
                 SRLogger.process(i, total)
                 i = i + 1
@@ -185,6 +193,9 @@ class TradeTimeManager(object):
             total = len(rang_date_list)
             i = 0
             for nature_date in rang_date_list:
+                # 检查是否需要终止回测
+                cancel_checker.check_if_cancelled()
+                
                 day_start_time = time.time()
                 SRLogger.process(i, total)
                 i = i + 1

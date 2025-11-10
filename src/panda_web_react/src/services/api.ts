@@ -133,6 +133,18 @@ export const backtestApi = {
     return (response.data.data || response.data) as BacktestProgress;
   },
 
+  // 终止回测
+  async cancelBacktest(backId: string): Promise<{ success: boolean; message: string }> {
+    const response = await apiClient.post<ApiResponse<{ success: boolean; message: string }>>(
+      '/api/backtest/cancel',
+      null,
+      {
+        params: { back_id: backId },
+      }
+    );
+    return response.data.data || response.data;
+  },
+
   // 获取账户数据
   async getAccountData(
     backId: string,
