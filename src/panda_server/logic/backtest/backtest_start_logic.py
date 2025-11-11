@@ -120,27 +120,40 @@ async def _run_backtest_async(handle_message: dict, strategy_file: str):
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, _run_backtest_sync, handle_message)
         
-        # 使用 SQLite 更新回测状态为完成
-        await BacktestDAO.update(
-            run_id=back_test_id,
-            status="completed",
-            progress=100,
-            completed_at=datetime.now()
-        )
+        # 检查回测是否被用户终止
+        backtest = await BacktestDAO.get_by_run_id(back_test_id)
+        current_status = backtest.get('status', 'unknown') if backtest else 'unknown'
         
-        logger.info(f"回测完成: {back_test_id}")
+        # 如果状态已经是 cancelled，不要覆盖它
+        if current_status == 'cancelled':
+            logger.info(f"回测已被用户终止: {back_test_id}")
+        else:
+            # 使用 SQLite 更新回测状态为完成
+            await BacktestDAO.update(
+                run_id=back_test_id,
+                status="completed",
+                progress=100,
+                completed_at=datetime.now()
+            )
+            logger.info(f"回测完成: {back_test_id}")
         
     except Exception as e:
         logger.error(f"回测执行失败 {back_test_id}: {e}")
         import traceback
         logger.error(traceback.format_exc())
         
-        # 使用 SQLite 更新回测状态为失败
-        await BacktestDAO.update(
-            run_id=back_test_id,
-            status="failed",
-            error_message=str(e)
-        )
+        # 检查是否为用户终止
+        backtest = await BacktestDAO.get_by_run_id(back_test_id)
+        current_status = backtest.get('status', 'unknown') if backtest else 'unknown'
+        
+        # 如果已经是 cancelled 状态，不要覆盖
+        if current_status != 'cancelled':
+            # 使用 SQLite 更新回测状态为失败
+            await BacktestDAO.update(
+                run_id=back_test_id,
+                status="failed",
+                error_message=str(e)
+            )
     finally:
         # 清理临时策略文件
         try:

@@ -37,6 +37,7 @@ import pandas as pd
 from pathlib import Path
 import asyncio
 from panda_server.config.sqlite_database import sqlite_db
+from panda_backtest.backtest_common.system.cancel_checker import BacktestCancelledException
 from panda_server.config.env import SQLITE_DB_PATH
 
 
@@ -122,6 +123,10 @@ class Run(object):
         # 项目启动
         try:
             Engine(_context).run(handle_message)
+        except BacktestCancelledException as e:
+            # 回测被用户终止
+            print(f"回测已被用户终止: {e}")
+            SRLogger.info(f"回测已被用户终止: {e}")
         except Exception as e:
             print(traceback.format_exc())
             print(str(e))
