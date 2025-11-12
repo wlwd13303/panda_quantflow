@@ -115,6 +115,14 @@ class SRLogger:
     @staticmethod
     def log_provide(content, log_type, content_type=0, source=0, risk_control_name=None):
         try:
+            # 检查日志队列是否已初始化，如果未初始化则进行懒加载初始化
+            if SRLogger._log_queue is None:
+                # 自动初始化日志队列和消费线程（用于非回测场景）
+                SRLogger._log_queue = queue.Queue()
+                log_thread = threading.Thread(target=SRLogger.log_consume)
+                log_thread.daemon = True  # 设置为守护线程，主程序退出时自动结束
+                log_thread.start()
+            
             insert_content = dict()
             insert_content['level'] = log_type
             insert_content['relation_id'] = SRLogger._back_test_id
