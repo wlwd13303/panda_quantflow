@@ -22,9 +22,9 @@ class StockInfoMap(BaseStockInfoMap):
             return self._cache[key]
         else:
             instrument_info = self.quotation_mongo_db.mongo_find_one(db_name=config["MONGO_DB"],
-                                                                     collection_name="stocks",
+                                                                     collection_name="stock_info_new",
                                                                      query={'symbol': str(key)},
-                                                                     projection={'_id': 0, 'symbol': 1, 'name': 1, 'list_date': 1}
+                                                                     projection={'_id': 0, 'symbol': 1, 'name': 1, 'type': 1}
                                                                      )
             if instrument_info:
                 self._cache[key] = instrument_info

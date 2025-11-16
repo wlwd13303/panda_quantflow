@@ -8,6 +8,8 @@ import datetime
 import panda_data
 from panda_factor.generate.macro_factor import MacroFactor
 
+from utils.data.data_util import DateUtil
+
 
 class IndexConstituentsMapper:
     """指数成分股映射器，支持缓存和快速查询"""
@@ -93,6 +95,7 @@ def initialize(context):
     context.max_positions = 10  # 最大持仓股票数量
     context.last_strategy_execution_date = None  # 上次执行策略的日期
     context.previous_date = None
+    context.tradable_symbols = []
     # ========== 股票池配置 ==========
     # 创建股票池管理器
     pool_manager = StockPoolManager()
@@ -284,167 +287,126 @@ def should_execute_strategy_today(context, current_date):
 
 
 def handle_data(context, bar_dict):
-    """每个Bar的处理逻辑"""
+    """每个Bar的处理逻辑：每周一等权重调仓到 circ_mv 最小的前10只股票"""
     current_date = context.now
-
-    # 判断今天是否应该执行策略（每周第一个交易日）
-    if not should_execute_strategy_today(context, current_date):
-        SRLogger.info(f"[{current_date}] 非每周第一个交易日，跳过策略执行")
-        return
 
     # 更新上次执行日期
     context.last_strategy_execution_date = current_date
-    SRLogger.info(f"[{current_date}] 每周第一个交易日，开始执行策略")
+    SRLogger.info(f"[{current_date}] 每周第一个交易日，开始等权重调仓")
 
-    # 从股票池中过滤出有数据的股票
-    # 使用 'stock_id in bar_dict' 来判断该股票是否有当前bar数据
-    available_stocks = [stock_id for stock_id in context.stock_pool if stock_id in bar_dict]
+    try:
+        account = context.stock_account_dict.get(context.account)
+        if account is None:
+            SRLogger.error("未找到账户信息，无法调仓")
+            return
 
-    # 记录观察到的股票
-    for stock_id in available_stocks:
-        context.observed_stocks.add(stock_id)
+        # 获取本期目标股票列表（已按 circ_mv 选出前10只）
+        # target_stocks = get_stock_list(context)
+        # 仅保留当前有行情数据的标的
+        target_stocks = [s for s in context.tradable_symbols if s in bar_dict]
+        '600519.SH' in bar_dict
+        '000001.SH' in bar_dict
+        if not target_stocks:
+            SRLogger.warning("本期没有可调仓的目标股票")
+            return
 
-    # 遍历所有可用股票
-    for stock_id in available_stocks:
-        try:
-            # 获取股票状态
-            state = get_or_create_stock_state(context, stock_id)
+        total_value = getattr(account, 'total_value', None)
+        if total_value is None or total_value <= 0:
+            SRLogger.error("账户总资产无效，无法调仓")
+            return
 
-            # ========== 获取当前行情数据 ==========
-            bar = bar_dict[stock_id]
-            current_high = float(bar.high)
-            current_low = float(bar.low)
-            current_close = float(bar.close)
-            current_volume = float(bar.volume)
+        # 目标等权仓位金额
+        per_stock_value = total_value / len(target_stocks)
 
-            # 数据有效性检查
-            if current_close <= 0 or current_volume <= 0:
+        # 1）先卖出不在目标列表中的持仓
+        if hasattr(account, 'positions') and account.positions:
+            for stock_id, pos in list(account.positions.items()):
+                quantity = getattr(pos, 'quantity', 0)
+                if quantity > 0 and stock_id not in target_stocks:
+                    SRLogger.info(f"[{stock_id}] 不在本期目标列表，全部卖出 {quantity} 股")
+                    order_shares(context.account, stock_id, -quantity)
+
+        # 2）对目标股票按等权重调整仓位
+        for stock_id in target_stocks:
+            bar = bar_dict.get(stock_id)
+            if bar is None:
                 continue
 
-            # ========== 更新价格历史 ==========
-            current_bar = {
-                'date': current_date,
-                'high': current_high,
-                'low': current_low,
-                'close': current_close,
-                'volume': current_volume
-            }
-            state.price_history.append(current_bar)
+            price = float(bar.close)
+            if price <= 0:
+                continue
 
-            # 保持历史数据长度在100个bar以内
-            if len(state.price_history) > 100:
-                state.price_history.pop(0)
+            # 目标股数（向下取整到100股的整数倍）
+            target_shares = int(per_stock_value / price / 100) * 100
+            if target_shares <= 0:
+                continue
 
-            # ========== 计算技术指标 ==========
-            state.current_sar = calculate_sar(state)
+            current_shares = get_current_position_size(context, stock_id)
+            delta = target_shares - current_shares
 
-            if state.current_sar is not None:
-                update_sar_position(state, current_close)
+            if abs(delta) >= 100:
+                action = "买入" if delta > 0 else "卖出"
+                SRLogger.info(
+                    f"[{stock_id}] {action} 调整至等权仓位: 现有 {current_shares} 股, 目标 {target_shares} 股, 调整 {delta} 股")
+                order_shares(context.account, stock_id, delta)
 
-            state.current_support, state.current_resistance = identify_support_resistance(context, state)
-
-            update_breakthrough_window(context, state)
-            update_surge_window(context, state)
-
-            # ========== 交易逻辑 ==========
-            actual_position = get_current_position_size(context, stock_id)
-
-            # 如果没有持仓，寻找买入机会
-            if not state.position_held or actual_position == 0:
-                # 第一阶段：检查基础突破条件
-                if not state.in_sar_window and not state.in_surge_window:
-                    if check_basic_breakthrough(context, state, current_close, current_volume):
-                        add_breakthrough_candidate(context, state, current_close, current_volume, current_date)
-
-                # 第二阶段：检查SAR转向信号
-                elif state.in_sar_window and is_sar_turn_signal(context, state):
-                    start_surge_window(context, state, current_close, current_date)
-
-                # 第三阶段：检查涨幅是否达标
-                elif state.in_surge_window and check_price_surge(context, state, current_close):
-                    execute_buy(context, state, current_close)
-
-            # 如果有持仓，检查卖出条件
-            else:
-                if state.entry_price is None:
-                    continue
-
-                # 更新最高价
-                if state.max_profit_price is None:
-                    state.max_profit_price = current_close
-                else:
-                    state.max_profit_price = max(state.max_profit_price, current_close)
-
-                return_ratio = (current_close - state.entry_price) / state.entry_price * 100
-
-                sell_reason = None
-
-                # 卖出条件1：跌破基准价
-                if state.buy_trigger_price and current_close < state.buy_trigger_price:
-                    sell_reason = f"跌破基准价 (当前价={current_close:.2f}, 基准价={state.buy_trigger_price:.2f})"
-
-                # 卖出条件2：止盈
-                elif return_ratio >= context.take_profit_percent:
-                    sell_reason = f"止盈 (收益率={return_ratio:.2f}%)"
-
-                # 卖出条件3：盈利后回撤10%
-                elif return_ratio > 0 and state.max_profit_price:
-                    drawdown_from_peak = (state.max_profit_price - current_close) / state.max_profit_price * 100
-                    if drawdown_from_peak >= context.max_drawdown_percent:
-                        sell_reason = f"盈利回撤 (回撤={drawdown_from_peak:.2f}%)"
-
-                if sell_reason:
-                    execute_sell(context, state, current_close, sell_reason)
-
-        except Exception as e:
-            SRLogger.error(f"处理股票 {stock_id} 时发生错误: {str(e)}")
-            continue
+    except Exception as e:
+        SRLogger.error(f"等权调仓执行失败: {str(e)}")
 
 
 def before_trading(context):
     """盘前处理"""
-    try:
-        account = context.stock_account_dict[context.account]
-        positions_count = get_current_positions_count(context)
+    context.previous_date = str(DateUtil.get_pre_date(context.now))
+    account = context.stock_account_dict[context.account]
+    positions_count = get_current_positions_count(context)
+    SRLogger.info(f"[{context.now}] 开盘前 - 账户总资产：{account.total_value:.2f}, "
+                  f"可用资金：{account.cash:.2f}, 持仓股票数：{positions_count}/{context.max_positions}")
 
-        # 统计窗口期股票数量
-        stage1_count = sum(1 for s in context.stock_states.values() if s.in_sar_window)
-        stage2_count = sum(1 for s in context.stock_states.values() if s.in_surge_window)
 
-        SRLogger.info(f"[{context.now}] 开盘前 - 账户总资产：{account.total_value:.2f}, "
-                      f"可用资金：{account.cash:.2f}, 持仓股票数：{positions_count}/{context.max_positions}")
+    # 判断今天是否应该执行策略（每周第一个交易日）
+    if not should_execute_strategy_today(context, context.now):
+        SRLogger.info(f"[{context.now}] 非每周第一个交易日，跳过调仓")
+        return
 
-        check_out_list = get_stock_list(context)
+    check_out_list = get_stock_list(context)
 
-    except Exception as e:
-        SRLogger.error(f"盘前处理失败: {str(e)}")
+    tradable_symbols = panda_data.get_non_limit_stocks(
+        date=context.now,
+        limit_rate=0.095,
+        symbols=check_out_list
+    )
+    context.tradable_symbols = tradable_symbols
 
 
 def filter_kcb_stock(stock_list):
+    return [stock for stock in stock_list if not stock.startswith('688') and not stock.endswith('BJ')]
 
-    return [stock for stock in stock_list if not str.startswith('688')]
 
-def cal_roec(context):
-
+def cal_roec(context, symbols, yesterday):
     financial_formulas = [
-        "4 * QROE - REF(QROE, 1) - REF(QROE, 2) - REF(QROE, 3) - REF(QROE, 4)",
+        "4 * q_roe - REF(q_roe, 1) - REF(q_roe, 2) - REF(q_roe, 3) - REF(q_roe, 4)",
         "total_liab / total_assets",
     ]
+
+    start_date = (pd.to_datetime(yesterday) - pd.Timedelta(days=500)).strftime('%Y%m%d')
 
     df = context.macro_factor.create_factor_from_formula_pro(
         factor_logger=logger,
         formulas=financial_formulas,
-        symbols=['600519.SH'],
-        start_date="20240101",
-        end_date="20251111"
+        symbols=symbols,
+        start_date=start_date,
+        end_date=yesterday
     )
     df.columns = ['roec', 'ratio']
+    df = df.sort_index(level="date").groupby("symbol").tail(1)
+
     df = df.sort_values(by='ratio')
     df = df[df['ratio'] < df['ratio'].quantile(0.75)]
-    return df.symbol.tolist()
+    df.reset_index(drop=False,inplace=True)
+    return df, df.symbol.tolist()
 
 
-def calculate_bad_assets_ratio(low_liability_list,date):
+def calculate_bad_assets_ratio(low_liability_list, date):
     """
     计算坏资产比率
 
@@ -470,12 +432,11 @@ def calculate_bad_assets_ratio(low_liability_list,date):
         'cip'  # 在建工程
     ]
 
-    df = panda_data.get_financial_data(
+    df = panda_data.get_latest_financial_data(
         symbols=low_liability_list,
         fields=balance_fields,
-        end_date = date,
+        as_of_date=date,
         data_type='balance',
-        date_type='end_date'
     )
 
     if df is None or df.empty:
@@ -488,16 +449,7 @@ def calculate_bad_assets_ratio(low_liability_list,date):
     df = df.fillna(0)
 
     # 计算坏资产 = 应收票据 + 应收账款 + 其他应收款 + 商誉 + 无形资产 + 存货 + 在建工程
-    bad_asset_columns = [
-        'notes_receiv',
-        'accounts_receiv',
-        'oth_receiv',
-        'good_will',
-        'intangible_assets',
-        'inventories',
-        'constru_in_process'
-    ]
-
+    bad_asset_columns = balance_fields[1:]
     # 确保这些列存在，如果不存在则添加为0
     for col in bad_asset_columns:
         if col not in df.columns:
@@ -525,57 +477,43 @@ def calculate_bad_assets_ratio(low_liability_list,date):
 
 
 def get_stock_list(context):
-
     yesterday = str(context.previous_date)
     # 获取上市天数 >= 250 天的股票
     qualified = panda_data.get_stocks_by_listing_days(yesterday, min_trading_days=250)
     qualified = filter_kcb_stock(qualified)
     st_stocks = set(panda_data.get_st_stocks_by_date(yesterday))
     qualified = [x for x in qualified if x not in st_stocks]
-
-
-    q = query(balance.code, balance.total_liability, balance.total_assets).filter(valuation.code.in_(initial_list))
-    df = get_fundamentals(q)
-    df = df.dropna()
-    df['ratio'] = df['total_liability'] / df['total_assets']
-    df = df.sort_values(by='ratio')
-    df = df[df['ratio'] < df['ratio'].quantile(0.75)]
-    low_liability_list = list(df.code)
-
-    q = query(balance.code,
-              balance.total_assets,  # 总资产
-              balance.bill_receivable,  # 应收票据
-              balance.account_receivable,  # 应收账款
-              balance.other_receivable,  # 其他应收款
-              balance.good_will,  # 商誉
-              balance.intangible_assets,  # 无形资产
-              balance.inventories,  # 存货
-              balance.constru_in_process,  # 在建工程
-              ).filter(balance.code.in_(low_liability_list))
-    df = get_fundamentals(q)
-    df = df.fillna(0)
-    df['bad_assets'] = df.sum(1) - df['total_assets']
-    df['ratio'] = df['bad_assets'] / df['total_assets']
-    df = df.sort_values(by='ratio')
-    proper_receivable_list = list(df.code)[int(0.2 * len(list(df.code))):int(0.8 * len(list(df.code)))]
-
-    df = get_history_fundamentals(proper_receivable_list, fields=[indicator.code, indicator.roe], watch_date=yesterday,
-                                  count=5, interval='1q')
-    df = df.groupby('code').apply(lambda x: x.reset_index()).roe.unstack()
-    df['past_average'] = 0.1 * df.iloc[:, 0] + 0.2 * df.iloc[:, 1] + 0.3 * df.iloc[:, 2] + 0.4 * df.iloc[:, 3]
-    df['now_average'] = 0.1 * df.iloc[:, 1] + 0.2 * df.iloc[:, 2] + 0.3 * df.iloc[:, 3] + 0.4 * df.iloc[:, 4]
-    df['delta_average'] = df['now_average'] - df['past_average']
+    df, qualified = cal_roec(context, qualified, yesterday)
+    qualified = calculate_bad_assets_ratio(qualified, yesterday)
+    df = df.query("symbol in @qualified")
     df.dropna(inplace=True)
-    df.sort_values(by='delta_average', ascending=False, inplace=True)
-    roe_list = list(df.index)[:int(0.1 * len(list(df.index)))]
+    df.sort_values(by='roec', ascending=False, inplace=True)
+    df.reset_index(drop=False, inplace=True)
+    roe_list = list(df.symbol)[:int(0.1 * len(list(df.symbol)))]
 
-    q = query(valuation.code, valuation.pb_ratio).filter(balance.code.in_(roe_list)).order_by(valuation.pb_ratio.asc())
-    df = get_fundamentals(q)
-    df = df[df['pb_ratio'] > 0]
-    pb_list = list(df.code)
+    df = panda_data.get_factor(
+        factors=['pb', 'circ_mv'],
+        start_date=yesterday,
+        end_date=yesterday,
+        symbols=roe_list,
+    )
+    try:
+        df = df[df['pb'] > 0]
+        df = df.sort_values(by='circ_mv')
+    except:
+        breakpoint()
+    # 按流通市值从小到大排序，选择前10只股票
 
-    final_list = pb_list
-    return final_list
+    df = df.head(10)
+
+    stock_list = df.symbol.tolist()
+    SRLogger.info(f"根据 circ_mv 选出 {len(stock_list)} 只股票: {stock_list}")
+
+    # 记录本次选股结果，便于调试和复用
+    context.target_stock_list = stock_list
+
+    return stock_list
+
 
 def after_trading(context):
     """盘后处理"""
