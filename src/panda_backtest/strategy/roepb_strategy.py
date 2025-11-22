@@ -2,8 +2,6 @@
 # -*- coding: utf-8; py-indent-offset:4 -*-
 from panda_backtest.api.api import *
 import pandas as pd
-import numpy as np
-import talib
 import datetime
 import panda_data
 from panda_factor.generate.macro_factor import MacroFactor
