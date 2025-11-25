@@ -94,7 +94,7 @@ const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
     >
       <div style={{ display: 'flex', alignItems: 'center' }}>
         <h2 style={{ margin: 0, marginRight: 24 }}>
-          🐼 PandaAI QuantFlow
+          天蝎座 回测平台
         </h2>
         
         <Space size="middle">

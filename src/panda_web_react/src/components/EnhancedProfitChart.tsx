@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, DatePicker, Space, Checkbox, Row, Col, Empty, Spin, message } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import type { ProfitData } from '@/types';
@@ -40,15 +40,17 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
           config.start_date,
           config.end_date
         );
-        
+
         if (data && data.length > 0) {
           setIndexData(data);
         } else {
           console.warn('未获取到指数数据，将使用模拟数据');
+          setIndexData([]);
         }
       } catch (error) {
         console.error('获取指数数据失败:', error);
         message.warning('获取基准指数数据失败，将使用模拟数据');
+        setIndexData([]);
       } finally {
         setLoadingIndex(false);
       }
@@ -57,15 +59,134 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
     fetchIndexData();
   }, [config.start_date, config.end_date, config.standard_symbol]);
 
+  const normalizeDateKey = (rawDate: any): string | null => {
+    if (!rawDate) {
+      return null;
+    }
+
+    const str = String(rawDate).trim();
+
+    if (/^\d{8}$/.test(str)) {
+      return str;
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+      return str.replace(/-/g, '').substring(0, 8);
+    }
+
+    if (/^\d{13}$/.test(str)) {
+      return dayjs(Number(str)).format('YYYYMMDD');
+    }
+
+    const parsed = dayjs(str);
+    if (parsed.isValid()) {
+      return parsed.format('YYYYMMDD');
+    }
+
+    return null;
+  };
+
+  const getProfitDateKey = (item: ProfitData): string | null => {
+    const rawDate =
+      (item as any).date ??
+      (item as any).trade_date ??
+      (item as any).gmt_create_time ??
+      (item as any).gmt_create ??
+      (item as any).gmt_date ??
+      (item as any).day;
+
+    return normalizeDateKey(rawDate);
+  };
+
+  const { benchmarkNetValueMap, hasRealBenchmarkData } = useMemo(() => {
+    if (!indexData || indexData.length === 0) {
+      return {
+        benchmarkNetValueMap: new Map<string, number>(),
+        hasRealBenchmarkData: false,
+      };
+    }
+
+    const entries = indexData
+      .map((item: any) => {
+        const rawDate =
+          item.date ??
+          item.trade_date ??
+          item.tradeTime ??
+          item.time ??
+          item.trading_day ??
+          item.tradingDate ??
+          item.gmt_create_time;
+
+        const dateKey = normalizeDateKey(rawDate);
+        const closeValue = Number(
+          item.close ??
+            item.Close ??
+            item.price ??
+            item.last ??
+            item.endPrice ??
+            item.end_price ??
+            item.latest
+        );
+
+        if (!dateKey || !isFinite(closeValue) || closeValue <= 0) {
+          return null;
+        }
+
+        return { dateKey, close: closeValue };
+      })
+      .filter(Boolean) as { dateKey: string; close: number }[];
+
+    if (entries.length === 0) {
+      return {
+        benchmarkNetValueMap: new Map<string, number>(),
+        hasRealBenchmarkData: false,
+      };
+    }
+
+    entries.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+
+    const baseEntry = entries.find((entry) => entry.close > 0);
+    if (!baseEntry) {
+      return {
+        benchmarkNetValueMap: new Map<string, number>(),
+        hasRealBenchmarkData: false,
+      };
+    }
+
+    const baseClose = baseEntry.close;
+    const netValueMap = new Map<string, number>();
+
+    entries.forEach(({ dateKey, close }) => {
+      if (close > 0 && isFinite(close)) {
+        netValueMap.set(dateKey, close / baseClose);
+      }
+    });
+
+    return {
+      benchmarkNetValueMap: netValueMap,
+      hasRealBenchmarkData: netValueMap.size > 0,
+    };
+  }, [indexData]);
+
   // 过滤数据根据日期范围
   const getFilteredData = () => {
-    if (!dateRange) return profitData;
-    
+    const validProfitData = profitData.filter((item) => Boolean(getProfitDateKey(item)));
+
+    if (!dateRange) {
+      return validProfitData;
+    }
+
     const [start, end] = dateRange;
-    return profitData.filter(item => {
-      const dateStr = String(item.date || item.gmt_create_time || item.gmt_create || '').substring(0, 8);
-      const itemDate = dayjs(dateStr, 'YYYYMMDD');
-      return itemDate.isAfter(start.subtract(1, 'day')) && itemDate.isBefore(end.add(1, 'day'));
+    const startDay = start.startOf('day');
+    const endDay = end.endOf('day');
+
+    return validProfitData.filter((item) => {
+      const dateKey = getProfitDateKey(item);
+      if (!dateKey) {
+        return false;
+      }
+      const itemDate = dayjs(dateKey, 'YYYYMMDD');
+      return !itemDate.isBefore(startDay) && !itemDate.isAfter(endDay);
     });
   };
 
@@ -95,8 +216,8 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
     
     // 日期序列
     const dates = filteredData.map(item => {
-      const dateStr = String(item.date || item.gmt_create_time || item.gmt_create || '').substring(0, 8);
-      return dateStr.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+      const dateKey = getProfitDateKey(item);
+      return dateKey ? dayjs(dateKey, 'YYYYMMDD').format('YYYY-MM-DD') : '';
     });
 
     // 策略净值曲线（净值 = 当前资产 / 初始资金）
@@ -118,34 +239,26 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
     });
 
     // 基准净值曲线（从真实指数数据计算，或使用模拟数据）
+    let lastBenchmarkNetValue: number | null = hasRealBenchmarkData ? 1 : null;
     const benchmarkEquity = filteredData.map((item, index) => {
-      if (indexData && indexData.length > 0) {
-        // 使用真实指数数据
-        const dateStr = String(item.date || item.gmt_create_time || item.gmt_create || '').substring(0, 8);
-        
-        // 在指数数据中查找对应日期的数据
-        const indexItem = indexData.find(idx => {
-          const idxDate = String(idx.date || idx.trade_date || '').substring(0, 8);
-          return idxDate === dateStr;
-        });
-        
-        if (indexItem && indexData.length > 0 && indexData[0]) {
-          // 计算相对于起始点的净值
-          // 支持多种可能的字段名: close, Close, price, last
-          const currentClose = Number(indexItem.close || indexItem.Close || indexItem.price || indexItem.last || 0);
-          const startClose = Number(indexData[0].close || indexData[0].Close || indexData[0].price || indexData[0].last || 1);
-          
-          if (startClose > 0 && currentClose > 0 && isFinite(startClose) && isFinite(currentClose)) {
-            const netValue = currentClose / startClose;
-            return formatNumber(netValue, 4);
-          }
+      if (hasRealBenchmarkData) {
+        const dateKey = getProfitDateKey(item);
+        const netValueForDate = dateKey ? benchmarkNetValueMap.get(dateKey) : undefined;
+
+        if (typeof netValueForDate === 'number' && isFinite(netValueForDate) && netValueForDate > 0) {
+          lastBenchmarkNetValue = netValueForDate;
+          return formatNumber(netValueForDate, 4);
+        }
+
+        if (lastBenchmarkNetValue !== null) {
+          return formatNumber(lastBenchmarkNetValue, 4);
         }
       }
-      
+
       // 如果没有真实数据，使用模拟数据（假设年化8%的线性增长）
       const days = index;
       const dailyReturn = 0.08 / 252;
-      const netValue = 1 + (dailyReturn * days);
+      const netValue = 1 + dailyReturn * days;
       return formatNumber(netValue, 4);
     });
 
@@ -215,7 +328,7 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
       : '0.00';
 
     // 判断是否使用了真实指数数据
-    const usingRealIndexData = indexData && indexData.length > 0;
+    const usingRealIndexData = hasRealBenchmarkData;
     const benchmarkName = config.standard_symbol || '000001.SH';
     
     // 计算净值Y轴范围

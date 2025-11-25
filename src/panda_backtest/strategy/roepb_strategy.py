@@ -161,101 +161,6 @@ def calculate_position_size(context, stock_id, price):
         return 0
 
 
-def execute_buy(context, state, price):
-    """执行买入操作"""
-    try:
-        # 检查持仓数量限制
-        current_positions = get_current_positions_count(context)
-        if current_positions >= context.max_positions:
-            SRLogger.info(f'[{state.stock_id}] 已达到最大持仓数量 {context.max_positions}，不再买入')
-            return
-
-        # 计算买入股数
-        shares = calculate_position_size(context, state.stock_id, price)
-        if shares <= 0:
-            SRLogger.warning(f'[{state.stock_id}] 计算仓位为0，取消买入')
-            return
-
-        # 下单
-        order_shares(context.account, state.stock_id, shares)
-
-        state.entry_price = price
-        state.position_held = True
-
-        # 关闭所有窗口期
-        state.in_sar_window = False
-        state.window_start_date = None
-        state.window_days_count = 0
-        state.breakthrough_candidates.clear()
-
-        state.in_surge_window = False
-        state.surge_window_start_date = None
-        state.surge_window_days_count = 0
-
-        surge_from_sar = 0
-        if state.sar_trigger_price:
-            surge_from_sar = (price - state.sar_trigger_price) / state.sar_trigger_price * 100
-
-        state.buy_trigger_price = state.sar_trigger_price if state.sar_trigger_price else price
-        state.max_profit_price = price
-
-        # 记录交易
-        trade_record = {
-            'date': context.now,
-            'stock_id': state.stock_id,
-            'type': '买入',
-            'price': price,
-            'size': shares,
-            'support': state.current_support,
-            'resistance': state.current_resistance,
-            'sar': state.current_sar,
-            'sar_trigger_price': state.sar_trigger_price,
-            'surge_from_sar': surge_from_sar
-        }
-        context.trade_records.append(trade_record)
-
-        SRLogger.info(f'📈 [{state.stock_id}] 三阶段买入完成: 价格={price:.2f}, 数量={shares}, '
-                      f'仓位比例={context.position_ratio * 100}%, 相对SAR基准涨幅: {surge_from_sar:.2f}%')
-
-        state.sar_trigger_price = None
-    except Exception as e:
-        SRLogger.error(f"[{state.stock_id}] 买入执行失败: {str(e)}")
-
-
-def execute_sell(context, state, price, reason):
-    """执行卖出操作"""
-    try:
-        current_position = get_current_position_size(context, state.stock_id)
-        if current_position > 0:
-            order_shares(context.account, state.stock_id, -current_position)
-
-        profit_ratio = 0
-        if state.entry_price:
-            profit_ratio = (price - state.entry_price) / state.entry_price * 100
-
-        state.entry_price = None
-        state.position_held = False
-        state.buy_trigger_price = None
-        state.max_profit_price = None
-
-        # 记录交易
-        trade_record = {
-            'date': context.now,
-            'stock_id': state.stock_id,
-            'type': '卖出',
-            'price': price,
-            'size': current_position,
-            'reason': reason,
-            'profit_ratio': profit_ratio,
-            'sar': state.current_sar
-        }
-        context.trade_records.append(trade_record)
-
-        SRLogger.info(
-            f'📉 [{state.stock_id}] 卖出执行: {reason}, 价格={price:.2f}, 数量={current_position}, 收益率={profit_ratio:.2f}%')
-    except Exception as e:
-        SRLogger.error(f"[{state.stock_id}] 卖出执行失败: {str(e)}")
-
 
 def should_execute_strategy_today(context, current_date):
     """判断今天是否应该执行策略（每周第一个交易日）"""
@@ -302,8 +207,7 @@ def handle_data(context, bar_dict):
         # target_stocks = get_stock_list(context)
         # 仅保留当前有行情数据的标的
         target_stocks = [s for s in context.tradable_symbols if s in bar_dict]
-        '600519.SH' in bar_dict
-        '000001.SH' in bar_dict
+
         if not target_stocks:
             SRLogger.warning("本期没有可调仓的目标股票")
             return
@@ -410,12 +314,6 @@ def calculate_bad_assets_ratio(low_liability_list, date):
 
     根据资产负债表数据，计算坏资产占总资产的比率，
     并返回比率在20%-80%之间的股票列表。
-
-    参数:
-        low_liability_list: 低负债股票代码列表
-
-    返回:
-        proper_receivable_list: 坏资产比率在20%-80%之间的股票列表
     """
 
     # 查询资产负债表数据
@@ -442,13 +340,10 @@ def calculate_bad_assets_ratio(low_liability_list, date):
         return []
 
     logger.info(f"获取到 {len(df)} 条资产负债表数据")
-
-    # 填充缺失值为0
     df = df.fillna(0)
 
     # 计算坏资产 = 应收票据 + 应收账款 + 其他应收款 + 商誉 + 无形资产 + 存货 + 在建工程
     bad_asset_columns = balance_fields[1:]
-    # 确保这些列存在，如果不存在则添加为0
     for col in bad_asset_columns:
         if col not in df.columns:
             df[col] = 0
@@ -500,14 +395,14 @@ def get_stock_list(context):
         df = df.sort_values(by='circ_mv')
     except:
         breakpoint()
-    # 按流通市值从小到大排序，选择前10只股票
 
+    # 按流通市值从小到大排序，选择前10只股票
     df = df.head(10)
 
     stock_list = df.symbol.tolist()
     SRLogger.info(f"根据 circ_mv 选出 {len(stock_list)} 只股票: {stock_list}")
 
-    # 记录本次选股结果，便于调试和复用
+    # 记录本次选股结果
     context.target_stock_list = stock_list
 
     return stock_list
@@ -548,7 +443,7 @@ def on_stock_trade_rtn(context, order, bar_dict):
     try:
         side_text = '买入' if order.side == 1 else '卖出'
         SRLogger.info(
-            f"✅ 交易回报 - {order.order_book_id}: {side_text} {order.filled_quantity}股 @ {order.avg_price:.2f}元")
+            f"交易回报 - {order.order_book_id}: {side_text} {order.filled_quantity}股 @ {order.avg_price:.2f}元")
     except Exception as e:
         SRLogger.error(f"交易回报处理失败: {str(e)}")
 

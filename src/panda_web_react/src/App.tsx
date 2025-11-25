@@ -104,8 +104,8 @@ const App: React.FC = () => {
   const [backtestDataCache, setBacktestDataCache] = useState<Record<string, any>>({});
 
   // 定时器引用
-  const progressTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
-  const dataRefreshTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const progressTimersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+  const dataRefreshTimersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
   // ==================== 初始化 ====================
   
@@ -480,12 +480,14 @@ const App: React.FC = () => {
   const loadBacktestResults = async (backtestId: string) => {
     try {
       // 并行获取监控数据和回测详细信息
-      const [monitorData, backtestDetail] = await Promise.all([
+      const [monitorData, backtestDetail, tradeResponse, positionResponse] = await Promise.all([
         backtestApi.getMonitorData(backtestId),
         backtestApi.getBacktestDetail(backtestId).catch(err => {
           console.warn('获取回测详细信息失败:', err);
           return null;
-        })
+        }),
+        backtestApi.getTradeData(backtestId, 1, 1000).catch(() => ({ items: [], total: 0 })),
+        backtestApi.getPositionData(backtestId, 1, 1000).catch(() => ({ items: [], total: 0 })),
       ]);
 
       if (monitorData.success) {

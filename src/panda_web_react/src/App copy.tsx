@@ -493,7 +493,7 @@ const App: React.FC = () => {
       <Header style={{ background: '#fff', padding: '0 20px', borderBottom: '1px solid #e4e7ed' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space>
-            <h2 style={{ margin: 0 }}>策略回测平台 - PandaAI QuantFlow</h2>
+            <h2 style={{ margin: 0 }}>策略回测平台</h2>
           </Space>
           <Space>
             <Button icon={<SaveOutlined />} onClick={handleSaveStrategy} loading={saving}>

@@ -35,12 +35,6 @@ async def query_live_data(
 ) -> QueryLiveDataResponse:
     """
     查询实时行情数据（本地MongoDB）
-    
-    替代外部API: http://api.pandaai.online/instrument/queryLiveData
-    
-    示例:
-    - /instrument/queryLiveData?quotation=000009.SZ&quotationType=stock&period=1m
-    - /instrument/queryLiveData?quotation=600000.SH&quotationType=stock&period=1d&startDate=20251020&endDate=20251027
     """
     try:
         logger.info(
@@ -120,7 +114,8 @@ async def debug_test_query():
         
         db_handler = DatabaseHandler(config=config)
         db_name = config["MONGO_DB"]
-        
+
+
         # 直接查询
         result = db_handler.mongo_find(
             db_name=db_name,

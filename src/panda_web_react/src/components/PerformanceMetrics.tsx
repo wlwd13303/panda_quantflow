@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, Row, Col, Typography, Progress, Space, Tag, Alert } from 'antd';
 import {
   RiseOutlined,
@@ -9,6 +9,7 @@ import {
   LineChartOutlined,
 } from '@ant-design/icons';
 import type { ProfitData } from '@/types';
+import { quotationApi } from '@/services/api';
 
 const { Title, Text } = Typography;
 
@@ -18,6 +19,7 @@ interface PerformanceMetricsProps {
     start_capital: number;
     start_date: string;
     end_date: string;
+    standard_symbol?: string;
   };
 }
 
@@ -47,6 +49,31 @@ interface Metrics {
 }
 
 const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, config }) => {
+  const [indexData, setIndexData] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchIndexData = async () => {
+      const standardSymbol = config.standard_symbol || '000001.SH';
+      if (!config.start_date || !config.end_date) {
+        return;
+      }
+
+      const data = await quotationApi.getIndexData(
+        standardSymbol,
+        config.start_date,
+        config.end_date,
+      );
+
+      if (Array.isArray(data) && data.length > 0) {
+        setIndexData(data);
+      } else {
+        setIndexData([]);
+      }
+    };
+
+    fetchIndexData();
+  }, [config.start_date, config.end_date, config.standard_symbol]);
+
   // 计算各项指标
   const calculateMetrics = (): Metrics => {
     if (!profitData || profitData.length === 0) {
@@ -116,15 +143,65 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
       }
     }
     
-    // 计算每日收益率
+    // 计算每日收益率，并与基准日收益对齐
     const dailyReturns: number[] = [];
+    const benchmarkReturns: number[] = [];
+
+    const indexPriceByDate: Record<string, number> = {};
+    if (Array.isArray(indexData) && indexData.length > 0) {
+      for (const idx of indexData) {
+        const d = String(idx.date || idx.trade_date || '').substring(0, 8);
+        const close = Number(idx.close || idx.Close || idx.price || idx.last || 0);
+        if (d && close > 0 && isFinite(close)) {
+          indexPriceByDate[d] = close;
+        }
+      }
+    }
+
     for (let i = 1; i < equityCurve.length; i++) {
       const prevValue = equityCurve[i - 1];
       const currValue = equityCurve[i];
       if (prevValue > 0 && isFinite(prevValue) && isFinite(currValue)) {
         const returnRate = (currValue - prevValue) / prevValue;
         if (isFinite(returnRate)) {
-          dailyReturns.push(returnRate);
+          let benchmarkReturn: number | null = null;
+
+          const currDateStr = String(
+            profitData[i]?.date ||
+            profitData[i]?.gmt_create_time ||
+            profitData[i]?.gmt_create ||
+            '',
+          ).substring(0, 8);
+          const prevDateStr = String(
+            profitData[i - 1]?.date ||
+            profitData[i - 1]?.gmt_create_time ||
+            profitData[i - 1]?.gmt_create ||
+            '',
+          ).substring(0, 8);
+
+          const currClose = indexPriceByDate[currDateStr];
+          const prevClose = indexPriceByDate[prevDateStr];
+
+          if (
+            currClose &&
+            prevClose &&
+            currClose > 0 &&
+            prevClose > 0 &&
+            isFinite(currClose) &&
+            isFinite(prevClose)
+          ) {
+            const r = (currClose - prevClose) / prevClose;
+            if (isFinite(r)) {
+              benchmarkReturn = r;
+            }
+          }
+
+          if (benchmarkReturn !== null) {
+            dailyReturns.push(returnRate);
+            benchmarkReturns.push(benchmarkReturn);
+          } else {
+            dailyReturns.push(returnRate);
+          }
         }
       }
     }
@@ -203,24 +280,70 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
       }
     }
     
-    // Alpha 和 Beta（简化计算，实际需要对比基准收益）
+    // Alpha 和 Beta（使用真实基准指数数据）
     let alpha = 0;
-    if (isFinite(annualizedReturn)) {
-      alpha = annualizedReturn * 100 - 8; // 假设市场收益率8%
-      if (!isFinite(alpha)) alpha = 0;
+    let beta = 1.0;
+
+    let benchmarkAnnualRateForExcess = 0.08;
+
+    if (benchmarkReturns.length > 1) {
+      const n = benchmarkReturns.length;
+      const avgStrategy = dailyReturns.slice(-n).reduce((a, b) => a + b, 0) / n;
+      const avgBenchmark = benchmarkReturns.reduce((a, b) => a + b, 0) / n;
+
+      let cov = 0;
+      let varBenchmark = 0;
+      for (let i = 0; i < n; i++) {
+        const xs = dailyReturns[dailyReturns.length - n + i] - avgStrategy;
+        const xb = benchmarkReturns[i] - avgBenchmark;
+        cov += xs * xb;
+        varBenchmark += xb * xb;
+      }
+
+      if (varBenchmark > 0 && isFinite(cov) && isFinite(varBenchmark)) {
+        beta = cov / varBenchmark;
+        if (!isFinite(beta)) {
+          beta = 1.0;
+        }
+      }
+
+      if (isFinite(annualizedReturn)) {
+        const riskFreeRate = 0.03;
+        const benchmarkAnnualRate = Math.pow(1 + avgBenchmark, 252) - 1;
+        benchmarkAnnualRateForExcess = isFinite(benchmarkAnnualRate)
+          ? benchmarkAnnualRate
+          : benchmarkAnnualRateForExcess;
+        if (
+          isFinite(benchmarkAnnualRate) &&
+          isFinite(beta) &&
+          isFinite(riskFreeRate)
+        ) {
+          const expectedReturn = riskFreeRate + beta * (benchmarkAnnualRate - riskFreeRate);
+          alpha = annualizedReturn - expectedReturn;
+          if (!isFinite(alpha)) {
+            alpha = 0;
+          }
+        }
+      }
+    } else {
+      const fallbackBenchmarkAnnualRate = 0.08;
+      benchmarkAnnualRateForExcess = fallbackBenchmarkAnnualRate;
+      if (isFinite(annualizedReturn)) {
+        alpha = annualizedReturn - fallbackBenchmarkAnnualRate;
+        if (!isFinite(alpha)) alpha = 0;
+      }
+      beta = 1.0;
     }
-    const beta = 1.0; // 简化为1，实际需要与基准对比计算
     
     // 超额收益（相对于基准）
     // 计算基准总收益（假设年化8%的收益率）
-    const benchmarkAnnualRate = 0.08; // 基准年化收益率8%
     let benchmarkTotalReturn = 0;
     let excessReturn = 0;
     let excessReturnRate = 0;
     
     if (years > 0 && initialCapital > 0 && isFinite(years) && isFinite(initialCapital)) {
       // 基准的总收益 = 初始资金 * (1 + 年化率)^年数 - 初始资金
-      const benchmarkFinalValue = initialCapital * Math.pow(1 + benchmarkAnnualRate, years);
+      const benchmarkFinalValue = initialCapital * Math.pow(1 + benchmarkAnnualRateForExcess, years);
       if (isFinite(benchmarkFinalValue)) {
         benchmarkTotalReturn = benchmarkFinalValue - initialCapital;
         if (isFinite(benchmarkTotalReturn)) {
@@ -482,7 +605,11 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
                 />
               </Col>
               <Col span={12}>
-                <MetricCard title="阿尔法 α" value={formatPercent(metrics.alpha)} color={metrics.alpha >= 0 ? '#52c41a' : '#ff4d4f'} />
+                <MetricCard
+                  title="Alpha α"
+                  value={metrics.alpha.toFixed(3)}
+                  color={metrics.alpha >= 0 ? '#52c41a' : '#ff4d4f'}
+                />
               </Col>
               <Col span={12}>
                 <MetricCard title="贝塔 β" value={metrics.beta.toFixed(3)} color="#722ed1" />
