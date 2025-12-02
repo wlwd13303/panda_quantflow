@@ -9,7 +9,6 @@ import {
   Form,
   Input,
   message,
-  Spin,
 } from 'antd';
 import {
   SaveOutlined,
@@ -17,10 +16,8 @@ import {
   LoadingOutlined,
 } from '@ant-design/icons';
 import StrategyEditor, { defaultCode } from './components/StrategyEditor';
-import BacktestResults from './components/BacktestResults';
 import EnhancedBacktestResults from './components/EnhancedBacktestResults';
 import BacktestManagement from './components/BacktestManagement';
-import BacktestMonitor from './components/BacktestMonitor';
 import { strategyApi, backtestApi } from './services/api';
 import type {
   Strategy,
@@ -75,8 +72,8 @@ const App: React.FC = () => {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(2000); // 2秒
 
-  const progressTimerRef = useRef<NodeJS.Timeout>();
-  const dataRefreshTimerRef = useRef<NodeJS.Timeout>();
+  const progressTimerRef = useRef<ReturnType<typeof setInterval>>();
+  const dataRefreshTimerRef = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
     loadStrategies();
@@ -326,7 +323,7 @@ const App: React.FC = () => {
 
         // 如果需要更多数据，可以异步加载详细 API（可选）
         try {
-          const [tradeResult, positionResult] = await Promise.all([
+          const [tradeResult] = await Promise.all([
             backtestApi.getTradeData(currentBacktestId, 1, 100),
             backtestApi.getPositionData(currentBacktestId, 1, 200),
           ]);
@@ -337,7 +334,7 @@ const App: React.FC = () => {
             const mappedTrades = trades.map((trade: any) => ({
               date: trade.trade_date || trade.gmt_create_time || trade.date,
               code: trade.contract_code || trade.code,
-              direction: trade.direction > 0 ? 'buy' : 'sell',
+              direction: (trade.direction > 0 ? 'buy' : 'sell') as 'buy' | 'sell',
               amount: Math.abs(trade.volume || trade.amount || 0),
               price:
                 trade.price !== null && trade.price !== undefined
@@ -347,7 +344,7 @@ const App: React.FC = () => {
                 trade.cost !== null && trade.cost !== undefined
                   ? Math.abs(Number(trade.cost)).toFixed(2)
                   : '0.00',
-            }));
+            })) as TradeData[];
             setTradeData(mappedTrades);
           }
 
@@ -399,7 +396,7 @@ const App: React.FC = () => {
       const mappedTrades = trades.map((trade: any) => ({
         date: trade.trade_date || trade.gmt_create_time || trade.date,
         code: trade.contract_code || trade.code,
-        direction: trade.direction > 0 ? 'buy' : 'sell',
+        direction: (trade.direction > 0 ? 'buy' : 'sell') as 'buy' | 'sell',
         amount: Math.abs(trade.volume || trade.amount || 0),
         price:
           trade.price !== null && trade.price !== undefined
@@ -409,7 +406,7 @@ const App: React.FC = () => {
           trade.cost !== null && trade.cost !== undefined
             ? Math.abs(Number(trade.cost)).toFixed(2)
             : '0.00',
-      }));
+      })) as TradeData[];
       setTradeData(mappedTrades);
       setDataStats((prev) => ({ ...prev, tradeCount: mappedTrades.length }));
     } catch (error: any) {

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { Card, Tag } from 'antd';
 import Editor from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';

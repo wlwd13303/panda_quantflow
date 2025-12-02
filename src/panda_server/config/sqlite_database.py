@@ -148,6 +148,7 @@ class SQLiteDatabase:
                     back_id TEXT NOT NULL,
                     date TEXT,
                     symbol TEXT,
+                    contract_name TEXT,
                     volume REAL,
                     available REAL,
                     avg_price REAL,
@@ -202,6 +203,7 @@ class SQLiteDatabase:
                     date TEXT,
                     time TEXT,
                     symbol TEXT,
+                    contract_name TEXT,
                     direction TEXT,
                     offset TEXT,
                     price REAL,
@@ -247,6 +249,32 @@ class SQLiteDatabase:
             
             await conn.commit()
             logger.info("SQLite database schema initialization completed")
+    
+    @classmethod
+    async def migrate_database(cls):
+        """数据库迁移：为现有表添加新列"""
+        async with cls.get_connection() as conn:
+            # 检查 panda_backtest_position 表是否有 contract_name 列
+            cursor = await conn.execute("PRAGMA table_info(panda_backtest_position)")
+            columns = await cursor.fetchall()
+            column_names = [col[1] for col in columns]
+            
+            if 'contract_name' not in column_names:
+                logger.info("Migrating: Adding contract_name column to panda_backtest_position")
+                await conn.execute("ALTER TABLE panda_backtest_position ADD COLUMN contract_name TEXT")
+                await conn.commit()
+                logger.info("Migration completed: contract_name column added to panda_backtest_position")
+            
+            # 检查 panda_backtest_trade 表是否有 contract_name 列
+            cursor = await conn.execute("PRAGMA table_info(panda_backtest_trade)")
+            columns = await cursor.fetchall()
+            column_names = [col[1] for col in columns]
+            
+            if 'contract_name' not in column_names:
+                logger.info("Migrating: Adding contract_name column to panda_backtest_trade")
+                await conn.execute("ALTER TABLE panda_backtest_trade ADD COLUMN contract_name TEXT")
+                await conn.commit()
+                logger.info("Migration completed: contract_name column added to panda_backtest_trade")
     
     @classmethod
     async def close_db(cls):

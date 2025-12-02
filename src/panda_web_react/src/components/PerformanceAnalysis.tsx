@@ -49,7 +49,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({
       setLoading(true);
       try {
         // 获取所有日志数据
-        const logs = await backtestApi.getUserStrategyLogs(backtestId, undefined, 10000);
+        const logs = await backtestApi.getLogs(backtestId, undefined, 10000);
         
         if (!logs || !logs.items || logs.items.length === 0) {
           setPerformanceData([]);

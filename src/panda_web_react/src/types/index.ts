@@ -84,7 +84,9 @@ export interface ProfitData {
 export interface PositionData {
   symbol?: string;          // 监控 API 字段
   contract_code?: string;
+  contract_name?: string;   // 证券名称
   code?: string;
+  name?: string;
   position?: number;
   volume?: number;
   avg_price?: number;
@@ -103,6 +105,8 @@ export interface PositionData {
 export interface TradeData {
   date: string;
   code: string;
+  name?: string;
+  contract_name?: string;  // 证券名称
   direction: 'buy' | 'sell';
   amount: number;
   price: string;
@@ -110,6 +114,18 @@ export interface TradeData {
   trade_date?: string;
   contract_code?: string;
   volume?: number;
+  [key: string]: any;
+}
+
+// K线数据
+export interface KLineData {
+  date: string;
+  open: number;
+  close: number;
+  high: number;
+  low: number;
+  volume: number;
+  trade_date?: string;
   [key: string]: any;
 }
 
@@ -152,6 +168,8 @@ export interface MonitorTradeData {
   date?: string;
   time?: string;
   symbol?: string;
+  name?: string;
+  contract_name?: string;  // 证券名称
   side?: number;
   direction?: string;
   price?: number;
@@ -163,6 +181,8 @@ export interface MonitorTradeData {
 export interface MonitorPositionData {
   date?: string;
   symbol?: string;
+  name?: string;
+  contract_name?: string;  // 证券名称
   volume?: number;
   market_value?: number;
   profit?: number;
@@ -218,7 +238,7 @@ export interface WorkspaceTab {
   backtestData?: {
     backtestId: string;
     backtestName: string;
-    status: 'pending' | 'running' | 'completed' | 'failed';
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
     progress?: number;
     strategyId?: string;  // 关联的策略ID
     strategyName?: string;

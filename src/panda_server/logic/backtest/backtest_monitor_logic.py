@@ -91,6 +91,7 @@ async def get_monitor_data(back_id: str) -> Dict[str, Any]:
                     'date': trade.get('date'),
                     'time': trade.get('time'),
                     'symbol': trade.get('symbol'),
+                    'contract_name': trade.get('contract_name'),
                     'side': direction,
                     'direction': direction_text,
                     'price': trade.get('price'),
@@ -113,6 +114,7 @@ async def get_monitor_data(back_id: str) -> Dict[str, Any]:
                 latest_positions.append({
                     'date': pos.get('date'),
                     'symbol': pos.get('symbol'),
+                    'contract_name': pos.get('contract_name'),
                     'volume': pos.get('volume'),
                     'market_value': pos.get('market_value'),
                     'profit': pos.get('profit'),

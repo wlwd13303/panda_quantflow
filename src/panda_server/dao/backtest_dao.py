@@ -339,12 +339,12 @@ class BacktestPositionDAO:
                 cursor = await conn.execute(
                     """
                     INSERT INTO panda_backtest_position 
-                    (back_id, date, symbol, volume, available, avg_price, market_price, 
+                    (back_id, date, symbol, contract_name, volume, available, avg_price, market_price, 
                      market_value, profit, profit_rate)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        back_id, date, symbol,
+                        back_id, date, symbol, kwargs.get('contract_name'),
                         kwargs.get('volume'), kwargs.get('available'),
                         kwargs.get('avg_price'), kwargs.get('market_price'),
                         kwargs.get('market_value'), kwargs.get('profit'),
@@ -398,7 +398,7 @@ class BacktestPositionDAO:
                 
                 cursor = await conn.execute(
                     f"""
-                    SELECT id as _id, back_id, date, symbol, volume, available, avg_price, 
+                    SELECT id as _id, back_id, date, symbol, contract_name, volume, available, avg_price, 
                            market_price, market_value, profit, profit_rate, created_at
                     FROM panda_backtest_position
                     {where_clause}
@@ -517,16 +517,16 @@ class BacktestTradeDAO:
                 cursor = await conn.execute(
                     """
                     INSERT INTO panda_backtest_trade 
-                    (back_id, date, time, symbol, direction, offset, price, volume, amount, commission)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (back_id, date, time, symbol, contract_name, direction, offset, price, volume, amount, commission)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         back_id,
                         kwargs.get('date'), kwargs.get('time'),
-                        kwargs.get('symbol'), kwargs.get('direction'),
-                        kwargs.get('offset'), kwargs.get('price'),
-                        kwargs.get('volume'), kwargs.get('amount'),
-                        kwargs.get('commission')
+                        kwargs.get('symbol'), kwargs.get('contract_name'),
+                        kwargs.get('direction'), kwargs.get('offset'),
+                        kwargs.get('price'), kwargs.get('volume'),
+                        kwargs.get('amount'), kwargs.get('commission')
                     )
                 )
                 await conn.commit()
@@ -567,7 +567,7 @@ class BacktestTradeDAO:
                 offset = (page - 1) * page_size
                 cursor = await conn.execute(
                     """
-                    SELECT id as _id, back_id, date, time, symbol, direction, offset, 
+                    SELECT id as _id, back_id, date, time, symbol, contract_name, direction, offset, 
                            price, volume, amount, commission, created_at
                     FROM panda_backtest_trade
                     WHERE back_id = ?

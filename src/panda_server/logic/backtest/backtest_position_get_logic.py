@@ -35,7 +35,17 @@ async def backtest_position_get_logic(
     validated_items = []
     for data in data_list:
         try:
-            validated = BacktestPositionModel.model_validate(data)
+            # 字段映射：数据库字段 → 模型字段
+            mapped_data = {
+                **data,
+                'contract_code': data.get('symbol'),
+                'contract_name': data.get('contract_name'),
+                'position': int(data.get('volume') or 0),
+                'price': data.get('avg_price'),
+                'last_price': data.get('market_price'),
+                'gmt_create': data.get('created_at') or data.get('date'),
+            }
+            validated = BacktestPositionModel.model_validate(mapped_data)
             validated_items.append(validated)
         except Exception as e:
             logger.warning(f"Position data validation failed: {e}, raw: {data}")

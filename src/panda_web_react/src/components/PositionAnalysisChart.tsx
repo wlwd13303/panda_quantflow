@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, DatePicker, Space, Checkbox, Row, Col, Empty, Spin, message, Select } from 'antd';
+import { Card, DatePicker, Space, Empty, Spin, message, Select, Row, Col } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
 import { quotationApi, backtestApi } from '@/services/api';
@@ -44,11 +44,10 @@ const PositionAnalysisChart: React.FC<PositionAnalysisChartProps> = ({ backtestI
 
       try {
         setLoadingOverallPosition(true);
-        const data = await backtestApi.getOverallPositionData(
-          backtestId,
-          config.start_date,
-          config.end_date
+        const result = await backtestApi.getPositionData(
+          backtestId
         );
+        const data = result.items || [];
         if (data && data.length > 0) {
           setOverallPositionData(data);
         } else {
@@ -106,12 +105,10 @@ const PositionAnalysisChart: React.FC<PositionAnalysisChartProps> = ({ backtestI
 
       try {
         setLoadingStockPosition(true);
-        const data = await backtestApi.getStockPositionData(
-          backtestId,
-          selectedStock,
-          config.start_date,
-          config.end_date
+        const result = await backtestApi.getPositionData(
+          backtestId
         );
+        const data = result.items || [];
         if (data && data.length > 0) {
           setStockPositionData(data);
         } else {
@@ -136,7 +133,7 @@ const PositionAnalysisChart: React.FC<PositionAnalysisChartProps> = ({ backtestI
 
       try {
         setLoadingKLine(true);
-        const data = await quotationApi.getKLineData(
+        const data = await quotationApi.getStockKLineData(
           selectedStock,
           config.start_date,
           config.end_date
@@ -476,9 +473,10 @@ const PositionAnalysisChart: React.FC<PositionAnalysisChartProps> = ({ backtestI
                 size="small"
                 showSearch
                 optionFilterProp="children"
-                filterOption={(input, option) =>
-                  (option?.children as string)?.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                }
+                filterOption={(input, option) => {
+                  const children = String(option?.children || '');
+                  return children.toLowerCase().indexOf(input.toLowerCase()) >= 0;
+                }}
               >
                 {config.strategy_symbols.map(symbol => (
                   <Option key={symbol} value={symbol}>{symbol}</Option>

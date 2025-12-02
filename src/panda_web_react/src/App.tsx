@@ -307,7 +307,6 @@ const App: React.FC = () => {
   const startBacktest = async (
     config: BacktestConfig,
     backtestName: string,
-    saveAsDefault: boolean,
     code: string,
     strategyName: string,
     strategyId?: string
@@ -407,7 +406,7 @@ const App: React.FC = () => {
         return tab;
       }));
 
-      if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+      if (data.status === 'completed' || data.status === 'failed') {
         // 停止进度轮询
         if (progressTimersRef.current[backtestId]) {
           clearInterval(progressTimersRef.current[backtestId]);
@@ -420,10 +419,6 @@ const App: React.FC = () => {
         if (data.status === 'completed') {
           message.success('回测完成！');
           // 加载最终结果
-          await loadBacktestResults(backtestId);
-        } else if (data.status === 'cancelled') {
-          message.warning('回测已被终止');
-          // 加载当前结果
           await loadBacktestResults(backtestId);
         } else {
           message.error('回测失败: ' + (data.error || '未知错误'));
@@ -480,14 +475,12 @@ const App: React.FC = () => {
   const loadBacktestResults = async (backtestId: string) => {
     try {
       // 并行获取监控数据和回测详细信息
-      const [monitorData, backtestDetail, tradeResponse, positionResponse] = await Promise.all([
+      const [monitorData, backtestDetail] = await Promise.all([
         backtestApi.getMonitorData(backtestId),
         backtestApi.getBacktestDetail(backtestId).catch(err => {
           console.warn('获取回测详细信息失败:', err);
           return null;
         }),
-        backtestApi.getTradeData(backtestId, 1, 1000).catch(() => ({ items: [], total: 0 })),
-        backtestApi.getPositionData(backtestId, 1, 1000).catch(() => ({ items: [], total: 0 })),
       ]);
 
       if (monitorData.success) {
@@ -517,6 +510,7 @@ const App: React.FC = () => {
         const positionData: PositionData[] = (monitorData.latest_positions || []).map(pos => ({
           symbol: pos.symbol || '',
           contract_code: pos.symbol || '',
+          contract_name: pos.contract_name || '',
           code: pos.symbol || '',
           volume: pos.volume || 0,
           position: pos.volume || 0,
@@ -530,6 +524,7 @@ const App: React.FC = () => {
         const tradeData: TradeData[] = (monitorData.recent_trades || []).map(trade => ({
           date: trade.date || '',
           code: trade.symbol || '',
+          contract_name: trade.contract_name || '',
           direction: (trade.side === 0 || trade.direction === '买入') ? 'buy' : 'sell',
           amount: Math.abs(trade.volume || 0),
           price: trade.price ? Number(trade.price).toFixed(2) : '0.00',
@@ -540,10 +535,8 @@ const App: React.FC = () => {
         let config: BacktestConfig | undefined = undefined;
         if (backtestDetail) {
           // 从后端返回的字段构建配置对象
-          // 优先使用 start_capital 字段（SQLite数据库），其次使用 fund_stock（MongoDB遗留字段）
-          const startCapital = backtestDetail.start_capital 
-            ? parseFloat(backtestDetail.start_capital) 
-            : (backtestDetail.fund_stock ? parseFloat(backtestDetail.fund_stock) : 0);
+          // 使用 fund_stock 字段（MongoDB字段）
+          const startCapital = backtestDetail.fund_stock ? parseFloat(backtestDetail.fund_stock) : 0;
           const commission = backtestDetail.commission ? parseFloat(backtestDetail.commission) : 1;
           const matchingType = backtestDetail.bar_match ? parseInt(backtestDetail.bar_match) : 1;
           
@@ -775,12 +768,11 @@ const App: React.FC = () => {
   const handleStartBacktest = async (
     config: BacktestConfig,
     backtestName: string,
-    saveAsDefault: boolean,
     code: string,
     strategyName: string,
     strategyId?: string
   ) => {
-    await startBacktest(config, backtestName, saveAsDefault, code, strategyName, strategyId);
+    await startBacktest(config, backtestName, code, strategyName, strategyId);
   };
 
   const handleCodeChange = (code: string, tabId: string) => {
@@ -822,8 +814,8 @@ const App: React.FC = () => {
             relatedBacktests={[]}
             onCodeChange={(code) => handleCodeChange(code, tab.id)}
             onSaveStrategy={(data) => handleSaveStrategy(data, tab.strategyData!.strategyId, tab.id)}
-            onStartBacktest={(config, backtestName, saveAsDefault, code, strategyName) =>
-              handleStartBacktest(config, backtestName, saveAsDefault, code, strategyName, tab.strategyData!.strategyId)
+            onStartBacktest={(config, backtestName, code, strategyName) =>
+              handleStartBacktest(config, backtestName, code, strategyName, tab.strategyData!.strategyId)
             }
             onViewBacktest={(backtestId) => {
               const shortId = backtestId.substring(0, 8);
@@ -875,7 +867,7 @@ const App: React.FC = () => {
             onLoadResults={() => loadBacktestResults(tab.backtestData!.backtestId)}
             onManualComplete={() => {}}
             onEditStrategy={(strategyId) => openStrategyTab(strategyId)}
-            onRerunBacktest={(config) => {
+            onRerunBacktest={() => {
               // TODO: 实现重新运行回测
               message.info('重新运行回测功能开发中...');
             }}

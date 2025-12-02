@@ -73,7 +73,7 @@ interface StrategyEditorTabProps {
   relatedBacktests?: BacktestRecord[];
   onCodeChange: (code: string) => void;
   onSaveStrategy: (data: { name: string; description?: string; code: string }) => void;
-  onStartBacktest: (config: BacktestConfig, backtestName: string, saveAsDefault: boolean, code: string, strategyName: string) => void;
+  onStartBacktest: (config: BacktestConfig, backtestName: string, code: string, strategyName: string) => void;
   onViewBacktest: (backtestId: string) => void;
 }
 
@@ -196,8 +196,7 @@ const StrategyEditorTab: React.FC<StrategyEditorTabProps> = ({
 
   const handleStartBacktest = async (
     config: BacktestConfig,
-    backtestName: string,
-    saveAsDefault: boolean
+    backtestName: string
   ) => {
     if (unsavedChanges) {
       message.warning('请先保存策略后再运行回测');
@@ -206,7 +205,7 @@ const StrategyEditorTab: React.FC<StrategyEditorTabProps> = ({
 
     setRunning(true);
     try {
-      await onStartBacktest(config, backtestName, saveAsDefault, code, strategyName);
+      await onStartBacktest(config, backtestName, code, strategyName);
       message.success('回测已启动');
     } catch (error: any) {
       message.error('启动回测失败: ' + error.message);

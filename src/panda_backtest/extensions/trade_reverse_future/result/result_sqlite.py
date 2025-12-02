@@ -231,14 +231,17 @@ class ResultSQLite(object):
             
             for position in all_position_list:
                 # 字段映射：将原始字段名映射到数据库字段名
-                # 原始字段: contract_code, position, last_price, market_value, accumulate_profit, sellable, holding_pnl, price
-                # 数据库字段: date, symbol, volume, available, avg_price, market_price, market_value, profit, profit_rate
+                # 原始字段: contract_code, contract_name, position, last_price, market_value, accumulate_profit, sellable, holding_pnl, price
+                # 数据库字段: date, symbol, contract_name, volume, available, avg_price, market_price, market_value, profit, profit_rate
                 
                 # 日期：优先使用 date，其次 gmt_create
                 date = position.get('date') or position.get('gmt_create', '')
                 
                 # 股票代码：优先使用 symbol，其次 contract_code
                 symbol = position.get('symbol') or position.get('contract_code', '')
+                
+                # 证券名称：使用 contract_name
+                contract_name = position.get('contract_name', '')
                 
                 # 持仓数量：优先使用 volume，其次 position
                 volume = position.get('volume') or position.get('position')
@@ -267,6 +270,7 @@ class ResultSQLite(object):
                     back_id=back_id,
                     date=date,
                     symbol=symbol,
+                    contract_name=contract_name,
                     volume=volume,
                     available=available,
                     avg_price=avg_price,
@@ -303,6 +307,9 @@ class ResultSQLite(object):
                 # 股票代码：优先使用 symbol，其次 contract_code
                 symbol = trade.get('symbol') or trade.get('contract_code', '')
                 
+                # 证券名称：使用 contract_name
+                contract_name = trade.get('contract_name', '')
+                
                 # 方向：优先使用 direction，其次根据 business 判断（0：买  1：卖）
                 direction = trade.get('direction')
                 if direction is None:
@@ -336,6 +343,7 @@ class ResultSQLite(object):
                     date=date,
                     time=time,
                     symbol=symbol,
+                    contract_name=contract_name,
                     direction=direction,
                     offset=offset,
                     price=price,

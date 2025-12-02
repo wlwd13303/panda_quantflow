@@ -55,8 +55,6 @@ interface KLineData {
 
 const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
   tradeData,
-  positionData,
-  backtestId,
 }) => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('');
   const [dateRange, setDateRange] = useState<[string, string] | null>(null);
@@ -64,8 +62,20 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
   const [klineData, setKlineData] = useState<KLineData[]>([]);
   const [filteredTrades, setFilteredTrades] = useState<TradeData[]>([]);
 
-  // 提取所有唯一的股票代码
-  const symbols = Array.from(new Set(tradeData.map(t => t.code).filter(Boolean))).sort();
+  // 提取所有唯一的股票代码和名称
+  const symbolNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    tradeData.forEach((t) => {
+      const code = t.code;
+      const name = t.contract_name || t.name || '';
+      if (code && !map.has(code)) {
+        map.set(code, name);
+      }
+    });
+    return map;
+  }, [tradeData]);
+
+  const symbols = Array.from(symbolNameMap.keys()).sort();
 
   // 当选择的股票或日期范围变化时，过滤交易数据
   useEffect(() => {
@@ -435,6 +445,7 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
 
       symbolStatsMap[symbol] = {
         symbol,
+        contract_name: symbolNameMap.get(symbol) || '',
         totalTrades: symbolTrades.length,
         buyCount: buyTrades.length,
         sellCount: sellTrades.length,
@@ -521,7 +532,7 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
     return {
       animation: true,
       title: {
-        text: `${selectedSymbol} K线图与交易点`,
+        text: `${selectedSymbol} ${symbolNameMap.get(selectedSymbol) || ''} K线图与交易点`,
         left: 'center',
       },
       legend: {
@@ -690,6 +701,17 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
       render: (symbol: string) => <Text strong>{symbol}</Text>,
     },
     {
+      title: '证券名称',
+      dataIndex: 'contract_name',
+      key: 'contract_name',
+      width: 120,
+      align: 'center' as const,
+      render: (contract_name: string, record: any) => {
+        const name = symbolNameMap.get(record.symbol) || contract_name || '-';
+        return <Text>{name}</Text>;
+      },
+    },
+    {
       title: '交易对数',
       dataIndex: 'tradePairs',
       key: 'tradePairs',
@@ -851,7 +873,11 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
                 filterOption={(input, option) =>
                   (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                 }
-                options={symbols.map(s => ({ label: s, value: s }))}
+                options={symbols.map(s => {
+                  const name = symbolNameMap.get(s);
+                  const label = name ? `${name} (${s})` : s;
+                  return { label, value: s };
+                })}
               />
             </Space>
           </Col>
@@ -879,7 +905,7 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
         {!selectedSymbol ? (
           <Alert
             message="请选择股票"
-            description="请在上方选择一个股票代码以查看其K线图和交易点分析"
+            description="请在上方选择一个股票以查看其K线图和交易点分析"
             type="info"
             showIcon
           />

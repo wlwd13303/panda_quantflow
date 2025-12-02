@@ -142,7 +142,11 @@ export const backtestApi = {
         params: { back_id: backId },
       }
     );
-    return response.data.data || response.data;
+    const data = response.data.data || response.data;
+    return {
+      success: data.success ?? true,
+      message: data.message ?? '',
+    };
   },
 
   // 获取账户数据

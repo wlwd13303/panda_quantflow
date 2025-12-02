@@ -59,14 +59,20 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
   const [showKLine, setShowKLine] = useState(true);
   const [showStockPosition, setShowStockPosition] = useState(true);
 
-  // 提取所有唯一的股票代码
-  const symbols = Array.from(
-    new Set(
-      positionData
-        .map((p) => p.symbol || p.contract_code || p.code)
-        .filter(Boolean)
-    )
-  ).sort();
+  // 提取所有唯一的股票代码和名称（统一使用 contract_code）
+  const symbolNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    positionData.forEach((p) => {
+      const code = p.contract_code;
+      const name = p.contract_name || p.name || '';
+      if (code && !map.has(code)) {
+        map.set(code, name);
+      }
+    });
+    return map;
+  }, [positionData]);
+
+  const symbols = Array.from(symbolNameMap.keys()).sort();
 
   // 计算总仓位数据（按日期聚合）
   const totalPositionData = useMemo(() => {
@@ -78,7 +84,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
 
       const dateStr = date.length === 8 ? date : date.substring(0, 8);
       const marketValue = Number(pos.market_value || 0);
-      const symbol = pos.symbol || pos.contract_code || pos.code || '';
+      const symbol = pos.contract_code || '';
 
       if (!positionByDate.has(dateStr)) {
         positionByDate.set(dateStr, { date: dateStr, totalValue: 0, count: 0, symbols: new Set() });
@@ -642,7 +648,6 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
         const date = d.date;
         return `${date.substring(0, 4)}-${date.substring(4, 6)}-${date.substring(6, 8)}`;
       });
-
       klineValues = klineData.map((d) => [d.open, d.close, d.low, d.high]);
     }
 
@@ -663,7 +668,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
 
     const alignedKLineValues = allDates.map((date) => {
       const index = klineDates.indexOf(date);
-      return index !== -1 ? klineValues[index] : null;
+      return index !== -1 ? klineValues[index] : '-';
     });
 
     const series: any[] = [];
@@ -1187,14 +1192,18 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
                   <Text strong>选择股票：</Text>
                   <Select
                     style={{ width: '100%' }}
-                    placeholder="请选择股票代码"
+                    placeholder="请选择股票"
                     value={selectedSymbol || undefined}
                     onChange={setSelectedSymbol}
                     showSearch
                     filterOption={(input, option) =>
                       (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                     }
-                    options={symbols.map((s) => ({ label: s, value: s }))}
+                    options={symbols.map((s) => {
+                      const name = symbolNameMap.get(s);
+                      const label = name ? `${name} (${s})` : s;
+                      return { label, value: s };
+                    })}
                   />
                 </Space>
               </Col>

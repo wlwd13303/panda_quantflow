@@ -11,8 +11,6 @@ import {
   Collapse,
   List,
   Tag,
-  Divider,
-  DatePicker,
   Select,
 } from 'antd';
 import {
@@ -21,7 +19,6 @@ import {
   EyeOutlined,
 } from '@ant-design/icons';
 import type { BacktestConfig, BacktestRecord } from '@/types';
-import dayjs from 'dayjs';
 
 const { TextArea } = Input;
 
@@ -55,7 +52,7 @@ interface StrategyToolbarProps {
   relatedBacktests?: BacktestRecord[];
   onSaveStrategy: (data: { name: string; description?: string; code: string }) => void;
   onUpdateStrategyInfo: (data: { name?: string; description?: string }) => void;
-  onStartBacktest: (config: BacktestConfig, backtestName: string, saveAsDefault: boolean) => void;
+  onStartBacktest: (config: BacktestConfig, backtestName: string) => void;
   onViewBacktest: (backtestId: string) => void;
   saving?: boolean;
   running?: boolean;
@@ -121,7 +118,7 @@ const StrategyToolbar: React.FC<StrategyToolbarProps> = ({
         standard_symbol: values.standard_symbol,
         matching_type: values.matching_type,
       };
-      onStartBacktest(config, values.backtest_name || '', saveAsDefault);
+      onStartBacktest(config, values.backtest_name || '');
     });
   };
 

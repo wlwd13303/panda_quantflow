@@ -8,9 +8,6 @@ import {
   Button,
   Space,
   Empty,
-  Statistic,
-  Row,
-  Col,
   Typography,
   Form,
   InputNumber,
@@ -54,7 +51,7 @@ import PositionAnalysis from './PositionAnalysis';
 import PerformanceAnalysis from './PerformanceAnalysis';
 
 const { Sider, Content } = Layout;
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface EnhancedBacktestResultsProps {
   backtesting: boolean;
@@ -113,8 +110,6 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
   profitData,
   tradeData,
   positionData,
-  accountData,
-  dataStats,
   config,
   strategyName,
   autoRefresh = true,
@@ -122,12 +117,6 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
   strategyId,
   strategyCodeSnapshot,
   currentStrategyCode,
-  onLoadResults,
-  onManualComplete,
-  onConfigChange,
-  onStrategyNameChange,
-  onAutoRefreshChange,
-  onRefreshIntervalChange,
   onEditStrategy,
   onRerunBacktest,
   onCancelBacktest,
@@ -178,6 +167,14 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
         filters: symbolFilters,
         filterSearch: true,
         onFilter: (value: any, record: TradeData) => record.code === value,
+      },
+      {
+        title: '证券名称',
+        dataIndex: 'contract_name',
+        key: 'contract_name',
+        width: 120,
+        align: 'center' as const,
+        render: (contract_name: string) => contract_name || '-',
       },
       {
         title: '方向',
@@ -240,8 +237,8 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
       value: date || '',
     }));
     
-    // 提取所有唯一股票代码并排序
-    const uniqueSymbols = Array.from(new Set(positionData.map(p => p.symbol || p.contract_code || p.code).filter(Boolean)))
+    // 提取所有唯一股票代码并排序（统一使用 contract_code）
+    const uniqueSymbols = Array.from(new Set(positionData.map(p => p.contract_code).filter(Boolean)))
       .sort();
     
     const symbolFilters = uniqueSymbols.map(symbol => ({
@@ -274,18 +271,26 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
       },
       {
         title: '股票代码',
-        dataIndex: 'symbol',
-        key: 'symbol',
+        dataIndex: 'contract_code',
+        key: 'contract_code',
         width: 120,
         align: 'center' as const,
         filters: symbolFilters,
         filterSearch: true,
         onFilter: (value: any, record: PositionData) => {
-          const recordSymbol = record.symbol || record.contract_code || record.code || '';
+          const recordSymbol = record.contract_code || '';
           return recordSymbol === value;
         },
-        render: (symbol: string, record: PositionData) => 
-          symbol || record.contract_code || record.code || 'N/A',
+        render: (contract_code: string, record: PositionData) => 
+          contract_code || record.contract_code || 'N/A',
+      },
+      {
+        title: '证券名称',
+        dataIndex: 'contract_name',
+        key: 'contract_name',
+        width: 120,
+        align: 'center' as const,
+        render: (contract_name: string) => contract_name || '-',
       },
       {
         title: '持仓量',
@@ -338,8 +343,6 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
       },
     ];
   };
-
-  const latestAccount = accountData.length > 0 ? accountData[accountData.length - 1] : null;
 
   // 渲染不同的内容区域
   const renderContent = () => {
@@ -405,7 +408,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
                 }}
                 size="small"
                 scroll={{ x: 800, y: 500 }}
-                rowKey={(record, index) => `${record.date}_${record.symbol}_${index}` || index?.toString() || '0'}
+                rowKey={(record, index) => `${record.date}_${record.contract_code}_${index}` || index?.toString() || '0'}
               />
             ) : (
               <Empty description="暂无持仓数据" />

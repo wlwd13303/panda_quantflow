@@ -71,7 +71,6 @@ class QuotationCache {
    * 清理过期缓存
    */
   cleanExpired(): void {
-    const now = Date.now();
     let cleanedCount = 0;
 
     for (const [key, item] of this.cache.entries()) {

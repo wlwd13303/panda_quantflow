@@ -38,7 +38,7 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
   const [backtestList, setBacktestList] = useState<BacktestRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const previousStatsRef = useRef<any>(null);
 
   // 加载回测列表
