@@ -31,6 +31,19 @@ const PositionAnalysisChart: React.FC<PositionAnalysisChartProps> = ({ backtestI
   const [stockKLineData, setStockKLineData] = useState<KLineData[]>([]);
   const [loadingKLine, setLoadingKLine] = useState(false);
 
+  // 获取股票名称映射
+  const stockNameMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    overallPositionData.forEach((p) => {
+      const code = p.contract_code;
+      const name = p.contract_name || p.name || '';
+      if (code && !map.has(code)) {
+        map.set(code, name);
+      }
+    });
+    return map;
+  }, [overallPositionData]);
+
   useEffect(() => {
     if (config.strategy_symbols && config.strategy_symbols.length > 0) {
       setSelectedStock(config.strategy_symbols[0]); // 默认选中第一个股票
@@ -335,7 +348,9 @@ const PositionAnalysisChart: React.FC<PositionAnalysisChartProps> = ({ backtestI
   // 获取个股仓位与K线图表配置
   const getStockPositionKLineChartOption = () => {
     if (filteredStockPositionData.length === 0 && filteredKLineData.length === 0) {
-      return { title: { text: `暂无 ${selectedStock || ''} 个股仓位及K线数据`, left: 'center', top: 'center' } };
+      const stockName = stockNameMap.get(selectedStock || '') || '';
+      const nameText = stockName ? `${stockName} (${selectedStock || ''})` : selectedStock || '';
+      return { title: { text: `暂无 ${nameText} 个股仓位及K线数据`, left: 'center', top: 'center' } };
     }
 
     const dates = filteredKLineData.map(item => dayjs(String(item.date || item.trade_date || '').substring(0, 8), 'YYYYMMDD').format('YYYY-MM-DD'));
@@ -356,10 +371,12 @@ const PositionAnalysisChart: React.FC<PositionAnalysisChartProps> = ({ backtestI
     });
     
     const legendData = ['K线', '成交量', '个股仓位比例'];
+    const stockName = stockNameMap.get(selectedStock || '') || '';
+    const titleText = stockName ? `${stockName} (${selectedStock || ''}) 仓位与K线走势` : `${selectedStock || ''} 仓位与K线走势`;
 
     return {
       title: {
-        text: `${selectedStock || ''} 仓位与K线走势`,
+        text: titleText,
         left: 'center',
         top: 10,
         textStyle: { fontSize: 16, fontWeight: 'bold' },
