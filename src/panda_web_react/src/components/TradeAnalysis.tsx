@@ -471,63 +471,77 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
       const date = d.date;
       return `${date.substring(0, 4)}-${date.substring(4, 6)}-${date.substring(6, 8)}`;
     });
-    
+
     const values = klineData.map(d => [d.open, d.close, d.low, d.high]);
-    
-    // 准备买卖点数据 - 根据K线最高最低价定位
+
+    // 准备买卖点数据
     const buyPoints: any[] = [];
     const sellPoints: any[] = [];
     const simulatedSellPoints: any[] = []; // 模拟清仓点
-    
-    // 添加实际交易点
+
+    // 添加实际交易点（使用成交价，与下方交易记录表价格保持一致）
     filteredTrades.forEach(trade => {
       const tradeDate = trade.date;
+      if (!tradeDate || tradeDate.length < 8) return;
+
       const formattedDate = `${tradeDate.substring(0, 4)}-${tradeDate.substring(4, 6)}-${tradeDate.substring(6, 8)}`;
       const dateIndex = dates.indexOf(formattedDate);
-      
-      if (dateIndex !== -1) {
-        const kline = klineData[dateIndex];
-        const price = parseFloat(trade.price || '0');
-        
-        if (trade.direction === 'buy') {
-          // 买入点标注在当日K线最低价
-          const yPosition = kline ? kline.low : price;
-          buyPoints.push({
-            xAxis: dateIndex,
-            yAxis: yPosition,
-            value: trade.amount,
-          });
-        } else {
-          // 卖出点标注在当日K线最高价
-          const yPosition = kline ? kline.high : price;
-          sellPoints.push({
-            xAxis: dateIndex,
-            yAxis: yPosition,
-            value: trade.amount,
-          });
-        }
+      if (dateIndex === -1) return;
+
+      const kline = klineData[dateIndex];
+      const price = parseFloat(trade.price || '0');
+
+      if (trade.direction === 'buy') {
+        // 买入点：优先使用成交价，缺失或为 0 时回退到当日K线最低价
+        const yPosition = (price && !Number.isNaN(price)) ? price : (kline ? kline.low : 0);
+        buyPoints.push({
+          xAxis: dateIndex,
+          yAxis: yPosition,
+          value: trade.amount,
+        });
+      } else if (trade.direction === 'sell') {
+        // 卖出点：优先使用成交价，缺失或为 0 时回退到当日K线最高价
+        const yPosition = (price && !Number.isNaN(price)) ? price : (kline ? kline.high : 0);
+        sellPoints.push({
+          xAxis: dateIndex,
+          yAxis: yPosition,
+          value: trade.amount,
+        });
       }
     });
 
-    // 添加模拟清仓点
+    // 添加模拟清仓点：使用配对结果中的卖出价格
     if (stats.tradePairs) {
       stats.tradePairs.forEach((pair: any) => {
-        if (pair.isSimulated) {
-          const formattedDate = `${pair.sellDate.substring(0, 4)}-${pair.sellDate.substring(4, 6)}-${pair.sellDate.substring(6, 8)}`;
-          const dateIndex = dates.indexOf(formattedDate);
-          
-          if (dateIndex !== -1) {
-            const kline = klineData[dateIndex];
-            const yPosition = kline ? kline.close : pair.sellPrice;
-            simulatedSellPoints.push({
-              xAxis: dateIndex,
-              yAxis: yPosition,
-              value: pair.amount,
-            });
-          }
-        }
+        if (!pair.isSimulated) return;
+
+        const sellDate = pair.sellDate;
+        if (!sellDate || sellDate.length < 8) return;
+
+        const formattedDate = `${sellDate.substring(0, 4)}-${sellDate.substring(4, 6)}-${sellDate.substring(6, 8)}`;
+        const dateIndex = dates.indexOf(formattedDate);
+        if (dateIndex === -1) return;
+
+        const kline = klineData[dateIndex];
+        const price = pair.sellPrice;
+        const yPosition = (price && !Number.isNaN(price)) ? price : (kline ? kline.close : 0);
+
+        simulatedSellPoints.push({
+          xAxis: dateIndex,
+          yAxis: yPosition,
+          value: pair.amount,
+        });
       });
     }
+
+    // 计算所有有交易信号的日期索引，用于绘制垂直辅助线
+    const tradeXIndexes = Array.from(
+      new Set([
+        ...buyPoints.map(p => p.xAxis),
+        ...sellPoints.map(p => p.xAxis),
+        ...simulatedSellPoints.map(p => p.xAxis),
+      ])
+    ).sort((a, b) => a - b);
 
     return {
       animation: true,
@@ -536,7 +550,7 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
         left: 'center',
       },
       legend: {
-        data: simulatedSellPoints.length > 0 
+        data: simulatedSellPoints.length > 0
           ? ['K线', '买入', '卖出', '模拟清仓']
           : ['K线', '买入', '卖出'],
         top: 30,
@@ -548,9 +562,9 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
         },
         formatter: (params: any) => {
           if (!params || params.length === 0) return '';
-          
+
           let result = `日期: ${params[0].axisValue}<br/>`;
-          
+
           params.forEach((param: any) => {
             if (param.seriesName === 'K线') {
               const kline = param.value;
@@ -566,7 +580,7 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
               result += `<span style="color: #ff9800;">▼</span> 模拟清仓: ¥${param.value[1].toFixed(2)}<br/>`;
             }
           });
-          
+
           return result;
         },
       },
@@ -606,6 +620,7 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
         },
       ],
       series: [
+        // K线
         {
           name: 'K线',
           type: 'candlestick',
@@ -617,6 +632,31 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
             borderColor0: '#26a69a',
           },
         },
+        // 交易日垂直虚线（辅助线，不参与 tooltip）
+        ...(tradeXIndexes.length > 0
+          ? [{
+              name: '交易日',
+              type: 'line',
+              data: [],
+              xAxisIndex: 0,
+              yAxisIndex: 0,
+              symbol: 'none',
+              lineStyle: { opacity: 0 },
+              tooltip: { show: false },
+              markLine: {
+                symbol: ['none', 'none'],
+                silent: true,
+                lineStyle: {
+                  type: 'dashed',
+                  color: '#999',
+                  opacity: 0.4,
+                  width: 1,
+                },
+                data: tradeXIndexes.map(idx => ({ xAxis: dates[idx] })),
+              },
+              z: 6,
+            }]
+          : []),
         // 买入点散点图
         {
           name: '买入',
@@ -662,29 +702,31 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
           z: 10,
         },
         // 模拟清仓点散点图
-        ...(simulatedSellPoints.length > 0 ? [{
-          name: '模拟清仓',
-          type: 'scatter',
-          symbol: 'diamond',
-          symbolSize: 14,
-          symbolRotate: 0,
-          data: simulatedSellPoints.map(p => [p.xAxis, p.yAxis]),
-          itemStyle: {
-            color: '#ff9800',
-            borderColor: '#ff9800',
-            borderWidth: 2,
-          },
-          label: {
-            show: true,
-            position: 'top',
-            formatter: '模拟',
-            color: '#ff9800',
-            fontSize: 10,
-            fontWeight: 'bold',
-            offset: [0, -5],
-          },
-          z: 11,
-        }] : []),
+        ...(simulatedSellPoints.length > 0
+          ? [{
+            name: '模拟清仓',
+            type: 'scatter',
+            symbol: 'diamond',
+            symbolSize: 14,
+            symbolRotate: 0,
+            data: simulatedSellPoints.map(p => [p.xAxis, p.yAxis]),
+            itemStyle: {
+              color: '#ff9800',
+              borderColor: '#ff9800',
+              borderWidth: 2,
+            },
+            label: {
+              show: true,
+              position: 'top',
+              formatter: '模拟',
+              color: '#ff9800',
+              fontSize: 10,
+              fontWeight: 'bold',
+              offset: [0, -5],
+            },
+            z: 11,
+          }]
+          : []),
       ],
     };
   };
