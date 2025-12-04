@@ -99,10 +99,19 @@ async def get_monitor_data(back_id: str) -> Dict[str, Any]:
                     'amount': amount,
                 })
         
-        # 4. 获取所有历史持仓记录（按日期倒序排列）
+        # 4. 获取所有历史持仓记录（按日期倒序排列），并计算持仓比例（市值 / 当日总资产）
         latest_positions = []
         position_list, _ = await BacktestPositionDAO.list_by_back_id(back_id, page=1, page_size=999999)
         if position_list:
+            # 预先构建按日期聚合的账户总资产映射
+            account_total_value_map = {}
+            for acc in account_list or []:
+                date_key = acc.get('date')
+                total_value = acc.get('total_value')
+                if not date_key or total_value is None:
+                    continue
+                account_total_value_map[date_key] = float(total_value)
+
             # 按日期排序（最新的在前）
             sorted_positions = sorted(
                 position_list,
@@ -111,14 +120,25 @@ async def get_monitor_data(back_id: str) -> Dict[str, Any]:
             )
             
             for pos in sorted_positions:
+                date_key = pos.get('date')
+                market_value = pos.get('market_value') or 0
+                total_asset = account_total_value_map.get(date_key) or 0
+                position_ratio = None
+                if market_value and total_asset:
+                    try:
+                        position_ratio = float(market_value) / float(total_asset)
+                    except Exception:
+                        position_ratio = None
+
                 latest_positions.append({
-                    'date': pos.get('date'),
+                    'date': date_key,
                     'symbol': pos.get('symbol'),
                     'contract_name': pos.get('contract_name'),
                     'volume': pos.get('volume'),
                     'market_value': pos.get('market_value'),
                     'profit': pos.get('profit'),
                     'profit_rate': pos.get('profit_rate'),
+                    'position_ratio': position_ratio,
                 })
         
         # 5. 获取净值曲线数据（完整数据）

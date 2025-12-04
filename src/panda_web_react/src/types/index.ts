@@ -94,8 +94,9 @@ export interface PositionData {
   now_price?: number;
   current_price?: number;
   profit?: number;
-  profit_rate?: number;     // 监控 API 字段（收益率）
-  market_value?: number;    // 监控 API 字段（市值）
+  profit_rate?: number;
+  market_value?: number;
+  position_ratio?: number;
   date?: string;
   gmt_create?: string;
   [key: string]: any;
@@ -187,6 +188,7 @@ export interface MonitorPositionData {
   market_value?: number;
   profit?: number;
   profit_rate?: number;
+  position_ratio?: number;  // 持仓权重百分比
 }
 
 // 监控数据 - 净值曲线点

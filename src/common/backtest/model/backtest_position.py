@@ -66,6 +66,7 @@ class BacktestPositionBaseModel(BaseModel):
     market_value: Optional[float] = Field(default=None, description="市值")
     accumulate_profit: Optional[float] = Field(default=None, description="累计盈亏")
     holding_pnl: Optional[float] = Field(default=None, description="持仓盈亏")
+    position_ratio: Optional[float] = Field(default=None, description="持仓权重百分比")
 
     class Config:
         json_encoders = {ObjectId: str}

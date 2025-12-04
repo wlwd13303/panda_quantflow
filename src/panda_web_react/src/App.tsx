@@ -517,6 +517,7 @@ const App: React.FC = () => {
           market_value: pos.market_value || 0,
           profit: pos.profit || 0,
           profit_rate: pos.profit_rate || 0,
+          position_ratio: pos.position_ratio,
           date: pos.date || '',
           gmt_create: pos.date || '',
         }));

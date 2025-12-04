@@ -312,6 +312,20 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
         },
       },
       {
+        title: '持仓比例',
+        dataIndex: 'position_ratio',
+        key: 'position_ratio',
+        width: 100,
+        align: 'center' as const,
+        render: (position_ratio: number) => {
+          if (position_ratio === undefined || position_ratio === null) {
+            return '-';
+          }
+          const val = (position_ratio || 0) * 100;
+          return `${val.toFixed(2)}%`;
+        },
+      },
+      {
         title: '盈亏',
         dataIndex: 'profit',
         key: 'profit',
