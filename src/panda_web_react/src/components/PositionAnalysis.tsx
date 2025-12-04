@@ -605,7 +605,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
     // 按日期聚合持仓数据（可能同一天有多条记录）
     const positionByDate = new Map<
       string,
-      { date: string; volume: number; marketValue: number }
+      { date: string; volume: number; marketValue: number; positionRatioSum: number; count: number }
     >();
 
     filteredPositions.forEach((pos) => {
@@ -613,14 +613,17 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
       const dateStr = date.length === 8 ? date : date.substring(0, 8);
       const volume = Number(pos.volume || 0);
       const marketValue = Number(pos.market_value || 0);
+      const positionRatio = Number(pos.position_ratio || 0); // 持仓比例（0-1）
 
       if (!positionByDate.has(dateStr)) {
-        positionByDate.set(dateStr, { date: dateStr, volume: 0, marketValue: 0 });
+        positionByDate.set(dateStr, { date: dateStr, volume: 0, marketValue: 0, positionRatioSum: 0, count: 0 });
       }
 
       const existing = positionByDate.get(dateStr)!;
       existing.volume += volume;
       existing.marketValue += marketValue;
+      existing.positionRatioSum += isFinite(positionRatio) ? positionRatio : 0;
+      existing.count += 1;
     });
 
     const aggregatedPositions = Array.from(positionByDate.values()).sort((a, b) =>
@@ -636,8 +639,14 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
     // 持仓量序列
     const volumes = aggregatedPositions.map((item) => item.volume);
 
-    // 市值序列
-    const marketValues = aggregatedPositions.map((item) => item.marketValue.toFixed(2));
+    // 持仓比例序列（按日期取平均，转为百分比数值）
+    const positionRatios = aggregatedPositions.map((item) => {
+      if (item.count > 0) {
+        const avgRatio = item.positionRatioSum / item.count;
+        return Number(((avgRatio || 0) * 100).toFixed(2));
+      }
+      return 0;
+    });
 
     // K线数据
     let klineValues: any[] = [];
@@ -655,15 +664,15 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
     const allDatesSet = new Set([...klineDates, ...dates]);
     const allDates = Array.from(allDatesSet).sort();
 
-    // 对齐数据：持仓量和市值需要根据allDates填充
+    // 对齐数据：持仓量和持仓比例需要根据allDates填充
     const alignedVolumes = allDates.map((date) => {
       const index = dates.indexOf(date);
       return index !== -1 ? volumes[index] : null;
     });
 
-    const alignedMarketValues = allDates.map((date) => {
+    const alignedPositionRatios = allDates.map((date) => {
       const index = dates.indexOf(date);
-      return index !== -1 ? marketValues[index] : null;
+      return index !== -1 ? positionRatios[index] : null;
     });
 
     const alignedKLineValues = allDates.map((date) => {
@@ -673,7 +682,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
 
     const series: any[] = [];
 
-    // K线序列
+    // K线序列（上方主图）
     if (showKLine && klineData.length > 0) {
       series.push({
         name: 'K线',
@@ -685,28 +694,34 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
           borderColor: '#ef5350',
           borderColor0: '#26a69a',
         },
+        xAxisIndex: 0,
         yAxisIndex: 0,
       });
     }
 
-    // 持仓量序列
+    // 持仓量序列（下方副图） + 持仓比例序列（上方主图）
     if (showStockPosition) {
+      // 下方：持仓量柱状图
       series.push({
         name: '持仓量',
         type: 'bar',
         data: alignedVolumes,
-        itemStyle: { color: '#5470c6' },
-        yAxisIndex: 1,
+        itemStyle: { color: 'rgba(84, 112, 198, 0.6)' },
+        barMaxWidth: 20,
+        xAxisIndex: 1,
+        yAxisIndex: 2,
       });
 
+      // 上方：持仓比例折线
       series.push({
-        name: '持仓市值',
+        name: '持仓比例',
         type: 'line',
-        data: alignedMarketValues,
+        data: alignedPositionRatios,
         smooth: true,
         lineStyle: { color: '#91cc75', width: 2 },
         showSymbol: false,
-        yAxisIndex: 2,
+        xAxisIndex: 0,
+        yAxisIndex: 1,
       });
     }
 
@@ -755,56 +770,86 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
               }
             } else if (param.seriesName === '持仓量' && param.value !== null && param.value !== undefined) {
               result += `${param.marker} 持仓量: ${Number(param.value).toLocaleString()}股<br/>`;
-            } else if (param.seriesName === '持仓市值' && param.value !== null && param.value !== undefined) {
-              result += `${param.marker} 持仓市值: ¥${parseFloat(param.value).toLocaleString()}<br/>`;
+            } else if (param.seriesName === '持仓比例' && param.value !== null && param.value !== undefined) {
+              result += `${param.marker} 持仓比例: ${Number(param.value).toFixed(2)}%<br/>`;
             }
           });
 
           return result;
         },
       },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '15%',
-        top: '100px',
-        containLabel: true,
-      },
-      xAxis: {
-        type: 'category',
-        data: allDates,
-        scale: true,
-        boundaryGap: true,
-        axisLine: { onZero: false },
-        splitLine: { show: false },
-        axisLabel: {
-          rotate: 30,
-          interval: Math.floor(allDates.length / 10),
+      grid: [
+        {
+          // 上方K线主图
+          left: '3%',
+          right: '4%',
+          top: '100px',
+          height: '45%',
+          containLabel: true,
         },
-      },
+        {
+          // 下方持仓副图
+          left: '3%',
+          right: '4%',
+          top: '60%',
+          bottom: '10%',
+          containLabel: true,
+        },
+      ],
+      xAxis: [
+        {
+          type: 'category',
+          data: allDates,
+          scale: true,
+          boundaryGap: true,
+          axisLine: { onZero: false },
+          splitLine: { show: false },
+          axisLabel: {
+            rotate: 30,
+            interval: Math.floor(allDates.length / 10),
+          },
+          gridIndex: 0,
+        },
+        {
+          type: 'category',
+          data: allDates,
+          scale: true,
+          boundaryGap: true,
+          axisLine: { onZero: false },
+          splitLine: { show: false },
+          axisLabel: {
+            rotate: 30,
+            interval: Math.floor(allDates.length / 10),
+          },
+          gridIndex: 1,
+        },
+      ],
       yAxis: [
         {
           type: 'value',
           name: '股价(元)',
           position: 'left',
           scale: true,
+          gridIndex: 0,
+        },
+        {
+          type: 'value',
+          name: '持仓比例(%)',
+          position: 'right',
+          offset: 50,
+          axisLabel: {
+            formatter: (value: number) => `${value.toFixed(0)}%`,
+          },
+          gridIndex: 0,
         },
         {
           type: 'value',
           name: '持仓量(股)',
-          position: 'right',
+          position: 'left',
           axisLabel: {
             formatter: (value: number) => value.toLocaleString(),
           },
-        },
-        {
-          type: 'value',
-          name: '市值(元)',
-          position: 'right',
-          offset: 60,
-          axisLabel: {
-            formatter: (value: number) => `¥${(value / 10000).toFixed(0)}万`,
-          },
+          gridIndex: 1,
         },
       ],
       series: series,
@@ -813,6 +858,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
           type: 'inside',
           start: 0,
           end: 100,
+          xAxisIndex: [0, 1],
         },
         {
           show: true,
@@ -820,6 +866,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
           top: '90%',
           start: 0,
           end: 100,
+          xAxisIndex: [0, 1],
         },
       ],
     };
@@ -1016,51 +1063,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
             }
             key="total"
           >
-            {/* 统计指标 - 第一行 */}
-            <Row gutter={16} style={{ marginBottom: 16 }}>
-              <Col span={6}>
-                <Card>
-                  <Statistic
-                    title="平均仓位价值"
-                    value={totalPositionStats.avgPositionValue.toFixed(0)}
-                    prefix="¥"
-                    valueStyle={{ color: '#5470c6' }}
-                  />
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card>
-                  <Statistic
-                    title="最大仓位价值"
-                    value={totalPositionStats.maxPositionValue.toFixed(0)}
-                    prefix="¥"
-                    valueStyle={{ color: '#ff4d4f' }}
-                  />
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card>
-                  <Statistic
-                    title="最小仓位价值"
-                    value={totalPositionStats.minPositionValue.toFixed(0)}
-                    prefix="¥"
-                    valueStyle={{ color: '#52c41a' }}
-                  />
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card>
-                  <Statistic
-                    title="平均仓位率"
-                    value={totalPositionStats.avgPositionRatio.toFixed(2)}
-                    suffix="%"
-                    valueStyle={{ color: '#722ed1' }}
-                  />
-                </Card>
-              </Col>
-            </Row>
-
-            {/* 统计指标 - 第二行：持仓数量统计 */}
+            {/* 统计指标 */}
             <Row gutter={16} style={{ marginBottom: 16 }}>
               <Col span={8}>
                 <Card>
