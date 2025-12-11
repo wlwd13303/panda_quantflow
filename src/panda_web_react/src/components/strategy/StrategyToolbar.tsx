@@ -22,23 +22,11 @@ import type { BacktestConfig, BacktestRecord } from '@/types';
 
 const { TextArea } = Input;
 
-// 获取最近1年的日期范围（格式：YYYYMMDD）
+// 获取固定日期范围（格式：YYYYMMDD）
 const getLastYearDateRange = (): { start_date: string; end_date: string } => {
-  const today = new Date();
-  const endDate = new Date(today);
-  const startDate = new Date(today);
-  startDate.setFullYear(today.getFullYear() - 1);
-  
-  const formatDate = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}${month}${day}`;
-  };
-  
   return {
-    start_date: formatDate(startDate),
-    end_date: formatDate(endDate),
+    start_date: '20220101',
+    end_date: '20251101',
   };
 };
 

@@ -552,6 +552,8 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
         totalReturn: 0,
         maxDrawdown: 0,
         volatility: 0,
+        maxLossAmount: 0,
+        maxLossRatio: 0,
         latestValue: initialCapital,
       };
     }
@@ -580,6 +582,20 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
           if (isFinite(drawdown) && drawdown > maxDrawdown) {
             maxDrawdown = drawdown;
           }
+        }
+      }
+    }
+    
+    // 计算账户最大亏损额度（相对于初始资金的最大净亏损金额）
+    let maxLossAmount = 0;
+    let maxLossRatio = 0;
+    for (const value of values) {
+      if (isFinite(value) && value < initialCapital) {
+        const lossAmount = initialCapital - value;
+        if (lossAmount > maxLossAmount) {
+          maxLossAmount = lossAmount;
+          // 计算最大亏损比率（百分比）
+          maxLossRatio = (lossAmount / initialCapital) * 100;
         }
       }
     }
@@ -616,6 +632,8 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
       totalReturn,
       maxDrawdown,
       volatility,
+      maxLossAmount,
+      maxLossRatio,
       latestValue: isFinite(latestValue) ? latestValue : initialCapital,
     };
   };
@@ -663,8 +681,8 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
         
         {/* 关键指标 */}
         {metrics && (
-          <Row gutter={16} style={{ marginTop: 12 }}>
-            <Col span={6}>
+          <Row gutter={8} style={{ marginTop: 12 }}>
+            <Col span={4}>
               <div style={{ textAlign: 'center', padding: '8px', background: '#fff', borderRadius: '4px' }}>
                 <div style={{ fontSize: 12, color: '#999' }}>累计收益</div>
                 <div style={{ 
@@ -680,7 +698,7 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
                 </div>
               </div>
             </Col>
-            <Col span={6}>
+            <Col span={4}>
               <div style={{ textAlign: 'center', padding: '8px', background: '#fff', borderRadius: '4px' }}>
                 <div style={{ fontSize: 12, color: '#999' }}>最大回撤</div>
                 <div style={{ fontSize: 18, fontWeight: 'bold', color: '#ff4d4f', marginTop: 4 }}>
@@ -688,7 +706,7 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
                 </div>
               </div>
             </Col>
-            <Col span={6}>
+            <Col span={4}>
               <div style={{ textAlign: 'center', padding: '8px', background: '#fff', borderRadius: '4px' }}>
                 <div style={{ fontSize: 12, color: '#999' }}>年化波动率</div>
                 <div style={{ fontSize: 18, fontWeight: 'bold', color: '#1890ff', marginTop: 4 }}>
@@ -696,7 +714,41 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
                 </div>
               </div>
             </Col>
-            <Col span={6}>
+            <Col span={4}>
+              <div style={{ textAlign: 'center', padding: '8px', background: '#fff', borderRadius: '4px' }}>
+                <div style={{ fontSize: 12, color: '#999' }}>最大亏损额</div>
+                <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fa8c16', marginTop: 4 }}>
+                  {(() => {
+                    const lossAmount = isFinite(metrics.maxLossAmount) ? metrics.maxLossAmount : 0;
+                    if (lossAmount === 0) {
+                      return '¥0';
+                    }
+                    // 转换为万元显示
+                    const lossInWan = lossAmount / 10000;
+                    if (lossInWan >= 1) {
+                      return `¥${formatNumber(lossInWan, 2)}万`;
+                    } else {
+                      return `¥${formatNumber(lossAmount, 0)}`;
+                    }
+                  })()}
+                </div>
+              </div>
+            </Col>
+            <Col span={4}>
+              <div style={{ textAlign: 'center', padding: '8px', background: '#fff', borderRadius: '4px' }}>
+                <div style={{ fontSize: 12, color: '#999' }}>最大亏损率</div>
+                <div style={{ fontSize: 18, fontWeight: 'bold', color: '#d4380d', marginTop: 4 }}>
+                  {(() => {
+                    const lossRatio = isFinite(metrics.maxLossRatio) ? metrics.maxLossRatio : 0;
+                    if (lossRatio === 0) {
+                      return '0%';
+                    }
+                    return formatNumber(lossRatio, 2) + '%';
+                  })()}
+                </div>
+              </div>
+            </Col>
+            <Col span={4}>
               <div style={{ textAlign: 'center', padding: '8px', background: '#fff', borderRadius: '4px' }}>
                 <div style={{ fontSize: 12, color: '#999' }}>当前净值</div>
                 <div style={{ fontSize: 18, fontWeight: 'bold', color: '#722ed1', marginTop: 4 }}>

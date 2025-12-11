@@ -33,21 +33,9 @@ const { Content } = Layout;
 
 // 获取最近1年的日期范围（格式：YYYYMMDD）
 const getLastYearDateRange = (): { start_date: string; end_date: string } => {
-  const today = new Date();
-  const endDate = new Date(today);
-  const startDate = new Date(today);
-  startDate.setFullYear(today.getFullYear() - 1);
-  
-  const formatDate = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}${month}${day}`;
-  };
-  
   return {
-    start_date: formatDate(startDate),
-    end_date: formatDate(endDate),
+    start_date: '20220101',
+    end_date: '20251101',
   };
 };
 
@@ -507,6 +495,7 @@ const App: React.FC = () => {
           gmt_create_time: point.date || '',
         }));
 
+        // 只保存最新持仓（来自监控接口）
         const positionData: PositionData[] = (monitorData.latest_positions || []).map(pos => ({
           symbol: pos.symbol || '',
           contract_code: pos.symbol || '',
@@ -522,6 +511,7 @@ const App: React.FC = () => {
           gmt_create: pos.date || '',
         }));
 
+        // 只保存最近的交易（来自监控接口）
         const tradeData: TradeData[] = (monitorData.recent_trades || []).map(trade => ({
           date: trade.date || '',
           code: trade.symbol || '',
@@ -554,12 +544,13 @@ const App: React.FC = () => {
         }
 
         // 缓存数据，包含配置
+        // 注意：tradeData 和 positionData 现在只包含摘要数据
         setBacktestDataCache(prev => ({
           ...prev,
           [backtestId]: {
             profitData,
-            tradeData,
-            positionData,
+            tradeData,  // 只包含最近的交易
+            positionData,  // 只包含最新持仓
             accountData,
             dataStats,
             status: monitorData.status,
@@ -569,6 +560,73 @@ const App: React.FC = () => {
       }
     } catch (error: any) {
       console.error('加载回测结果失败:', error);
+    }
+  };
+
+  // 按需加载交易数据（分页）
+  const loadTradeDataForBacktest = async (backtestId: string, page: number, pageSize: number) => {
+    try {
+      const result = await backtestApi.getTradeData(backtestId, page, pageSize);
+      
+      const tradeData: TradeData[] = (result.items || []).map(trade => ({
+        date: trade.date || '',
+        code: trade.code || trade.symbol || '',
+        contract_name: trade.contract_name || '',
+        direction: trade.direction || 'buy',
+        amount: trade.amount || trade.volume || 0,
+        price: trade.price ? String(trade.price) : '0.00',
+        cost: trade.cost || trade.amount ? String(trade.cost || trade.amount) : '0.00',
+      }));
+
+      // 更新缓存中的交易数据
+      setBacktestDataCache(prev => ({
+        ...prev,
+        [backtestId]: {
+          ...prev[backtestId],
+          tradeData,
+        },
+      }));
+    } catch (error) {
+      console.error('加载交易数据失败:', error);
+      message.error('加载交易数据失败');
+    }
+  };
+
+  // 按需加载持仓数据（分页）
+  const loadPositionDataForBacktest = async (backtestId: string, page: number, pageSize: number) => {
+    try {
+      const result = await backtestApi.getPositionData(backtestId, page, pageSize);
+      
+      const positionData: PositionData[] = (result.items || []).map(pos => ({
+        symbol: pos.symbol || pos.contract_code || '',
+        contract_code: pos.contract_code || pos.symbol || '',
+        contract_name: pos.contract_name || '',
+        code: pos.code || pos.symbol || '',
+        volume: pos.volume || pos.position || 0,
+        position: pos.position || pos.volume || 0,
+        market_value: pos.market_value || 0,
+        profit: pos.profit || 0,
+        profit_rate: pos.profit_rate || 0,
+        position_ratio: pos.position_ratio,
+        date: pos.date || pos.gmt_create || '',
+        gmt_create: pos.gmt_create || pos.date || '',
+        avg_price: pos.avg_price || pos.cost_price,
+        cost_price: pos.cost_price || pos.avg_price,
+        now_price: pos.now_price || pos.current_price,
+        current_price: pos.current_price || pos.now_price,
+      }));
+
+      // 更新缓存中的持仓数据
+      setBacktestDataCache(prev => ({
+        ...prev,
+        [backtestId]: {
+          ...prev[backtestId],
+          positionData,
+        },
+      }));
+    } catch (error) {
+      console.error('加载持仓数据失败:', error);
+      message.error('加载持仓数据失败');
     }
   };
 
@@ -873,6 +931,8 @@ const App: React.FC = () => {
               message.info('重新运行回测功能开发中...');
             }}
             onCancelBacktest={() => cancelBacktest(tab.backtestData!.backtestId)}
+            onLoadTradeData={(page, pageSize) => loadTradeDataForBacktest(tab.backtestData!.backtestId, page, pageSize)}
+            onLoadPositionData={(page, pageSize) => loadPositionDataForBacktest(tab.backtestData!.backtestId, page, pageSize)}
           />
         );
 

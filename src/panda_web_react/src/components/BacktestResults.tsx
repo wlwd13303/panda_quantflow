@@ -723,7 +723,7 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
                 tab={
                   <span>
                     <TransactionOutlined />
-                    成交明细 ({tradeData.length})
+                    成交明细 ({dataStats.tradeCount})
                   </span>
                 }
                 key="2"
@@ -751,11 +751,26 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
                 }
                 key="3"
               >
-                {positionData.length > 0 ? (
+                {dataStats.positionCount > 0 ? (
                   <Table
                     columns={getPositionColumns()}
                     dataSource={positionData}
-                    pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
+                    loading={positionLoading}
+                    pagination={{
+                      current: positionPagination.current,
+                      pageSize: positionPagination.pageSize,
+                      total: dataStats.positionCount,
+                      showSizeChanger: true,
+                      showTotal: (total) => `共 ${total} 条`,
+                      onChange: async (page, pageSize) => {
+                        if (onLoadPositionData) {
+                          setPositionLoading(true);
+                          setPositionPagination({ current: page, pageSize: pageSize || 20 });
+                          await onLoadPositionData(page, pageSize || 20);
+                          setPositionLoading(false);
+                        }
+                      },
+                    }}
                     size="small"
                     scroll={{ x: 800 }}
                     rowKey={(_record, index) => `${_record.date}_${_record.symbol}_${index}` || index?.toString() || '0'}

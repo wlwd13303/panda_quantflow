@@ -596,27 +596,39 @@ class BacktestLogDAO:
     
     @staticmethod
     async def create(relation_id: str, back_id: str = None, **kwargs) -> int:
-        """创建日志记录"""
-        try:
-            async with sqlite_db.get_connection() as conn:
-                cursor = await conn.execute(
-                    """
-                    INSERT INTO panda_user_strategy_log 
-                    (relation_id, back_id, log_level, message, timestamp, sort)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        relation_id, back_id,
-                        kwargs.get('log_level'), kwargs.get('message'),
-                        kwargs.get('timestamp', datetime.now()),
-                        kwargs.get('sort')
+        """创建日志记录（带重试机制）"""
+        import asyncio
+        max_retries = 3
+        retry_delay = 0.3  # 秒
+        
+        for attempt in range(max_retries):
+            try:
+                async with sqlite_db.get_connection() as conn:
+                    cursor = await conn.execute(
+                        """
+                        INSERT INTO panda_user_strategy_log 
+                        (relation_id, back_id, log_level, message, timestamp, sort)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            relation_id, back_id,
+                            kwargs.get('log_level'), kwargs.get('message'),
+                            kwargs.get('timestamp', datetime.now()),
+                            kwargs.get('sort')
+                        )
                     )
-                )
-                await conn.commit()
-                return cursor.lastrowid
-        except Exception as e:
-            logger.error(f"创建日志记录失败: {e}")
-            raise
+                    await conn.commit()
+                    return cursor.lastrowid
+            except Exception as e:
+                error_msg = str(e)
+                if 'database is locked' in error_msg and attempt < max_retries - 1:
+                    # 数据库锁定，等待后重试
+                    await asyncio.sleep(retry_delay * (attempt + 1))  # 指数退避
+                    continue
+                else:
+                    # 其他错误或重试次数用尽
+                    logger.error(f"创建日志记录失败: {e}")
+                    raise
     
     @staticmethod
     async def list_by_relation_id(relation_id: str, last_sort: int = None, limit: int = 20) -> List[Dict[str, Any]]:

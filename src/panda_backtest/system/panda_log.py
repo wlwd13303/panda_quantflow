@@ -238,12 +238,16 @@ class SRLogger:
     
     @staticmethod
     def _batch_insert_logs_to_sqlite(log_list):
-        """批量将日志插入 SQLite 数据库"""
+        """批量将日志插入 SQLite 数据库（带重试机制）"""
+        max_retries = 3
+        retry_delay = 0.5  # 秒
+        
         try:
             # 动态导入，避免循环依赖
             from panda_server.dao.backtest_dao import BacktestLogDAO
             from panda_server.config.sqlite_database import sqlite_db
             from panda_server.config.env import SQLITE_DB_PATH
+            import sqlite3
             
             # 确保数据库路径已设置（回测进程中需要手动初始化）
             if sqlite_db.db_path is None:
@@ -257,24 +261,36 @@ class SRLogger:
                 success_count = 0
                 error_count = 0
                 for log_item in log_list:
-                    try:
-                        # 字段映射：MongoDB -> SQLite
-                        # run_info -> message
-                        # exhibit_time 或 insert_time -> timestamp
-                        # level -> log_level
-                        await BacktestLogDAO.create(
-                            relation_id=log_item.get('relation_id', ''),
-                            back_id=log_item.get('relation_id', ''),  # 使用 relation_id 作为 back_id
-                            log_level=str(log_item.get('level', '')),
-                            message=log_item.get('run_info', ''),
-                            timestamp=log_item.get('exhibit_time') or log_item.get('insert_time'),
-                            sort=log_item.get('sort', 0)
-                        )
-                        success_count += 1
-                    except Exception as e:
-                        error_count += 1
-                        print(f"[SRLogger] 插入单条日志失败: {e}")
-                        logging.error(f"插入单条日志失败: {e}, log_item: {log_item}")
+                    retry_count = 0
+                    while retry_count < max_retries:
+                        try:
+                            # 字段映射：MongoDB -> SQLite
+                            # run_info -> message
+                            # exhibit_time 或 insert_time -> timestamp
+                            # level -> log_level
+                            await BacktestLogDAO.create(
+                                relation_id=log_item.get('relation_id', ''),
+                                back_id=log_item.get('relation_id', ''),  # 使用 relation_id 作为 back_id
+                                log_level=str(log_item.get('level', '')),
+                                message=log_item.get('run_info', ''),
+                                timestamp=log_item.get('exhibit_time') or log_item.get('insert_time'),
+                                sort=log_item.get('sort', 0)
+                            )
+                            success_count += 1
+                            break  # 成功则跳出重试循环
+                        except (sqlite3.OperationalError, Exception) as e:
+                            error_msg = str(e)
+                            if 'database is locked' in error_msg and retry_count < max_retries - 1:
+                                # 数据库锁定，等待后重试
+                                retry_count += 1
+                                await asyncio.sleep(retry_delay * retry_count)  # 指数退避
+                                continue
+                            else:
+                                # 其他错误或重试次数用尽
+                                error_count += 1
+                                if retry_count > 0:
+                                    print(f"[SRLogger] 插入日志失败（重试{retry_count}次后）: {e}")
+                                break
                 
                 print(f"[SRLogger] 批量插入完成: 成功 {success_count} 条, 失败 {error_count} 条")
             
@@ -283,23 +299,18 @@ class SRLogger:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     # 如果事件循环正在运行，创建新的线程来运行
-                    print("[SRLogger] 检测到运行中的事件循环，使用线程池执行异步任务")
                     import concurrent.futures
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(asyncio.run, batch_insert())
-                        future.result(timeout=30)  # 30秒超时
+                        future.result(timeout=60)  # 60秒超时
                 else:
                     # 如果事件循环未运行，直接运行
-                    print("[SRLogger] 事件循环未运行，直接执行异步任务")
                     loop.run_until_complete(batch_insert())
             except RuntimeError as e:
                 # 如果没有事件循环，创建一个新的
-                print(f"[SRLogger] RuntimeError: {e}，创建新的事件循环")
                 asyncio.run(batch_insert())
             
-            print("[SRLogger] 日志批量写入流程完成")
         except Exception as e:
             import traceback
             print(f"[SRLogger] 批量插入日志到 SQLite 失败: {e}")
-            print(f"[SRLogger] 错误堆栈:\n{traceback.format_exc()}")
             logging.error(f"批量插入日志到 SQLite 失败: {e}\n{traceback.format_exc()}")

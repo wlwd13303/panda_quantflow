@@ -91,10 +91,10 @@ type MenuItem = {
 
 const menuItems: MenuItem[] = [
   { key: 'overview', icon: <LineChartOutlined />, label: '收益概述' },
+  { key: 'position_analysis', icon: <BarChartOutlined />, label: '仓位分析' },
   { key: 'trades', icon: <TransactionOutlined />, label: '交易详情' },
   { key: 'positions', icon: <FundOutlined />, label: '持仓信息' },
   { key: 'trade_analysis', icon: <StockOutlined />, label: '交易分析' },
-  { key: 'position_analysis', icon: <BarChartOutlined />, label: '仓位分析' },
   { key: 'performance_analysis', icon: <BarChartOutlined />, label: '性能分析' },
   { key: 'analysis', icon: <BarChartOutlined />, label: '绩效分析' },
   { key: 'logs', icon: <FileTextOutlined />, label: '日志输出' },
@@ -387,15 +387,26 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
       case 'trades':
         return (
           <Card style={{ margin: 20 }} title="交易详情">
-            {tradeData.length > 0 ? (
+            {dataStats.tradeCount > 0 ? (
               <Table
                 columns={getTradeColumns()}
                 dataSource={tradeData}
+                loading={tradeLoading}
                 pagination={{
-                  pageSize: 20,
+                  current: tradePagination.current,
+                  pageSize: tradePagination.pageSize,
+                  total: dataStats.tradeCount,
                   showTotal: (total) => `共 ${total} 条交易记录`,
                   showSizeChanger: true,
                   showQuickJumper: true,
+                  onChange: async (page, pageSize) => {
+                    if (onLoadTradeData) {
+                      setTradeLoading(true);
+                      setTradePagination({ current: page, pageSize: pageSize || 20 });
+                      await onLoadTradeData(page, pageSize || 20);
+                      setTradeLoading(false);
+                    }
+                  },
                 }}
                 size="small"
                 scroll={{ x: 800, y: 500 }}
@@ -410,15 +421,26 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
       case 'positions':
         return (
           <Card style={{ margin: 20 }} title="持仓信息">
-            {positionData.length > 0 ? (
+            {dataStats.positionCount > 0 ? (
               <Table
                 columns={getPositionColumns()}
                 dataSource={positionData}
+                loading={positionLoading}
                 pagination={{
-                  pageSize: 20,
+                  current: positionPagination.current,
+                  pageSize: positionPagination.pageSize,
+                  total: dataStats.positionCount,
                   showTotal: (total) => `共 ${total} 条持仓记录`,
                   showSizeChanger: true,
                   showQuickJumper: true,
+                  onChange: async (page, pageSize) => {
+                    if (onLoadPositionData) {
+                      setPositionLoading(true);
+                      setPositionPagination({ current: page, pageSize: pageSize || 20 });
+                      await onLoadPositionData(page, pageSize || 20);
+                      setPositionLoading(false);
+                    }
+                  },
                 }}
                 size="small"
                 scroll={{ x: 800, y: 500 }}

@@ -31,9 +31,16 @@ class SQLiteDatabase:
         if cls.db_path is None:
             raise Exception("Database path not set. Call set_db_path() first.")
         
-        conn = await aiosqlite.connect(str(cls.db_path))
+        conn = await aiosqlite.connect(
+            str(cls.db_path),
+            timeout=30.0  # 增加超时时间到30秒，避免 database is locked 错误
+        )
+        # 启用 WAL 模式，允许并发读写
+        await conn.execute("PRAGMA journal_mode=WAL")
         # 启用外键约束
         await conn.execute("PRAGMA foreign_keys = ON")
+        # 设置繁忙超时（毫秒）
+        await conn.execute("PRAGMA busy_timeout = 30000")
         # 设置行工厂，以字典形式返回结果
         conn.row_factory = aiosqlite.Row
         try:

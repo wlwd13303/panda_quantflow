@@ -96,7 +96,7 @@ class Run(object):
         DevInit.init_log_env('panda')
         DevInit.init_remote_sr_log(back_test_id, handle_message.get('run_params', 'no_run_params'), strategy_context)
         
-        # ⭐ 重要：更新 api.py 中的 SRLogger 引用，使策略代码能够使用正确的 logger
+        # 更新 api.py 中的 SRLogger 引用，使策略代码能够使用正确的 logger
         # 如果不调用此方法，策略代码中的 SRLogger 将是 LocalLogger（空实现），日志不会写入数据库
         init_sr_logger()
 
