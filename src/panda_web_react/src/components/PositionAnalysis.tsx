@@ -192,6 +192,13 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
     }
   };
 
+  // 初始化时自动选择第一个股票
+  useEffect(() => {
+    if (!selectedSymbol && symbols.length > 0) {
+      setSelectedSymbol(symbols[0]);
+    }
+  }, [symbols, selectedSymbol]);
+
   useEffect(() => {
     if (selectedSymbol) {
       fetchStockKLineData(selectedSymbol);
@@ -968,6 +975,8 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
           maxVolume: 0,
           avgMarketValue: 0,
           maxMarketValue: 0,
+          avgPositionRatio: 0,
+          maxPositionRatio: 0,
         };
       }
 
@@ -983,11 +992,14 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
           maxVolume: 0,
           avgMarketValue: 0,
           maxMarketValue: 0,
+          avgPositionRatio: 0,
+          maxPositionRatio: 0,
         };
       }
 
       const volumes = filteredData.map((item) => Number(item.volume || 0)).filter(v => isFinite(v));
       const marketValues = filteredData.map((item) => Number(item.market_value || 0)).filter(v => isFinite(v));
+      const positionRatios = filteredData.map((item) => Number(item.position_ratio || 0) * 100).filter(r => isFinite(r));
 
       if (volumes.length === 0 || marketValues.length === 0) {
         return {
@@ -995,6 +1007,8 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
           maxVolume: 0,
           avgMarketValue: 0,
           maxMarketValue: 0,
+          avgPositionRatio: 0,
+          maxPositionRatio: 0,
         };
       }
 
@@ -1002,12 +1016,18 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
       const maxVolume = Math.max(...volumes, 0);
       const avgMarketValue = marketValues.reduce((sum, v) => sum + v, 0) / marketValues.length;
       const maxMarketValue = Math.max(...marketValues, 0);
+      const avgPositionRatio = positionRatios.length > 0 
+        ? positionRatios.reduce((sum, r) => sum + r, 0) / positionRatios.length 
+        : 0;
+      const maxPositionRatio = positionRatios.length > 0 ? Math.max(...positionRatios, 0) : 0;
 
       return {
         avgVolume: isFinite(avgVolume) ? avgVolume : 0,
         maxVolume: isFinite(maxVolume) ? maxVolume : 0,
         avgMarketValue: isFinite(avgMarketValue) ? avgMarketValue : 0,
         maxMarketValue: isFinite(maxMarketValue) ? maxMarketValue : 0,
+        avgPositionRatio: isFinite(avgPositionRatio) ? avgPositionRatio : 0,
+        maxPositionRatio: isFinite(maxPositionRatio) ? maxPositionRatio : 0,
       };
     } catch (error) {
       console.error('计算个股持仓统计失败:', error);
@@ -1016,6 +1036,8 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
         maxVolume: 0,
         avgMarketValue: 0,
         maxMarketValue: 0,
+        avgPositionRatio: 0,
+        maxPositionRatio: 0,
       };
     }
   }, [selectedSymbol, positionData, dateRange]);
@@ -1065,7 +1087,18 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
           >
             {/* 统计指标 */}
             <Row gutter={16} style={{ marginBottom: 16 }}>
-              <Col span={8}>
+              <Col span={6}>
+                <Card>
+                  <Statistic
+                    title="平均仓位率"
+                    value={totalPositionStats.avgPositionRatio.toFixed(2)}
+                    suffix="%"
+                    valueStyle={{ color: '#722ed1' }}
+                    prefix={<LineChartOutlined />}
+                  />
+                </Card>
+              </Col>
+              <Col span={6}>
                 <Card>
                   <Statistic
                     title="平均持仓股票数"
@@ -1075,7 +1108,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
                   />
                 </Card>
               </Col>
-              <Col span={8}>
+              <Col span={6}>
                 <Card>
                   <Statistic
                     title="最大持仓股票数"
@@ -1085,7 +1118,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
                   />
                 </Card>
               </Col>
-              <Col span={8}>
+              <Col span={6}>
                 <Card>
                   <Statistic
                     title="最小持仓股票数"
@@ -1221,49 +1254,59 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
               />
             ) : (
               <>
-                {/* 统计指标 */}
-                <Row gutter={16} style={{ marginBottom: 16 }}>
-                  <Col span={6}>
-                    <Card>
-                      <Statistic
-                        title="平均持仓量"
-                        value={stockPositionStats.avgVolume.toFixed(0)}
-                        suffix="股"
-                        valueStyle={{ color: '#5470c6' }}
-                      />
-                    </Card>
-                  </Col>
-                  <Col span={6}>
-                    <Card>
-                      <Statistic
-                        title="最大持仓量"
-                        value={stockPositionStats.maxVolume.toFixed(0)}
-                        suffix="股"
-                        valueStyle={{ color: '#ff4d4f' }}
-                      />
-                    </Card>
-                  </Col>
-                  <Col span={6}>
-                    <Card>
-                      <Statistic
-                        title="平均持仓市值"
-                        value={stockPositionStats.avgMarketValue.toFixed(0)}
-                        prefix="¥"
-                        valueStyle={{ color: '#52c41a' }}
-                      />
-                    </Card>
-                  </Col>
-                  <Col span={6}>
-                    <Card>
-                      <Statistic
-                        title="最大持仓市值"
-                        value={stockPositionStats.maxMarketValue.toFixed(0)}
-                        prefix="¥"
-                        valueStyle={{ color: '#722ed1' }}
-                      />
-                    </Card>
-                  </Col>
-                </Row>
+                {/* 统计指标 - 单行紧凑布局 */}
+                <Card style={{ marginBottom: 16 }}>
+                  <Row gutter={[16, 0]}>
+                    <Col span={4}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>平均仓位</div>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#5470c6' }}>
+                          {stockPositionStats.avgPositionRatio.toFixed(2)}%
+                        </div>
+                      </div>
+                    </Col>
+                    <Col span={4}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>最大仓位</div>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#ff4d4f' }}>
+                          {stockPositionStats.maxPositionRatio.toFixed(2)}%
+                        </div>
+                      </div>
+                    </Col>
+                    <Col span={4}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>平均持仓量</div>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#52c41a' }}>
+                          {(stockPositionStats.avgVolume / 10000).toFixed(1)}万股
+                        </div>
+                      </div>
+                    </Col>
+                    <Col span={4}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>最大持仓量</div>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#722ed1' }}>
+                          {(stockPositionStats.maxVolume / 10000).toFixed(1)}万股
+                        </div>
+                      </div>
+                    </Col>
+                    <Col span={4}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>平均持仓市值</div>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1890ff' }}>
+                          ¥{(stockPositionStats.avgMarketValue / 10000).toFixed(1)}万
+                        </div>
+                      </div>
+                    </Col>
+                    <Col span={4}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>最大持仓市值</div>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#faad14' }}>
+                          ¥{(stockPositionStats.maxMarketValue / 10000).toFixed(1)}万
+                        </div>
+                      </div>
+                    </Col>
+                  </Row>
+                </Card>
 
                 {/* 控制栏 */}
                 <div

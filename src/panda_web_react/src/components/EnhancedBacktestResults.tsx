@@ -81,6 +81,9 @@ interface EnhancedBacktestResultsProps {
   onEditStrategy?: (strategyId: string) => void;
   onRerunBacktest?: (config: BacktestConfig) => void;
   onCancelBacktest?: () => void;
+  // 🆕 分页加载回调
+  onLoadTradeData?: (page: number, pageSize: number) => Promise<void>;
+  onLoadPositionData?: (page: number, pageSize: number) => Promise<void>;
 }
 
 type MenuItem = {
@@ -110,6 +113,8 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
   profitData,
   tradeData,
   positionData,
+  accountData,
+  dataStats,
   config,
   strategyName,
   autoRefresh = true,
@@ -117,11 +122,23 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
   strategyId,
   strategyCodeSnapshot,
   currentStrategyCode,
+  onLoadResults,
+  onManualComplete,
+  onConfigChange,
+  onStrategyNameChange,
+  onAutoRefreshChange,
+  onRefreshIntervalChange,
   onEditStrategy,
   onRerunBacktest,
   onCancelBacktest,
+  onLoadTradeData,
+  onLoadPositionData,
 }) => {
   const [selectedMenu, setSelectedMenu] = useState('overview');
+  const [tradeLoading, setTradeLoading] = useState(false);
+  const [positionLoading, setPositionLoading] = useState(false);
+  const [tradePagination, setTradePagination] = useState({ current: 1, pageSize: 20 });
+  const [positionPagination, setPositionPagination] = useState({ current: 1, pageSize: 20 });
 
   // 检查策略代码是否已变更
   const strategyCodeChanged = strategyCodeSnapshot && currentStrategyCode && strategyCodeSnapshot !== currentStrategyCode;
