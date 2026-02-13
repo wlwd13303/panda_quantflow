@@ -60,7 +60,9 @@ interface EnhancedBacktestResultsProps {
   backtestStatus: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   profitData: ProfitData[];
   tradeData: TradeData[];
+  tradeAnalysisData?: TradeData[];
   positionData: PositionData[];
+  positionAnalysisData?: PositionData[];
   accountData: AccountData[];
   dataStats: DataStats;
   config: BacktestConfig;
@@ -112,7 +114,9 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
   backtestStatus,
   profitData,
   tradeData,
+  tradeAnalysisData,
   positionData,
+  positionAnalysisData,
   accountData,
   dataStats,
   config,
@@ -482,7 +486,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
       case 'trade_analysis':
         return (
           <TradeAnalysis
-            tradeData={tradeData}
+            tradeData={tradeAnalysisData || tradeData}
             positionData={positionData}
             backtestId={currentBacktestId}
           />
@@ -491,7 +495,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
       case 'position_analysis':
         return (
           <PositionAnalysis
-            positionData={positionData}
+            positionData={positionAnalysisData || positionData}
             profitData={profitData}
             config={config}
           />

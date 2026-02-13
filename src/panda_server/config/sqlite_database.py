@@ -147,6 +147,10 @@ class SQLiteDatabase:
                 CREATE INDEX IF NOT EXISTS idx_account_date 
                 ON panda_backtest_account(date)
             """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_account_back_id_date
+                ON panda_backtest_account(back_id, date)
+            """)
             
             # ========== 回测持仓数据表 ==========
             await conn.execute("""
@@ -175,6 +179,10 @@ class SQLiteDatabase:
             await conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_position_date 
                 ON panda_backtest_position(date)
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_position_back_id_date_symbol
+                ON panda_backtest_position(back_id, date, symbol)
             """)
             
             # ========== 回测收益数据表 ==========
@@ -230,6 +238,10 @@ class SQLiteDatabase:
                 CREATE INDEX IF NOT EXISTS idx_trade_date 
                 ON panda_backtest_trade(date)
             """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_trade_back_id_date_time
+                ON panda_backtest_trade(back_id, date, time)
+            """)
             
             # ========== 回测策略日志表 ==========
             await conn.execute("""
@@ -271,6 +283,11 @@ class SQLiteDatabase:
                 await conn.execute("ALTER TABLE panda_backtest_position ADD COLUMN contract_name TEXT")
                 await conn.commit()
                 logger.info("Migration completed: contract_name column added to panda_backtest_position")
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_position_back_id_date_symbol
+                ON panda_backtest_position(back_id, date, symbol)
+            """)
             
             # 检查 panda_backtest_trade 表是否有 contract_name 列
             cursor = await conn.execute("PRAGMA table_info(panda_backtest_trade)")
@@ -282,6 +299,16 @@ class SQLiteDatabase:
                 await conn.execute("ALTER TABLE panda_backtest_trade ADD COLUMN contract_name TEXT")
                 await conn.commit()
                 logger.info("Migration completed: contract_name column added to panda_backtest_trade")
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_account_back_id_date
+                ON panda_backtest_account(back_id, date)
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_trade_back_id_date_time
+                ON panda_backtest_trade(back_id, date, time)
+            """)
+            await conn.commit()
     
     @classmethod
     async def close_db(cls):

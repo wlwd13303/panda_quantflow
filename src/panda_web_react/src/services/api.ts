@@ -161,10 +161,10 @@ export const backtestApi = {
         params: { back_id: backId, page, page_size: pageSize },
       }
     );
-    const data = response.data.data || { items: [], total: 0 };
+    const data: any = response.data.data || { items: [], total: 0 };
     return {
       items: Array.isArray(data) ? data : data.items || [],
-      total: Array.isArray(data) ? data.length : data.total || 0,
+      total: Array.isArray(data) ? data.length : (data.total ?? data.pagination?.total ?? 0),
     };
   },
 
@@ -180,10 +180,10 @@ export const backtestApi = {
         params: { back_id: backId, page, page_size: pageSize },
       }
     );
-    const data = response.data.data || { items: [], total: 0 };
+    const data: any = response.data.data || { items: [], total: 0 };
     return {
       items: Array.isArray(data) ? data : data.items || [],
-      total: Array.isArray(data) ? data.length : data.total || 0,
+      total: Array.isArray(data) ? data.length : (data.total ?? data.pagination?.total ?? 0),
     };
   },
 
@@ -199,10 +199,10 @@ export const backtestApi = {
         params: { back_id: backId, page, page_size: pageSize },
       }
     );
-    const data = response.data.data || { items: [], total: 0 };
+    const data: any = response.data.data || { items: [], total: 0 };
     return {
       items: Array.isArray(data) ? data : data.items || [],
-      total: Array.isArray(data) ? data.length : data.total || 0,
+      total: Array.isArray(data) ? data.length : (data.total ?? data.pagination?.total ?? 0),
     };
   },
 
@@ -218,10 +218,10 @@ export const backtestApi = {
         params: { back_id: backId, page, page_size: pageSize },
       }
     );
-    const data = response.data.data || { items: [], total: 0 };
+    const data: any = response.data.data || { items: [], total: 0 };
     return {
       items: Array.isArray(data) ? data : data.items || [],
-      total: Array.isArray(data) ? data.length : data.total || 0,
+      total: Array.isArray(data) ? data.length : (data.total ?? data.pagination?.total ?? 0),
     };
   },
 

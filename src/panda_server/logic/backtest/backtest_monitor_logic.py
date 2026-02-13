@@ -1,190 +1,159 @@
 """
-回测实时监控逻辑
-提供实时监控数据接口，综合获取账户、交易、持仓、收益的最新数据和统计信息
+Backtest monitor logic.
+Provides a bounded payload to avoid large SQLite reads and huge JSON responses.
 """
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
+
 from panda_server.dao.backtest_dao import (
     BacktestAccountDAO,
     BacktestTradeDAO,
     BacktestPositionDAO,
     BacktestProfitDAO,
-    BacktestDAO
+    BacktestDAO,
 )
 
 logger = logging.getLogger(__name__)
 
 
 async def get_monitor_data(back_id: str) -> Dict[str, Any]:
-    """
-    获取回测的实时监控数据
-    
-    Args:
-        back_id: 回测ID
-        
-    Returns:
-        dict: 包含统计、最新账户、最新持仓、最近交易等信息
-    """
+    """Get monitor data for a backtest with bounded result size."""
     try:
-        # 1. 获取数据统计
+        max_recent_trades = 300
+        max_latest_positions = 2000
+        max_equity_points = 2000
+
         account_count = await BacktestAccountDAO.count_by_back_id(back_id)
         trade_count = await BacktestTradeDAO.count_by_back_id(back_id)
         position_count = await BacktestPositionDAO.count_by_back_id(back_id)
         profit_count = await BacktestProfitDAO.count_by_back_id(back_id)
-        
-        # 2. 获取最新账户数据（最近1条）
+
+        latest_account_row = await BacktestAccountDAO.get_latest_by_back_id(back_id)
+        first_account_row = await BacktestAccountDAO.get_first_by_back_id(back_id)
+
         latest_account = None
-        account_list, _ = await BacktestAccountDAO.list_by_back_id(back_id, page=1, page_size=999999)
-        if account_list:
-            # 按日期排序，获取最新的
-            sorted_accounts = sorted(account_list, key=lambda x: x.get('date', ''), reverse=True)
-            if sorted_accounts:
-                account = sorted_accounts[0]
-                # 计算收益率（如果有初始资金）
-                initial_capital = None
-                if len(account_list) > 0:
-                    first_account = sorted(account_list, key=lambda x: x.get('date', ''))[0]
-                    initial_capital = first_account.get('total_value')
-                
-                profit_rate = None
-                if initial_capital and initial_capital > 0:
-                    current_value = account.get('total_value', 0) or 0
-                    profit_rate = (current_value - initial_capital) / initial_capital
-                
-                latest_account = {
-                    'date': account.get('date'),
-                    'total_asset': account.get('total_value'),
-                    'available': account.get('available') or account.get('cash') or account.get('balance'),
-                    'market_value': account.get('market_value'),
-                    'profit': account.get('position_profit'),
-                    'profit_rate': profit_rate,
-                }
-        
-        # 3. 获取所有交易记录
+        latest_total_value = None
+        if latest_account_row:
+            latest_total_value = latest_account_row.get("total_value")
+            initial_total_value = first_account_row.get("total_value") if first_account_row else None
+
+            profit_rate = None
+            if initial_total_value not in (None, 0):
+                try:
+                    current_value = float(latest_total_value or 0)
+                    initial_value = float(initial_total_value)
+                    if initial_value > 0:
+                        profit_rate = (current_value - initial_value) / initial_value
+                except (TypeError, ValueError):
+                    profit_rate = None
+
+            latest_account = {
+                "date": latest_account_row.get("date"),
+                "total_asset": latest_total_value,
+                "available": latest_account_row.get("available")
+                or latest_account_row.get("cash")
+                or latest_account_row.get("balance"),
+                "market_value": latest_account_row.get("market_value"),
+                "profit": latest_account_row.get("position_profit"),
+                "profit_rate": profit_rate,
+            }
+
         recent_trades = []
-        trade_list, _ = await BacktestTradeDAO.list_by_back_id(back_id, page=1, page_size=999999)
-        if trade_list:
-            # 按日期和时间排序
-            sorted_trades = sorted(
-                trade_list,
-                key=lambda x: (x.get('date', ''), x.get('time', '')),
-                reverse=True
+        trade_list = await BacktestTradeDAO.list_recent_by_back_id(
+            back_id, limit=max_recent_trades
+        )
+        for trade in trade_list:
+            direction = trade.get("direction")
+            direction_text = "涔板叆"
+            if direction == 1 or direction == "1":
+                direction_text = "鍗栧嚭"
+            elif direction == 0 or direction == "0":
+                direction_text = "涔板叆"
+
+            amount = trade.get("amount")
+            if amount is None:
+                price = trade.get("price", 0) or 0
+                volume = trade.get("volume", 0) or 0
+                amount = float(price) * float(volume) if price and volume else 0
+
+            recent_trades.append(
+                {
+                    "date": trade.get("date"),
+                    "time": trade.get("time"),
+                    "symbol": trade.get("symbol"),
+                    "contract_name": trade.get("contract_name"),
+                    "side": direction,
+                    "direction": direction_text,
+                    "price": trade.get("price"),
+                    "volume": trade.get("volume"),
+                    "amount": amount,
+                }
             )
-            
-            for trade in sorted_trades:
-                # direction 转换：0 (SIDE_BUY) -> "买入", 1 (SIDE_SELL) -> "卖出"
-                direction = trade.get('direction')
-                direction_text = "买入"
-                if direction == 1 or direction == "1":
-                    direction_text = "卖出"
-                elif direction == 0 or direction == "0":
-                    direction_text = "买入"
-                
-                # 计算amount（如果没有）
-                amount = trade.get('amount')
-                if amount is None:
-                    price = trade.get('price', 0) or 0
-                    volume = trade.get('volume', 0) or 0
-                    amount = float(price) * float(volume) if price and volume else 0
-                
-                recent_trades.append({
-                    'date': trade.get('date'),
-                    'time': trade.get('time'),
-                    'symbol': trade.get('symbol'),
-                    'contract_name': trade.get('contract_name'),
-                    'side': direction,
-                    'direction': direction_text,
-                    'price': trade.get('price'),
-                    'volume': trade.get('volume'),
-                    'amount': amount,
-                })
-        
-        # 4. 获取所有历史持仓记录（按日期倒序排列），并计算持仓比例（市值 / 当日总资产）
+
         latest_positions = []
-        position_list, _ = await BacktestPositionDAO.list_by_back_id(back_id, page=1, page_size=999999)
-        if position_list:
-            # 预先构建按日期聚合的账户总资产映射
-            account_total_value_map = {}
-            for acc in account_list or []:
-                date_key = acc.get('date')
-                total_value = acc.get('total_value')
-                if not date_key or total_value is None:
-                    continue
-                account_total_value_map[date_key] = float(total_value)
+        position_list = await BacktestPositionDAO.list_latest_positions_by_back_id(
+            back_id, limit=max_latest_positions
+        )
+        for pos in position_list:
+            position_ratio = None
+            market_value = pos.get("market_value") or 0
+            if market_value and latest_total_value:
+                try:
+                    position_ratio = float(market_value) / float(latest_total_value)
+                except Exception:
+                    position_ratio = None
 
-            # 按日期排序（最新的在前）
-            sorted_positions = sorted(
-                position_list,
-                key=lambda x: x.get('date', ''),
-                reverse=True
+            latest_positions.append(
+                {
+                    "date": pos.get("date"),
+                    "symbol": pos.get("symbol"),
+                    "contract_name": pos.get("contract_name"),
+                    "volume": pos.get("volume"),
+                    "market_value": pos.get("market_value"),
+                    "profit": pos.get("profit"),
+                    "profit_rate": pos.get("profit_rate"),
+                    "position_ratio": position_ratio,
+                }
             )
-            
-            for pos in sorted_positions:
-                date_key = pos.get('date')
-                market_value = pos.get('market_value') or 0
-                total_asset = account_total_value_map.get(date_key) or 0
-                position_ratio = None
-                if market_value and total_asset:
-                    try:
-                        position_ratio = float(market_value) / float(total_asset)
-                    except Exception:
-                        position_ratio = None
 
-                latest_positions.append({
-                    'date': date_key,
-                    'symbol': pos.get('symbol'),
-                    'contract_name': pos.get('contract_name'),
-                    'volume': pos.get('volume'),
-                    'market_value': pos.get('market_value'),
-                    'profit': pos.get('profit'),
-                    'profit_rate': pos.get('profit_rate'),
-                    'position_ratio': position_ratio,
-                })
-        
-        # 5. 获取净值曲线数据（完整数据）
-        equity_curve = []
-        if account_list:
-            sorted_accounts = sorted(account_list, key=lambda x: x.get('date', ''))
-            
-            for acc in sorted_accounts:
-                total_value = acc.get('total_value')
-                if total_value is not None:
-                    equity_curve.append({
-                        'date': acc.get('date'),
-                        'value': total_value,
-                    })
-        
-        # 6. 获取回测基本信息
+        equity_curve = await BacktestAccountDAO.list_equity_curve_by_back_id(
+            back_id, limit=max_equity_points
+        )
+
         backtest_info = await BacktestDAO.get_by_run_id(back_id)
-        status = 'unknown'
+        status = "unknown"
         progress = 0
         if backtest_info:
-            status = backtest_info.get('status', 'unknown')
-            progress = backtest_info.get('progress', 0)
-        
-        # 组装返回数据
+            status = backtest_info.get("status", "unknown")
+            progress = backtest_info.get("progress", 0)
+
         return {
-            'success': True,
-            'back_id': back_id,
-            'status': status,
-            'progress': progress,
-            'stats': {
-                'account_count': account_count,
-                'trade_count': trade_count,
-                'position_count': position_count,
-                'profit_count': profit_count,
+            "success": True,
+            "back_id": back_id,
+            "status": status,
+            "progress": progress,
+            "stats": {
+                "account_count": account_count,
+                "trade_count": trade_count,
+                "position_count": position_count,
+                "profit_count": profit_count,
             },
-            'latest_account': latest_account,
-            'recent_trades': recent_trades,
-            'latest_positions': latest_positions,
-            'equity_curve': equity_curve,
+            "latest_account": latest_account,
+            "recent_trades": recent_trades,
+            "latest_positions": latest_positions,
+            "equity_curve": equity_curve,
+            "payload_limits": {
+                "recent_trades_limit": max_recent_trades,
+                "latest_positions_limit": max_latest_positions,
+                "equity_curve_limit": max_equity_points,
+            },
         }
-        
+
     except Exception as e:
-        logger.error(f"获取监控数据失败: {e}", exc_info=True)
+        logger.error(f"鑾峰彇鐩戞帶鏁版嵁澶辫触: {e}", exc_info=True)
         return {
-            'success': False,
-            'error': str(e),
-            'back_id': back_id,
+            "success": False,
+            "error": str(e),
+            "back_id": back_id,
         }
 

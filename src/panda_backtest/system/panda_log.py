@@ -26,6 +26,19 @@ class SRLogger:
     _sort = 0
     _insert_flag = True
 
+    @staticmethod
+    def _echo_to_console(log_type, content):
+        if log_type < 0:
+            return
+        logger = logging.getLogger("SRLogger")
+        level_map = {
+            1: logging.INFO,
+            2: logging.WARNING,
+            3: logging.DEBUG,
+            4: logging.ERROR,
+        }
+        logger.log(level_map.get(log_type, logging.INFO), f"[SRLogger] {content}")
+
     @classmethod
     def init_strategy_context(cls, back_test_id, opz_params_str, strategy_context):
         SRLogger._log_queue = queue.Queue()
@@ -147,6 +160,7 @@ class SRLogger:
             insert_content['source'] = source
             if risk_control_name is not None:
                 insert_content['risk_control_name'] = risk_control_name
+            SRLogger._echo_to_console(log_type, content)
             SRLogger._sort = SRLogger._sort + 1
             SRLogger._log_queue.put_nowait(insert_content)
         except Exception as e:

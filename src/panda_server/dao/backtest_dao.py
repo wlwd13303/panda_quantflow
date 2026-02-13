@@ -328,6 +328,124 @@ class BacktestAccountDAO:
             raise
 
 
+    @staticmethod
+    async def get_latest_by_back_id(back_id: str) -> Optional[Dict[str, Any]]:
+        """Get latest account snapshot for a backtest."""
+        try:
+            async with sqlite_db.get_connection() as conn:
+                cursor = await conn.execute(
+                    """
+                    SELECT id as _id, back_id, date, available, balance, cash, market_value,
+                           total_value, position_profit, created_at
+                    FROM panda_backtest_account
+                    WHERE back_id = ?
+                    ORDER BY date DESC
+                    LIMIT 1
+                    """,
+                    (back_id,)
+                )
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+
+                account_dict = dict(row)
+                if "_id" in account_dict:
+                    account_dict["_id"] = str(account_dict["_id"])
+                return account_dict
+        except Exception as e:
+            logger.error(f"Failed to get latest account snapshot: {e}")
+            return None
+
+    @staticmethod
+    async def get_first_by_back_id(back_id: str) -> Optional[Dict[str, Any]]:
+        """Get earliest account snapshot for a backtest."""
+        try:
+            async with sqlite_db.get_connection() as conn:
+                cursor = await conn.execute(
+                    """
+                    SELECT id as _id, back_id, date, available, balance, cash, market_value,
+                           total_value, position_profit, created_at
+                    FROM panda_backtest_account
+                    WHERE back_id = ?
+                    ORDER BY date ASC
+                    LIMIT 1
+                    """,
+                    (back_id,)
+                )
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+
+                account_dict = dict(row)
+                if "_id" in account_dict:
+                    account_dict["_id"] = str(account_dict["_id"])
+                return account_dict
+        except Exception as e:
+            logger.error(f"Failed to get first account snapshot: {e}")
+            return None
+
+    @staticmethod
+    async def list_equity_curve_by_back_id(back_id: str, limit: int = 2000) -> List[Dict[str, Any]]:
+        """Get equity-curve points ordered by date ascending."""
+        try:
+            safe_limit = max(1, min(limit, 10000))
+            async with sqlite_db.get_connection() as conn:
+                cursor = await conn.execute(
+                    """
+                    SELECT date, total_value
+                    FROM panda_backtest_account
+                    WHERE back_id = ? AND total_value IS NOT NULL
+                    ORDER BY date DESC
+                    LIMIT ?
+                    """,
+                    (back_id, safe_limit)
+                )
+                rows = await cursor.fetchall()
+                curve = [{"date": row["date"], "value": row["total_value"]} for row in rows]
+                curve.reverse()
+                return curve
+        except Exception as e:
+            logger.error(f"Failed to get equity curve: {e}")
+            return []
+
+    @staticmethod
+    async def get_total_value_by_dates(back_id: str, dates: List[str]) -> Dict[str, float]:
+        """Get account total_value map for specified dates."""
+        if not dates:
+            return {}
+        try:
+            unique_dates = [d for d in dict.fromkeys(dates) if d]
+            if not unique_dates:
+                return {}
+
+            placeholders = ", ".join(["?"] * len(unique_dates))
+            params = [back_id, *unique_dates]
+
+            async with sqlite_db.get_connection() as conn:
+                cursor = await conn.execute(
+                    f"""
+                    SELECT date, total_value
+                    FROM panda_backtest_account
+                    WHERE back_id = ?
+                      AND date IN ({placeholders})
+                      AND total_value IS NOT NULL
+                    """,
+                    params,
+                )
+                rows = await cursor.fetchall()
+
+                result: Dict[str, float] = {}
+                for row in rows:
+                    try:
+                        result[row["date"]] = float(row["total_value"])
+                    except (TypeError, ValueError):
+                        continue
+                return result
+        except Exception as e:
+            logger.error(f"Failed to get account total_value by dates: {e}")
+            return {}
+
+
 class BacktestPositionDAO:
     """回测持仓数据访问对象"""
     
@@ -420,6 +538,69 @@ class BacktestPositionDAO:
         except Exception as e:
             logger.error(f"获取持仓列表失败: {e}")
             raise
+
+
+    @staticmethod
+    async def get_latest_date_by_back_id(back_id: str) -> Optional[str]:
+        """Get latest position date for a backtest."""
+        try:
+            async with sqlite_db.get_connection() as conn:
+                cursor = await conn.execute(
+                    """
+                    SELECT MAX(date) as latest_date
+                    FROM panda_backtest_position
+                    WHERE back_id = ?
+                    """,
+                    (back_id,)
+                )
+                row = await cursor.fetchone()
+                return row["latest_date"] if row and row["latest_date"] else None
+        except Exception as e:
+            logger.error(f"Failed to get latest position date: {e}")
+            return None
+
+    @staticmethod
+    async def list_latest_positions_by_back_id(back_id: str, limit: int = 2000) -> List[Dict[str, Any]]:
+        """Get latest-date positions for a backtest."""
+        try:
+            safe_limit = max(1, min(limit, 10000))
+            async with sqlite_db.get_connection() as conn:
+                latest_date_cursor = await conn.execute(
+                    """
+                    SELECT MAX(date) as latest_date
+                    FROM panda_backtest_position
+                    WHERE back_id = ?
+                    """,
+                    (back_id,)
+                )
+                latest_date_row = await latest_date_cursor.fetchone()
+                latest_date = latest_date_row["latest_date"] if latest_date_row else None
+                if not latest_date:
+                    return []
+
+                cursor = await conn.execute(
+                    """
+                    SELECT id as _id, back_id, date, symbol, contract_name, volume, available, avg_price,
+                           market_price, market_value, profit, profit_rate, created_at
+                    FROM panda_backtest_position
+                    WHERE back_id = ? AND date = ?
+                    ORDER BY symbol
+                    LIMIT ?
+                    """,
+                    (back_id, latest_date, safe_limit)
+                )
+                rows = await cursor.fetchall()
+                positions = []
+                for row in rows:
+                    position_dict = dict(row)
+                    if "_id" in position_dict:
+                        position_dict["_id"] = str(position_dict["_id"])
+                    positions.append(position_dict)
+
+                return positions
+        except Exception as e:
+            logger.error(f"Failed to get latest positions: {e}")
+            return []
 
 
 class BacktestProfitDAO:
@@ -589,6 +770,37 @@ class BacktestTradeDAO:
         except Exception as e:
             logger.error(f"获取交易列表失败: {e}")
             raise
+
+
+    @staticmethod
+    async def list_recent_by_back_id(back_id: str, limit: int = 200) -> List[Dict[str, Any]]:
+        """Get recent trades ordered by date/time descending."""
+        try:
+            safe_limit = max(1, min(limit, 5000))
+            async with sqlite_db.get_connection() as conn:
+                cursor = await conn.execute(
+                    """
+                    SELECT id as _id, back_id, date, time, symbol, contract_name, direction, offset,
+                           price, volume, amount, commission, created_at
+                    FROM panda_backtest_trade
+                    WHERE back_id = ?
+                    ORDER BY date DESC, time DESC
+                    LIMIT ?
+                    """,
+                    (back_id, safe_limit)
+                )
+                rows = await cursor.fetchall()
+                trades = []
+                for row in rows:
+                    trade_dict = dict(row)
+                    if "_id" in trade_dict:
+                        trade_dict["_id"] = str(trade_dict["_id"])
+                    trades.append(trade_dict)
+
+                return trades
+        except Exception as e:
+            logger.error(f"Failed to get recent trades: {e}")
+            return []
 
 
 class BacktestLogDAO:

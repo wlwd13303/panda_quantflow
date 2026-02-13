@@ -5,8 +5,6 @@ description = "PandaAI QuantFlow"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    # 本地项目依赖
-    "panda_factor @ file:///C:/work/panda_factor/panda_factor",
     # 核心依赖
     "aiosqlite>=0.17.0",
     "numpy>=1.22,<2.0",
@@ -43,7 +41,7 @@ dependencies = [
     "python-snappy>=0.7.3",
     "matplotlib>=3.9.4",
     "tornado>=6.5",
-#    "rqdatac>=3.2.2",
+    #    "rqdatac>=3.2.2",
     #其它
     "cloudpickle>=3.1.1",
     "torch>=2.7.0",
@@ -59,17 +57,18 @@ dependencies = [
     "dotenv>=0.9.9",
     "ipython>=9.2.0",
     "TA-Lib",
+    "pandas-stubs~=2.3.3",
 ]
 
 [dependency-groups]
-dev = ["pytest>=8.3.5", "pytest-asyncio", "httpx", "jupyterlab>=3.5.0"]
+dev = ["pytest>=8.3.5", "pytest-asyncio", "httpx"]
 
 [build-system]
 requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3.5", "pytest-asyncio", "httpx", "jupyterlab>=3.5.0"]
+dev = ["pytest>=8.3.5", "pytest-asyncio", "httpx"]
 
 [tool.setuptools]
 package-dir = { "" = "src" }

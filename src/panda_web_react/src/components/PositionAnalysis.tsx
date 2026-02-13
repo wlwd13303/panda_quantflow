@@ -59,6 +59,17 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
   const [showKLine, setShowKLine] = useState(true);
   const [showStockPosition, setShowStockPosition] = useState(true);
 
+  const normalizeDateKey = (value: any): string => {
+    if (!value) return '';
+    const digits = String(value).replace(/\D/g, '');
+    return digits.length >= 8 ? digits.substring(0, 8) : '';
+  };
+
+  const formatDateLabel = (dateKey: string): string => {
+    if (!dateKey || dateKey.length !== 8) return dateKey;
+    return `${dateKey.substring(0, 4)}-${dateKey.substring(4, 6)}-${dateKey.substring(6, 8)}`;
+  };
+
   // 提取所有唯一的股票代码和名称（统一使用 contract_code）
   const symbolNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -82,7 +93,8 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
       const date = pos.date || pos.gmt_create || '';
       if (!date) return;
 
-      const dateStr = date.length === 8 ? date : date.substring(0, 8);
+      const dateStr = normalizeDateKey(date);
+      if (!dateStr) return;
       const marketValue = Number(pos.market_value || 0);
       const symbol = pos.contract_code || '';
 
@@ -213,7 +225,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
     const [start, end] = dateRange;
     return data.filter((item) => {
       const date = item.date || item.gmt_create || '';
-      const dateStr = date.length === 8 ? date : date.substring(0, 8);
+      const dateStr = normalizeDateKey(date);
       return dateStr >= start && dateStr <= end;
     });
   };
@@ -231,7 +243,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
     // 日期序列
     const dates = filteredPositionData.map((item) => {
       const dateStr = item.date;
-      return `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+      return formatDateLabel(dateStr);
     });
 
     // 仓位价值序列
@@ -242,7 +254,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
       // 从profitData中找到对应日期的总资产
       const dateStr = item.date;
       const profitItem = profitData.find((p) => {
-        const pDate = String(p.date || p.gmt_create_time || p.gmt_create || '').substring(0, 8);
+        const pDate = normalizeDateKey(p.date || p.gmt_create_time || p.gmt_create || '');
         return pDate === dateStr;
       });
 
@@ -267,7 +279,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
       indexNormalized = filteredPositionData.map((item) => {
         const dateStr = item.date;
         const indexItem = indexData.find((idx) => {
-          const idxDate = String(idx.date || idx.trade_date || '').substring(0, 8);
+          const idxDate = normalizeDateKey(idx.date || idx.trade_date || '');
           return idxDate === dateStr;
         });
 
@@ -438,7 +450,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
     // 日期序列
     const dates = filteredPositionData.map((item) => {
       const dateStr = item.date;
-      return `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+      return formatDateLabel(dateStr);
     });
 
     // 持仓股票数量序列
@@ -454,7 +466,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
       indexNormalized = filteredPositionData.map((item) => {
         const dateStr = item.date;
         const indexItem = indexData.find((idx) => {
-          const idxDate = String(idx.date || idx.trade_date || '').substring(0, 8);
+          const idxDate = normalizeDateKey(idx.date || idx.trade_date || '');
           return idxDate === dateStr;
         });
 
@@ -617,7 +629,8 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
 
     filteredPositions.forEach((pos) => {
       const date = pos.date || pos.gmt_create || '';
-      const dateStr = date.length === 8 ? date : date.substring(0, 8);
+      const dateStr = normalizeDateKey(date);
+      if (!dateStr) return;
       const volume = Number(pos.volume || 0);
       const marketValue = Number(pos.market_value || 0);
       const positionRatio = Number(pos.position_ratio || 0); // 持仓比例（0-1）
@@ -640,7 +653,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
     // 日期序列
     const dates = aggregatedPositions.map((item) => {
       const dateStr = item.date;
-      return `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+      return formatDateLabel(dateStr);
     });
 
     // 持仓量序列
@@ -661,8 +674,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
 
     if (klineData.length > 0 && showKLine) {
       klineDates = klineData.map((d) => {
-        const date = d.date;
-        return `${date.substring(0, 4)}-${date.substring(4, 6)}-${date.substring(6, 8)}`;
+        return formatDateLabel(normalizeDateKey(d.date));
       });
       klineValues = klineData.map((d) => [d.open, d.close, d.low, d.high]);
     }
@@ -916,7 +928,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
       const ratios = filteredData.map((item) => {
         const dateStr = item.date;
         const profitItem = profitData.find((p) => {
-          const pDate = String(p.date || p.gmt_create_time || p.gmt_create || '').substring(0, 8);
+          const pDate = normalizeDateKey(p.date || p.gmt_create_time || p.gmt_create || '');
           return pDate === dateStr;
         });
 

@@ -34,7 +34,7 @@ const BacktestMonitor: React.FC<BacktestMonitorProps> = ({ initialBacktestId }) 
   const [monitorData, setMonitorData] = useState<BacktestMonitorData | null>(null);
   const [loading, setLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(2000); // 2秒
+  const [refreshInterval, setRefreshInterval] = useState(5000); // 5秒
   const [backtestList, setBacktestList] = useState<BacktestRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
 

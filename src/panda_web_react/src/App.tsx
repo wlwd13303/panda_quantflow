@@ -91,9 +91,55 @@ const App: React.FC = () => {
   // 回测数据缓存（按backtestId存储）
   const [backtestDataCache, setBacktestDataCache] = useState<Record<string, any>>({});
 
+  const normalizeTradeDirection = (direction: any): 'buy' | 'sell' => {
+    if (typeof direction === 'string') {
+      const normalized = direction.trim().toLowerCase();
+      if (['buy', '买入', 'long', 'b'].includes(normalized)) {
+        return 'buy';
+      }
+      if (['sell', '卖出', 'short', 's'].includes(normalized)) {
+        return 'sell';
+      }
+      if (normalized === '0') return 'buy';
+      if (normalized === '1') return 'buy';
+      if (normalized === '-1') return 'sell';
+
+      const parsed = Number(normalized);
+      if (!Number.isNaN(parsed)) {
+        if (parsed === 0) return 'buy';
+        if (parsed === 1) return 'buy';
+        if (parsed === -1) return 'sell';
+        return parsed > 0 ? 'buy' : 'sell';
+      }
+
+      return 'sell';
+    }
+
+    if (typeof direction === 'number') {
+      if (direction === 0) return 'buy';
+      if (direction === 1) return 'buy';
+      if (direction === -1) return 'sell';
+      return direction > 0 ? 'buy' : 'sell';
+    }
+
+    return 'sell';
+  };
+
+  const mapTradeRecord = (trade: any): TradeData => ({
+    date: trade.date || trade.trade_date || trade.gmt_create_time || trade.gmt_create || '',
+    code: trade.code || trade.contract_code || trade.symbol || '',
+    contract_name: trade.contract_name || trade.name || '',
+    direction: normalizeTradeDirection(trade.direction),
+    amount: trade.amount || trade.volume || 0,
+    price: trade.price ? String(trade.price) : '0.00',
+    cost: String(trade.cost ?? trade.amount ?? 0),
+  });
+
   // 定时器引用
   const progressTimersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
   const dataRefreshTimersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+  const positionAnalysisLoadingRef = useRef<Record<string, boolean>>({});
+  const tradeAnalysisLoadingRef = useRef<Record<string, boolean>>({});
 
   // ==================== 初始化 ====================
   
@@ -348,7 +394,7 @@ const App: React.FC = () => {
     
     progressTimersRef.current[backtestId] = setInterval(() => {
       checkBacktestProgress(backtestId);
-    }, 2000);
+    }, 3000);
     
     // 同时启动数据刷新定时器，实时加载回测数据
     startDataRefreshPolling(backtestId);
@@ -365,7 +411,7 @@ const App: React.FC = () => {
     // 每2秒刷新一次回测数据
     dataRefreshTimersRef.current[backtestId] = setInterval(() => {
       loadBacktestResults(backtestId);
-    }, 2000);
+    }, 5000);
   };
 
   const stopDataRefreshPolling = (backtestId: string) => {
@@ -462,11 +508,11 @@ const App: React.FC = () => {
 
   const loadBacktestResults = async (backtestId: string) => {
     try {
-      // 并行获取监控数据和回测详细信息
+      // ???????????????
       const [monitorData, backtestDetail] = await Promise.all([
         backtestApi.getMonitorData(backtestId),
         backtestApi.getBacktestDetail(backtestId).catch(err => {
-          console.warn('获取回测详细信息失败:', err);
+          console.warn('??????????:', err);
           return null;
         }),
       ]);
@@ -495,45 +541,43 @@ const App: React.FC = () => {
           gmt_create_time: point.date || '',
         }));
 
-        // 只保存最新持仓（来自监控接口）
-        const positionData: PositionData[] = (monitorData.latest_positions || []).map(pos => ({
-          symbol: pos.symbol || '',
-          contract_code: pos.symbol || '',
+        // ??????????????????????????/???
+        const [tradeResult, positionResult] = await Promise.all([
+          backtestApi.getTradeData(backtestId, 1, 20).catch(() => ({ items: [], total: 0 })),
+          backtestApi.getPositionData(backtestId, 1, 2000).catch(() => ({ items: [], total: 0 })),
+        ]);
+
+        const positionData: PositionData[] = (positionResult.items || []).map(pos => ({
+          symbol: pos.symbol || pos.contract_code || '',
+          contract_code: pos.contract_code || pos.symbol || '',
           contract_name: pos.contract_name || '',
-          code: pos.symbol || '',
-          volume: pos.volume || 0,
-          position: pos.volume || 0,
+          code: pos.code || pos.symbol || '',
+          volume: pos.volume || pos.position || 0,
+          position: pos.position || pos.volume || 0,
           market_value: pos.market_value || 0,
           profit: pos.profit || 0,
           profit_rate: pos.profit_rate || 0,
           position_ratio: pos.position_ratio,
-          date: pos.date || '',
-          gmt_create: pos.date || '',
+          date: pos.date || pos.gmt_create || '',
+          gmt_create: pos.gmt_create || pos.date || '',
+          avg_price: pos.avg_price || pos.cost_price,
+          cost_price: pos.cost_price || pos.avg_price,
+          now_price: pos.now_price || pos.current_price,
+          current_price: pos.current_price || pos.now_price,
         }));
 
-        // 只保存最近的交易（来自监控接口）
-        const tradeData: TradeData[] = (monitorData.recent_trades || []).map(trade => ({
-          date: trade.date || '',
-          code: trade.symbol || '',
-          contract_name: trade.contract_name || '',
-          direction: (trade.side === 0 || trade.direction === '买入') ? 'buy' : 'sell',
-          amount: Math.abs(trade.volume || 0),
-          price: trade.price ? Number(trade.price).toFixed(2) : '0.00',
-          cost: trade.amount ? Math.abs(Number(trade.amount)).toFixed(2) : '0.00',
-        }));
+        const tradeData: TradeData[] = (tradeResult.items || []).map(mapTradeRecord);
 
-        // 解析回测配置
+        // ??????
         let config: BacktestConfig | undefined = undefined;
         if (backtestDetail) {
-          // 从后端返回的字段构建配置对象
-          // 使用 fund_stock 字段（MongoDB字段）
           const startCapital = backtestDetail.fund_stock ? parseFloat(backtestDetail.fund_stock) : 0;
           const commission = backtestDetail.commission ? parseFloat(backtestDetail.commission) : 1;
           const matchingType = backtestDetail.bar_match ? parseInt(backtestDetail.bar_match) : 1;
-          
+
           const defaultDateRange = getLastYearDateRange();
           config = {
-            start_capital: startCapital / 10000, // 后端是元，前端是万
+            start_capital: startCapital / 10000,
             start_date: backtestDetail.start_date || defaultDateRange.start_date,
             end_date: backtestDetail.end_date || defaultDateRange.end_date,
             frequency: backtestDetail.back_interval || '1d',
@@ -543,40 +587,34 @@ const App: React.FC = () => {
           };
         }
 
-        // 缓存数据，包含配置
-        // 注意：tradeData 和 positionData 现在只包含摘要数据
         setBacktestDataCache(prev => ({
           ...prev,
           [backtestId]: {
             profitData,
-            tradeData,  // 只包含最近的交易
-            positionData,  // 只包含最新持仓
+            tradeData,
+            tradeAnalysisData: tradeData,
+            positionData,
+            positionAnalysisData: positionData,
             accountData,
             dataStats,
             status: monitorData.status,
             config,
           },
         }));
+
+        loadAllTradeDataForBacktest(backtestId);
+        loadAllPositionDataForBacktest(backtestId);
       }
     } catch (error: any) {
-      console.error('加载回测结果失败:', error);
+      console.error('????????:', error);
     }
   };
 
-  // 按需加载交易数据（分页）
-  const loadTradeDataForBacktest = async (backtestId: string, page: number, pageSize: number) => {
+const loadTradeDataForBacktest = async (backtestId: string, page: number, pageSize: number) => {
     try {
       const result = await backtestApi.getTradeData(backtestId, page, pageSize);
       
-      const tradeData: TradeData[] = (result.items || []).map(trade => ({
-        date: trade.date || '',
-        code: trade.code || trade.symbol || '',
-        contract_name: trade.contract_name || '',
-        direction: trade.direction || 'buy',
-        amount: trade.amount || trade.volume || 0,
-        price: trade.price ? String(trade.price) : '0.00',
-        cost: trade.cost || trade.amount ? String(trade.cost || trade.amount) : '0.00',
-      }));
+      const tradeData: TradeData[] = (result.items || []).map(mapTradeRecord);
 
       // 更新缓存中的交易数据
       setBacktestDataCache(prev => ({
@@ -589,6 +627,113 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('加载交易数据失败:', error);
       message.error('加载交易数据失败');
+    }
+  };
+
+  const loadAllPositionDataForBacktest = async (backtestId: string) => {
+    if (positionAnalysisLoadingRef.current[backtestId]) {
+      return;
+    }
+
+    positionAnalysisLoadingRef.current[backtestId] = true;
+    try {
+      const pageSize = 1000;
+      let page = 1;
+      let total = 0;
+      const allItems: any[] = [];
+
+      while (page === 1 || allItems.length < total) {
+        const result = await backtestApi.getPositionData(backtestId, page, pageSize);
+        const items = result.items || [];
+        total = result.total || 0;
+
+        allItems.push(...items);
+
+        if (items.length < pageSize) {
+          break;
+        }
+        page += 1;
+      }
+
+      if (allItems.length > 0) {
+        console.info(`[PositionAnalysis] full position loaded: ${allItems.length}/${total || allItems.length}`);
+      }
+
+      const positionData: PositionData[] = allItems.map(pos => ({
+        symbol: pos.symbol || pos.contract_code || '',
+        contract_code: pos.contract_code || pos.symbol || '',
+        contract_name: pos.contract_name || '',
+        code: pos.code || pos.symbol || '',
+        volume: pos.volume || pos.position || 0,
+        position: pos.position || pos.volume || 0,
+        market_value: pos.market_value || 0,
+        profit: pos.profit || 0,
+        profit_rate: pos.profit_rate || 0,
+        position_ratio: pos.position_ratio,
+        date: pos.date || pos.gmt_create || '',
+        gmt_create: pos.gmt_create || pos.date || '',
+        avg_price: pos.avg_price || pos.cost_price,
+        cost_price: pos.cost_price || pos.avg_price,
+        now_price: pos.now_price || pos.current_price,
+        current_price: pos.current_price || pos.now_price,
+      }));
+
+      setBacktestDataCache(prev => ({
+        ...prev,
+        [backtestId]: {
+          ...prev[backtestId],
+          positionAnalysisData: positionData,
+        },
+      }));
+    } catch (error) {
+      console.error('加载仓位分析全量数据失败:', error);
+    } finally {
+      positionAnalysisLoadingRef.current[backtestId] = false;
+    }
+  };
+
+  const loadAllTradeDataForBacktest = async (backtestId: string) => {
+    if (tradeAnalysisLoadingRef.current[backtestId]) {
+      return;
+    }
+
+    tradeAnalysisLoadingRef.current[backtestId] = true;
+    try {
+      const pageSize = 1000;
+      let page = 1;
+      let total = 0;
+      const allItems: any[] = [];
+
+      while (page === 1 || allItems.length < total) {
+        const result = await backtestApi.getTradeData(backtestId, page, pageSize);
+        const items = result.items || [];
+        total = result.total || 0;
+
+        allItems.push(...items);
+
+        if (items.length < pageSize) {
+          break;
+        }
+        page += 1;
+      }
+
+      if (allItems.length > 0) {
+        console.info(`[TradeAnalysis] full trade loaded: ${allItems.length}/${total || allItems.length}`);
+      }
+
+      const tradeAnalysisData: TradeData[] = allItems.map(mapTradeRecord);
+
+      setBacktestDataCache(prev => ({
+        ...prev,
+        [backtestId]: {
+          ...prev[backtestId],
+          tradeAnalysisData,
+        },
+      }));
+    } catch (error) {
+      console.error('加载交易分析全量数据失败:', error);
+    } finally {
+      tradeAnalysisLoadingRef.current[backtestId] = false;
     }
   };
 
@@ -889,7 +1034,9 @@ const App: React.FC = () => {
         const backtestData = backtestDataCache[tab.backtestData.backtestId] || {
           profitData: [],
           tradeData: [],
+          tradeAnalysisData: [],
           positionData: [],
+          positionAnalysisData: [],
           accountData: [],
           dataStats: { accountCount: 0, tradeCount: 0, positionCount: 0, profitCount: 0 },
           status: tab.backtestData.status,
@@ -916,7 +1063,9 @@ const App: React.FC = () => {
             backtestStatus={tab.backtestData.status}
             profitData={backtestData.profitData}
             tradeData={backtestData.tradeData}
+            tradeAnalysisData={backtestData.tradeAnalysisData || backtestData.tradeData}
             positionData={backtestData.positionData}
+            positionAnalysisData={backtestData.positionAnalysisData || backtestData.positionData}
             accountData={backtestData.accountData}
             dataStats={backtestData.dataStats}
             config={backtestConfig}

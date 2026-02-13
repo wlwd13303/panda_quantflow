@@ -64,6 +64,8 @@ class BacktestPositionBaseModel(BaseModel):
     gmt_create: Optional[str] = Field(default=None, description="创建时间")
     round_lot: Optional[int] = Field(default=None, description="手数")
     market_value: Optional[float] = Field(default=None, description="市值")
+    profit: Optional[float] = Field(default=None, description="盈亏")
+    profit_rate: Optional[float] = Field(default=None, description="收益率")
     accumulate_profit: Optional[float] = Field(default=None, description="累计盈亏")
     holding_pnl: Optional[float] = Field(default=None, description="持仓盈亏")
     position_ratio: Optional[float] = Field(default=None, description="持仓权重百分比")
