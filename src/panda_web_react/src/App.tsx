@@ -140,6 +140,9 @@ const App: React.FC = () => {
   const dataRefreshTimersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
   const positionAnalysisLoadingRef = useRef<Record<string, boolean>>({});
   const tradeAnalysisLoadingRef = useRef<Record<string, boolean>>({});
+  const positionAnalysisLoadedRef = useRef<Record<string, boolean>>({});
+  const tradeAnalysisLoadedRef = useRef<Record<string, boolean>>({});
+  const resultLoadingRef = useRef<Record<string, boolean>>({});
 
   // ==================== 初始化 ====================
   
@@ -440,7 +443,8 @@ const App: React.FC = () => {
         return tab;
       }));
 
-      if (data.status === 'completed' || data.status === 'failed') {
+      const progressStatus = (data.status || '') as string;
+      if (['completed', 'failed', 'cancelled'].includes(progressStatus)) {
         // 停止进度轮询
         if (progressTimersRef.current[backtestId]) {
           clearInterval(progressTimersRef.current[backtestId]);
@@ -450,9 +454,12 @@ const App: React.FC = () => {
         // 停止数据刷新轮询
         stopDataRefreshPolling(backtestId);
         
-        if (data.status === 'completed') {
+        if (progressStatus === 'completed') {
           message.success('回测完成！');
           // 加载最终结果
+          await loadBacktestResults(backtestId);
+        } else if (progressStatus === 'cancelled') {
+          message.warning('回测已终止');
           await loadBacktestResults(backtestId);
         } else {
           message.error('回测失败: ' + (data.error || '未知错误'));
@@ -507,12 +514,17 @@ const App: React.FC = () => {
   };
 
   const loadBacktestResults = async (backtestId: string) => {
+    if (resultLoadingRef.current[backtestId]) {
+      return;
+    }
+
+    resultLoadingRef.current[backtestId] = true;
     try {
-      // ???????????????
+      // 加载监控数据和回测详情
       const [monitorData, backtestDetail] = await Promise.all([
         backtestApi.getMonitorData(backtestId),
         backtestApi.getBacktestDetail(backtestId).catch(err => {
-          console.warn('??????????:', err);
+          console.warn('加载回测详情失败:', err);
           return null;
         }),
       ]);
@@ -541,7 +553,7 @@ const App: React.FC = () => {
           gmt_create_time: point.date || '',
         }));
 
-        // ??????????????????????????/???
+        // 加载表格首屏数据
         const [tradeResult, positionResult] = await Promise.all([
           backtestApi.getTradeData(backtestId, 1, 20).catch(() => ({ items: [], total: 0 })),
           backtestApi.getPositionData(backtestId, 1, 2000).catch(() => ({ items: [], total: 0 })),
@@ -568,7 +580,7 @@ const App: React.FC = () => {
 
         const tradeData: TradeData[] = (tradeResult.items || []).map(mapTradeRecord);
 
-        // ??????
+        // 构建回测配置
         let config: BacktestConfig | undefined = undefined;
         if (backtestDetail) {
           const startCapital = backtestDetail.fund_stock ? parseFloat(backtestDetail.fund_stock) : 0;
@@ -587,26 +599,63 @@ const App: React.FC = () => {
           };
         }
 
-        setBacktestDataCache(prev => ({
-          ...prev,
-          [backtestId]: {
-            profitData,
-            tradeData,
-            tradeAnalysisData: tradeData,
-            positionData,
-            positionAnalysisData: positionData,
-            accountData,
-            dataStats,
-            status: monitorData.status,
-            config,
-          },
-        }));
+        setBacktestDataCache(prev => {
+          const currentCache = prev[backtestId] || {};
+          const cachedTradeAnalysisData = Array.isArray(currentCache.tradeAnalysisData) && currentCache.tradeAnalysisData.length > 0
+            ? currentCache.tradeAnalysisData
+            : undefined;
+          const cachedPositionAnalysisData = Array.isArray(currentCache.positionAnalysisData) && currentCache.positionAnalysisData.length > 0
+            ? currentCache.positionAnalysisData
+            : undefined;
+          return {
+            ...prev,
+            [backtestId]: {
+              ...currentCache,
+              profitData,
+              tradeData,
+              tradeAnalysisData: cachedTradeAnalysisData || (tradeData.length > 0 ? tradeData : undefined),
+              positionData,
+              positionAnalysisData: cachedPositionAnalysisData || (positionData.length > 0 ? positionData : undefined),
+              accountData,
+              dataStats,
+              status: monitorData.status,
+              config,
+            },
+          };
+        });
 
-        loadAllTradeDataForBacktest(backtestId);
-        loadAllPositionDataForBacktest(backtestId);
+        const monitorStatus = (monitorData.status || '') as string;
+        const isTerminal = ['completed', 'failed', 'cancelled'].includes(monitorStatus);
+        if (isTerminal) {
+          if (progressTimersRef.current[backtestId]) {
+            clearInterval(progressTimersRef.current[backtestId]);
+            delete progressTimersRef.current[backtestId];
+          }
+          stopDataRefreshPolling(backtestId);
+
+          setTabs(prevTabs => prevTabs.map(tab => {
+            if (tab.type === 'backtest' && tab.backtestData?.backtestId === backtestId) {
+              return {
+                ...tab,
+                backtestData: {
+                  ...tab.backtestData,
+                  status: monitorStatus as 'pending' | 'running' | 'completed' | 'failed' | 'cancelled',
+                  progress: monitorData.progress || tab.backtestData.progress || 0,
+                },
+              };
+            }
+            return tab;
+          }));
+
+          // 全量分析数据只在终态加载一次，避免每次刷新都全量翻页
+          void loadAllTradeDataForBacktest(backtestId);
+          void loadAllPositionDataForBacktest(backtestId);
+        }
       }
     } catch (error: any) {
-      console.error('????????:', error);
+      console.error('加载回测结果失败:', error);
+    } finally {
+      resultLoadingRef.current[backtestId] = false;
     }
   };
 
@@ -631,6 +680,14 @@ const loadTradeDataForBacktest = async (backtestId: string, page: number, pageSi
   };
 
   const loadAllPositionDataForBacktest = async (backtestId: string) => {
+    if (positionAnalysisLoadedRef.current[backtestId]) {
+      const cachedData = backtestDataCache[backtestId]?.positionAnalysisData;
+      if (Array.isArray(cachedData) && cachedData.length > 0) {
+        return;
+      }
+      positionAnalysisLoadedRef.current[backtestId] = false;
+    }
+
     if (positionAnalysisLoadingRef.current[backtestId]) {
       return;
     }
@@ -682,9 +739,12 @@ const loadTradeDataForBacktest = async (backtestId: string, page: number, pageSi
         ...prev,
         [backtestId]: {
           ...prev[backtestId],
-          positionAnalysisData: positionData,
+          positionAnalysisData: positionData.length > 0 ? positionData : undefined,
         },
       }));
+      if (total > 0 && allItems.length >= total) {
+        positionAnalysisLoadedRef.current[backtestId] = true;
+      }
     } catch (error) {
       console.error('加载仓位分析全量数据失败:', error);
     } finally {
@@ -693,6 +753,14 @@ const loadTradeDataForBacktest = async (backtestId: string, page: number, pageSi
   };
 
   const loadAllTradeDataForBacktest = async (backtestId: string) => {
+    if (tradeAnalysisLoadedRef.current[backtestId]) {
+      const cachedData = backtestDataCache[backtestId]?.tradeAnalysisData;
+      if (Array.isArray(cachedData) && cachedData.length > 0) {
+        return;
+      }
+      tradeAnalysisLoadedRef.current[backtestId] = false;
+    }
+
     if (tradeAnalysisLoadingRef.current[backtestId]) {
       return;
     }
@@ -727,9 +795,12 @@ const loadTradeDataForBacktest = async (backtestId: string, page: number, pageSi
         ...prev,
         [backtestId]: {
           ...prev[backtestId],
-          tradeAnalysisData,
+          tradeAnalysisData: tradeAnalysisData.length > 0 ? tradeAnalysisData : undefined,
         },
       }));
+      if (total > 0 && allItems.length >= total) {
+        tradeAnalysisLoadedRef.current[backtestId] = true;
+      }
     } catch (error) {
       console.error('加载交易分析全量数据失败:', error);
     } finally {
@@ -880,6 +951,11 @@ const loadTradeDataForBacktest = async (backtestId: string, page: number, pageSi
     Object.values(dataRefreshTimersRef.current).forEach(clearInterval);
     progressTimersRef.current = {};
     dataRefreshTimersRef.current = {};
+    positionAnalysisLoadingRef.current = {};
+    tradeAnalysisLoadingRef.current = {};
+    positionAnalysisLoadedRef.current = {};
+    tradeAnalysisLoadedRef.current = {};
+    resultLoadingRef.current = {};
     
     // 重置为初始状态（只保留管理中心）
     setTabs([
@@ -918,6 +994,11 @@ const loadTradeDataForBacktest = async (backtestId: string, page: number, pageSi
         clearInterval(dataRefreshTimersRef.current[backtestId]);
         delete dataRefreshTimersRef.current[backtestId];
       }
+      delete positionAnalysisLoadingRef.current[backtestId];
+      delete tradeAnalysisLoadingRef.current[backtestId];
+      delete positionAnalysisLoadedRef.current[backtestId];
+      delete tradeAnalysisLoadedRef.current[backtestId];
+      delete resultLoadingRef.current[backtestId];
     }
 
     // 移除Tab

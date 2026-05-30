@@ -44,6 +44,8 @@ interface KLineData {
   volume: number;
 }
 
+const STOCK_POSITION_CONTEXT_DAYS = 7;
+
 const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
   positionData,
   profitData,
@@ -68,6 +70,21 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
   const formatDateLabel = (dateKey: string): string => {
     if (!dateKey || dateKey.length !== 8) return dateKey;
     return `${dateKey.substring(0, 4)}-${dateKey.substring(4, 6)}-${dateKey.substring(6, 8)}`;
+  };
+
+  const shiftDateKey = (dateKey: string, offsetDays: number): string => {
+    if (!dateKey || dateKey.length !== 8) return dateKey;
+    const date = new Date(
+      Number(dateKey.substring(0, 4)),
+      Number(dateKey.substring(4, 6)) - 1,
+      Number(dateKey.substring(6, 8))
+    );
+    if (Number.isNaN(date.getTime())) return dateKey;
+    date.setDate(date.getDate() + offsetDays);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}${m}${d}`;
   };
 
   // 提取所有唯一的股票代码和名称（统一使用 contract_code）
@@ -171,11 +188,17 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
 
       // 获取持仓日期范围
       const dates = symbolPositions
-        .map((p) => p.date || p.gmt_create || '')
-        .filter(Boolean)
+        .map((p) => normalizeDateKey(p.date || p.gmt_create || ''))
+        .filter((d) => d.length === 8)
         .sort();
-      const startDate = dates[0];
-      const endDate = dateRange ? dateRange[1] : dates[dates.length - 1];
+      const minPositionDate = dates[0] || normalizeDateKey(config.start_date) || '';
+      const maxPositionDate = dates[dates.length - 1] || normalizeDateKey(config.end_date) || '';
+      const startDate = dateRange
+        ? dateRange[0]
+        : shiftDateKey(minPositionDate, -STOCK_POSITION_CONTEXT_DAYS);
+      const endDate = dateRange
+        ? dateRange[1]
+        : shiftDateKey(maxPositionDate, STOCK_POSITION_CONTEXT_DAYS);
 
       // 调用API获取K线数据
       const apiData = await quotationApi.getStockKLineData(symbol, startDate, endDate);
@@ -1343,6 +1366,7 @@ const PositionAnalysis: React.FC<PositionAnalysisProps> = ({
                     <Tooltip title="通过对比个股持仓与K线走势，可以判断策略的个股择时能力。理想情况下，应在股价上涨前增加持仓，在股价下跌前减少持仓。">
                       <InfoCircleOutlined style={{ color: '#1890ff', cursor: 'pointer' }} />
                     </Tooltip>
+                    <Text type="secondary">默认展示持仓区间前后 {STOCK_POSITION_CONTEXT_DAYS} 天行情</Text>
                   </Space>
                 </div>
 
