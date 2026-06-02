@@ -93,13 +93,17 @@ class QuotationDataLogic:
                 logger.debug(f"限制后结果数量: {len(result)}")
             
             logger.info(f"查询到 {len(result) if result else 0} 条数据")
-            
+
+            # 日线数据：合并后复权因子
+            if result and period == '1d' and quotation_type == 'stock':
+                result = self._merge_adj_factor(quotation, result)
+
             # 存入缓存（在应用limit之前）
             if use_cache and result:
                 quotation_cache.set(
                     quotation, quotation_type, period, start_date, end_date, result
                 )
-            
+
             return result or []
             
         except Exception as e:
@@ -174,6 +178,42 @@ class QuotationDataLogic:
             raise ValueError(f"不支持的行情类型: {quotation_type}")
         
         return collection_name, query
+
+    def _merge_adj_factor(self, symbol: str, data: List[dict]) -> List[dict]:
+        """将后复权因子合并到日线数据中"""
+        try:
+            if not data:
+                return data
+
+            dates = [item.get('date', '') for item in data if item.get('date')]
+            if not dates:
+                return data
+            min_date = min(dates)
+            max_date = max(dates)
+
+            adj_records = self.quotation_mongo_db.mongo_find(
+                db_name=self.db_name,
+                collection_name="adj_factor",
+                query={
+                    "symbol": symbol,
+                    "date": {"$gte": min_date, "$lte": max_date}
+                },
+                projection={"_id": 0, "date": 1, "adj_factor": 1}
+            )
+
+            if not adj_records:
+                return data
+
+            adj_map = {rec['date']: rec.get('adj_factor', 1.0) for rec in adj_records}
+
+            for item in data:
+                item_date = item.get('date', '')
+                item['adj_factor'] = adj_map.get(item_date, 1.0)
+
+        except Exception as e:
+            logger.warning(f"合并复权因子失败: {e}")
+
+        return data
 
 
 # 创建单例实例

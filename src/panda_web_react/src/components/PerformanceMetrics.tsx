@@ -96,28 +96,26 @@ const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ profitData, con
       };
     }
 
-    // 转换为元，如果配置中没有初始资金，则从数据中推断
-    let initialCapital = (config.start_capital || 0) * 10000;
-    
+    // 用第一个有效数据点的 total_value 作为净值归一化基准
+    let initialCapital = (() => {
+      for (const item of profitData) {
+        const v = Number(item.total_value ?? item.total_profit ?? item.strategy_profit);
+        if (v > 0 && isFinite(v)) return v;
+      }
+      return 0;
+    })();
+    if (initialCapital <= 0) {
+      initialCapital = (config.start_capital || 0) * 10000;
+    }
+
     // 获取资产净值序列
-    const equityCurve = profitData.map((item, index) => {
+    const equityCurve = profitData.map((item) => {
       let value = Number(item.total_value ?? item.total_profit ?? item.strategy_profit);
-      
-      // 如果初始资金为0，从第一个有效数据点推断初始资金
-      if (initialCapital === 0 && index === 0 && value > 0 && isFinite(value)) {
-        initialCapital = value;
-      }
-      
-      // 如果值为0、负数或无效，使用初始资金
+
       if (!value || value <= 0 || !isFinite(value)) {
-        value = initialCapital > 0 ? initialCapital : 1000000; // 默认100万
+        value = initialCapital > 0 ? initialCapital : 1000000;
       }
-      
-      // 特别处理第一个数据点：如果第一个点的值异常小（小于初始资金的50%），则认为是数据错误，使用初始资金
-      if (index === 0 && initialCapital > 0 && value < initialCapital * 0.5) {
-        value = initialCapital;
-      }
-      
+
       return value;
     });
     

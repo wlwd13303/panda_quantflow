@@ -19,6 +19,7 @@ class PandaBacktestPosition:
     last_price = EMPTY_FLOAT                            # 最新价
     market_value = EMPTY_FLOAT                          # 市值
     accumulate_profit = EMPTY_FLOAT                     # 累计盈亏
+    dividend_received = EMPTY_FLOAT                     # 累计已收分红（含税后现金分红）
     margin = EMPTY_FLOAT                                # 保证金(期货)
     cost = EMPTY_FLOAT                                  # 费用
     gmt_create = EMPTY_STRING                           # 交易日期

@@ -6,6 +6,7 @@ import logging
 from panda_backtest.backtest_common.model.result.panda_backtest_position import PandaBacktestPosition, PartTradedQueueing
 from panda_backtest.backtest_common.data.quotation.quotation_data import QuotationData
 from panda_backtest.backtest_common.model.result.panda_backtest_profit import PandaBacktestProfit
+from panda_backtest.backtest_common.model.result.panda_backtest_trade import PandaBacktestTrade
 from panda_backtest.backtest_common.model.result.panda_backtest_account import PandaBacktestAccount
 from panda_backtest.backtest_common.system.context.core_context import CoreContext
 from panda_backtest.backtest_common.model.result.order import Order, ACTIVE, REJECTED, LIMIT, SIDE_BUY, FILLED, CANCELLED, \
@@ -183,6 +184,7 @@ class BaseTradeReverseResult(object):
                 xb_back_test_position.cost = trade.cost
                 xb_back_test_position.last_price = bar_dict[trade.contract_code].last
                 xb_back_test_position.gmt_create = strategy_context.trade_date
+                xb_back_test_position.dividend_received = 0.0
                 self.xb_back_test_position_dict[trade.contract_code] = xb_back_test_position
                 # 加入股票订阅
                 event_bus = self.context.event_bus
@@ -248,12 +250,33 @@ class BaseTradeReverseResult(object):
             xb_back_test_position.market_value = xb_back_test_position.last_price * xb_back_test_position.position
             xb_back_test_position.accumulate_profit = xb_back_test_position.position * \
                                                       (xb_back_test_position.price - xb_back_test_position.last_price)
+            # 累加分红收益到持仓对象，用于个股完整收益归因
+            xb_back_test_position.dividend_received = getattr(xb_back_test_position, 'dividend_received', 0.0) + cash_tax
             self.xb_back_test_account.market_value = self.xb_back_test_account.market_value - \
                                                      old_market_value + xb_back_test_position.market_value
             self.xb_back_test_account.available_funds = self.xb_back_test_account.available_funds + \
                                                         dividend.unit_cash_div_tax * old_position
             self.xb_back_test_account.total_profit = self.xb_back_test_account.available_funds + \
                                                      self.xb_back_test_account.market_value + self.xb_back_test_account.frozen_capital
+            # 生成分红虚拟交易记录，使个股交易记录中可见分红事件
+            strategy_context = self.context.strategy_context
+            trade_id = f"dividend_{dividend.symbol}_{strategy_context.trade_date}"
+            dividend_trade = PandaBacktestTrade()
+            dividend_trade.trade_id = trade_id
+            dividend_trade.back_id = strategy_context.run_info.run_id
+            dividend_trade.account_id = str(self.account)
+            dividend_trade.contract_code = dividend.symbol
+            dividend_trade.contract_name = getattr(xb_back_test_position, 'contract_name', '')
+            dividend_trade.business = 2  # 2 = 分红
+            dividend_trade.price = dividend.unit_cash_div_tax  # 每股税后分红
+            dividend_trade.volume = int(position_tax)  # 送股数量
+            dividend_trade.amount = cash_tax  # 现金分红总额
+            dividend_trade.cost = 0.0
+            dividend_trade.trade_date = strategy_context.trade_date
+            dividend_trade.gmt_create = strategy_context.trade_date
+            dividend_trade.stock_type = getattr(xb_back_test_position, 'stock_type', 0)
+            self.xb_back_test_trade_dict[trade_id] = dividend_trade
+
             sr_logger = RemoteLogFactory.get_sr_logger()
             sr_logger.info(STOCK_DIVIDEND_INFO % (str(self.account), dividend.symbol, str(cash_tax), str(position_tax)))
 

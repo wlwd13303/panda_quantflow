@@ -167,6 +167,7 @@ class SQLiteDatabase:
                     market_value REAL,
                     profit REAL,
                     profit_rate REAL,
+                    dividend_received REAL DEFAULT 0.0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (back_id) REFERENCES panda_back_test(run_id) ON DELETE CASCADE
                 )
@@ -283,6 +284,12 @@ class SQLiteDatabase:
                 await conn.execute("ALTER TABLE panda_backtest_position ADD COLUMN contract_name TEXT")
                 await conn.commit()
                 logger.info("Migration completed: contract_name column added to panda_backtest_position")
+
+            if 'dividend_received' not in column_names:
+                logger.info("Migrating: Adding dividend_received column to panda_backtest_position")
+                await conn.execute("ALTER TABLE panda_backtest_position ADD COLUMN dividend_received REAL DEFAULT 0.0")
+                await conn.commit()
+                logger.info("Migration completed: dividend_received column added to panda_backtest_position")
 
             await conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_position_back_id_date_symbol

@@ -14,7 +14,7 @@ import type {
 } from '@/types';
 import { quotationCache } from '@/utils/quotationCache';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '';
 
 // 创建 axios 实例
 const apiClient: AxiosInstance = axios.create({

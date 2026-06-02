@@ -47,6 +47,8 @@ def _normalize_direction(direction, business=None) -> int:
             return 1
         if direction_lower in ["sell", "卖出", "short", "s"]:
             return -1
+        if direction_lower == "dividend":
+            return 0
 
         if direction_lower == "0":
             return 1

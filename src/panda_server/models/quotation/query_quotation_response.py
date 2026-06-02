@@ -14,6 +14,7 @@ class QuotationBarData(BaseModel):
     close: float = Field(..., description="收盘价")
     volume: float = Field(0, description="成交量")
     amount: Optional[float] = Field(0, description="成交额")
+    adj_factor: Optional[float] = Field(None, description="后复权因子（累积调整系数）")
     
     class Config:
         json_schema_extra = {

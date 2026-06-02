@@ -1,23 +1,43 @@
 @echo off
 chcp 65001 >nul
-title Panda QuantFlow Launcher
+title Panda QuantFlow
 
 echo ========================================================
-echo   Panda QuantFlow 启动脚本
+echo   Panda QuantFlow - single process
 echo ========================================================
 echo.
 
-:: 1. 启动后端
-echo [1/2] 正在启动后端服务...
-start "Panda Backend" cmd /k "python -m uvicorn panda_server.main:app --app-dir src --host 0.0.0.0 --port 8000"
+cd /d "%~dp0"
 
-:: 2. 启动前端
-echo [2/2] 正在启动前端服务...
-cd src\panda_web_react
-start "Panda Frontend" cmd /k "npm run dev"
+set "SERVER_PORT=19081"
 
+echo [1/3] Checking frontend build...
+if not exist "src\panda_web_react\dist\" (
+    echo    First run, building frontend...
+    cd src\panda_web_react
+    call npm install
+    call npm run build
+    cd /d "%~dp0"
+    if not exist "src\panda_web_react\dist\" (
+        echo   [ERROR] Frontend build failed
+        pause
+        exit /b 1
+    )
+) else (
+    echo    Frontend build exists, skipping
+)
+
+echo [2/3] Starting backend...
 echo.
-echo ✅ 所有服务已启动！
-echo    请检查弹出的两个命令行窗口以查看运行日志。
+echo ========================================================
+echo   Backend API:  http://localhost:%SERVER_PORT%
+echo   Frontend:     http://localhost:%SERVER_PORT%/quantflow/
+echo ========================================================
 echo.
+echo   Press Ctrl+C to stop
+echo ========================================================
+echo.
+
+python -m uvicorn panda_server.main:app --app-dir src --host 0.0.0.0 --port %SERVER_PORT%
+
 pause

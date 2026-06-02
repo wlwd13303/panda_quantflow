@@ -456,17 +456,17 @@ class BacktestPositionDAO:
             async with sqlite_db.get_connection() as conn:
                 cursor = await conn.execute(
                     """
-                    INSERT INTO panda_backtest_position 
-                    (back_id, date, symbol, contract_name, volume, available, avg_price, market_price, 
-                     market_value, profit, profit_rate)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO panda_backtest_position
+                    (back_id, date, symbol, contract_name, volume, available, avg_price, market_price,
+                     market_value, profit, profit_rate, dividend_received)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         back_id, date, symbol, kwargs.get('contract_name'),
                         kwargs.get('volume'), kwargs.get('available'),
                         kwargs.get('avg_price'), kwargs.get('market_price'),
                         kwargs.get('market_value'), kwargs.get('profit'),
-                        kwargs.get('profit_rate')
+                        kwargs.get('profit_rate'), kwargs.get('dividend_received', 0.0)
                     )
                 )
                 await conn.commit()
@@ -516,8 +516,8 @@ class BacktestPositionDAO:
                 
                 cursor = await conn.execute(
                     f"""
-                    SELECT id as _id, back_id, date, symbol, contract_name, volume, available, avg_price, 
-                           market_price, market_value, profit, profit_rate, created_at
+                    SELECT id as _id, back_id, date, symbol, contract_name, volume, available, avg_price,
+                           market_price, market_value, profit, profit_rate, dividend_received, created_at
                     FROM panda_backtest_position
                     {where_clause}
                     ORDER BY date, symbol

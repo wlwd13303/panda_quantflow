@@ -108,7 +108,7 @@ export interface TradeData {
   code: string;
   name?: string;
   contract_name?: string;  // 证券名称
-  direction: 'buy' | 'sell';
+  direction: 'buy' | 'sell' | 'dividend';
   amount: number;
   price: string;
   cost: string;

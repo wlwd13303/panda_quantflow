@@ -265,7 +265,10 @@ class ResultSQLite(object):
                 profit_rate = position.get('profit_rate')
                 if profit_rate is None and profit is not None and market_value is not None and market_value != 0:
                     profit_rate = profit / (market_value - profit) if (market_value - profit) != 0 else None
-                
+
+                # 累计分红收益（含税后现金分红）
+                dividend_received = position.get('dividend_received', 0.0)
+
                 await BacktestPositionDAO.create(
                     back_id=back_id,
                     date=date,
@@ -277,7 +280,8 @@ class ResultSQLite(object):
                     market_price=market_price,
                     market_value=market_value,
                     profit=profit,
-                    profit_rate=profit_rate
+                    profit_rate=profit_rate,
+                    dividend_received=dividend_received,
                 )
             logger.debug(f"保存 {len(all_position_list)} 条持仓数据")
         except Exception as e:
@@ -310,7 +314,7 @@ class ResultSQLite(object):
                 # 证券名称：使用 contract_name
                 contract_name = trade.get('contract_name', '')
                 
-                # 方向：优先使用 direction，其次根据 business 判断（0：买  1：卖）
+                # 方向：优先使用 direction，其次根据 business 判断（0：买  1：卖  2：分红）
                 direction = trade.get('direction')
                 if direction is None:
                     business = trade.get('business')
@@ -318,6 +322,8 @@ class ResultSQLite(object):
                         direction = 'buy'
                     elif business == 1:
                         direction = 'sell'
+                    elif business == 2:
+                        direction = 'dividend'
                     else:
                         direction = ''
                 

@@ -207,33 +207,30 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
       };
     }
 
-    const initialCapital = (config.start_capital || 1000) * 10000;
-    if (initialCapital <= 0) {
-      return {
-        title: { text: '初始资金配置错误', left: 'center', top: 'center' }
-      };
-    }
-    
+    // 用第一个有效数据点的 total_value 作为净值归一化基准，确保起点为 1
+    const firstValidValue = (() => {
+      for (const item of filteredData) {
+        const v = Number(item.total_value ?? item.total_profit ?? item.strategy_profit);
+        if (v > 0 && isFinite(v)) return v;
+      }
+      return 0;
+    })();
+    const initialCapital = firstValidValue > 0 ? firstValidValue : (config.start_capital || 1000) * 10000;
+
     // 日期序列
     const dates = filteredData.map(item => {
       const dateKey = getProfitDateKey(item);
       return dateKey ? dayjs(dateKey, 'YYYYMMDD').format('YYYY-MM-DD') : '';
     });
 
-    // 策略净值曲线（净值 = 当前资产 / 初始资金）
-    const strategyEquity = filteredData.map((item, index) => {
+    // 策略净值曲线（净值 = 当前资产 / 首个有效资产值）
+    const strategyEquity = filteredData.map((item) => {
       let value = Number(item.total_value ?? item.total_profit ?? item.strategy_profit);
-      
-      // 如果值为0、负数或无效，使用初始资金
+
       if (!value || value <= 0 || !isFinite(value)) {
         value = initialCapital;
       }
-      
-      // 特别处理第一个数据点：如果第一个点的值异常小（小于初始资金的50%），则认为是数据错误，使用初始资金
-      if (index === 0 && value < initialCapital * 0.5) {
-        value = initialCapital;
-      }
-      
+
       const netValue = value / initialCapital;
       return formatNumber(netValue, 4);
     });
@@ -546,21 +543,17 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
   const getMetrics = () => {
     if (filteredData.length === 0) return null;
     
-    const initialCapital = (config.start_capital || 1000) * 10000;
-    if (initialCapital <= 0) {
-      return {
-        totalReturn: 0,
-        maxDrawdown: 0,
-        volatility: 0,
-        maxLossAmount: 0,
-        maxLossRatio: 0,
-        latestValue: initialCapital,
-      };
-    }
-    
+    const firstValidValue = (() => {
+      for (const item of filteredData) {
+        const v = Number(item.total_value ?? item.total_profit ?? item.strategy_profit);
+        if (v > 0 && isFinite(v)) return v;
+      }
+      return 0;
+    })();
+    const initialCapital = firstValidValue > 0 ? firstValidValue : (config.start_capital || 1000) * 10000;
+
     const values = filteredData.map(item => {
       const value = Number(item.total_value ?? item.total_profit ?? item.strategy_profit ?? initialCapital);
-      // 确保值是有效的正数
       return (value > 0 && isFinite(value)) ? value : initialCapital;
     });
     
@@ -753,11 +746,17 @@ const EnhancedProfitChart: React.FC<EnhancedProfitChartProps> = ({ profitData, c
                 <div style={{ fontSize: 12, color: '#999' }}>当前净值</div>
                 <div style={{ fontSize: 18, fontWeight: 'bold', color: '#722ed1', marginTop: 4 }}>
                   {(() => {
-                    const startCapital = (config.start_capital || 1000) * 10000;
-                    if (startCapital <= 0 || !isFinite(metrics.latestValue) || !isFinite(startCapital)) {
+                    const baseValue = (() => {
+                      for (const item of filteredData) {
+                        const v = Number(item.total_value ?? item.total_profit ?? item.strategy_profit);
+                        if (v > 0 && isFinite(v)) return v;
+                      }
+                      return 0;
+                    })();
+                    if (baseValue <= 0 || !isFinite(metrics.latestValue)) {
                       return '1.0000';
                     }
-                    const netValue = metrics.latestValue / startCapital;
+                    const netValue = metrics.latestValue / baseValue;
                     return formatNumber(netValue, 4);
                   })()}
                 </div>

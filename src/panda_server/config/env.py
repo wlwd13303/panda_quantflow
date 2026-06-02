@@ -85,6 +85,9 @@ else:
         logger.warning(f"未找到 .env 文件，项目根目录: {project_root}, 查找路径: {env_file}")
         logger.warning("将使用默认配置值")
 
+# 服务器端口
+SERVER_PORT = int(_get_env_value("SERVER_PORT", "8000"))
+
 # 运行模式: LOCAL 为用户本地运行, CLOUD 为 PandAaI 官网运行
 RUN_MODE = _get_env_value("RUN_MODE", "LOCAL")
 SERVER_ROLE = _get_env_value("SERVER_ROLE", "ALL")  # API, CONSUMER, ALL

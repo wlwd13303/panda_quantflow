@@ -91,22 +91,25 @@ const App: React.FC = () => {
   // 回测数据缓存（按backtestId存储）
   const [backtestDataCache, setBacktestDataCache] = useState<Record<string, any>>({});
 
-  const normalizeTradeDirection = (direction: any): 'buy' | 'sell' => {
+  const normalizeTradeDirection = (direction: any): 'buy' | 'sell' | 'dividend' => {
     if (typeof direction === 'string') {
       const normalized = direction.trim().toLowerCase();
+      if (['dividend'].includes(normalized)) {
+        return 'dividend';
+      }
       if (['buy', '买入', 'long', 'b'].includes(normalized)) {
         return 'buy';
       }
       if (['sell', '卖出', 'short', 's'].includes(normalized)) {
         return 'sell';
       }
-      if (normalized === '0') return 'buy';
+      if (normalized === '0') return 'dividend';
       if (normalized === '1') return 'buy';
       if (normalized === '-1') return 'sell';
 
       const parsed = Number(normalized);
       if (!Number.isNaN(parsed)) {
-        if (parsed === 0) return 'buy';
+        if (parsed === 0) return 'dividend';
         if (parsed === 1) return 'buy';
         if (parsed === -1) return 'sell';
         return parsed > 0 ? 'buy' : 'sell';
@@ -116,7 +119,7 @@ const App: React.FC = () => {
     }
 
     if (typeof direction === 'number') {
-      if (direction === 0) return 'buy';
+      if (direction === 0) return 'dividend';
       if (direction === 1) return 'buy';
       if (direction === -1) return 'sell';
       return direction > 0 ? 'buy' : 'sell';

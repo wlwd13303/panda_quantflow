@@ -51,6 +51,7 @@ interface KLineData {
   low: number;
   high: number;
   volume: number;
+  adj_factor: number;
 }
 
 const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
@@ -144,15 +145,29 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
       // 调用API获取K线数据
       const apiData = await quotationApi.getStockKLineData(symbol, startDate, endDate);
       
-      // 转换API数据格式为组件需要的格式
-      const klineData: KLineData[] = apiData.map((item: any) => ({
-        date: item.date || item.trade_date?.toString() || '',
-        open: Number(item.open || 0),
-        close: Number(item.close || 0),
-        high: Number(item.high || 0),
-        low: Number(item.low || 0),
-        volume: Number(item.volume || 0),
-      })).filter((item: KLineData) => item.date.length === 8); // 确保日期格式正确
+      // 前复权处理：保持最新价格与实际盘面一致，历史价格向下调整
+      const latestAdjFactor = (() => {
+        let latest = 1.0;
+        for (const item of apiData) {
+          const f = Number(item.adj_factor || 1.0);
+          if (f > latest) latest = f;
+        }
+        return latest;
+      })();
+
+      const klineData: KLineData[] = apiData.map((item: any) => {
+        const adjFactor = Number(item.adj_factor || 1.0);
+        const fwdRatio = latestAdjFactor > 0 ? adjFactor / latestAdjFactor : 1.0;
+        return {
+          date: item.date || item.trade_date?.toString() || '',
+          open: Number(item.open || 0) * fwdRatio,
+          close: Number(item.close || 0) * fwdRatio,
+          high: Number(item.high || 0) * fwdRatio,
+          low: Number(item.low || 0) * fwdRatio,
+          volume: Number(item.volume || 0),
+          adj_factor: adjFactor,
+        };
+      }).filter((item: KLineData) => item.date.length === 8);
       
       // 按日期排序
       klineData.sort((a, b) => a.date.localeCompare(b.date));
@@ -314,21 +329,24 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
       });
     }
 
-    // 计算各项指标
-    const winTrades = tradePairs.filter(p => p.profit > 0);
-    const lossTrades = tradePairs.filter(p => p.profit < 0);
-    
-    // 1. 胜率
-    const winRate = tradePairs.length > 0 ? (winTrades.length / tradePairs.length) * 100 : 0;
+    // 分离真实配对和模拟配对
+    const realPairs = tradePairs.filter(p => !p.isSimulated);
 
-    // 2. 总盈亏
+    // 计算各项指标（胜率、盈亏比仅基于真实完成的交易）
+    const winTrades = realPairs.filter(p => p.profit > 0);
+    const lossTrades = realPairs.filter(p => p.profit < 0);
+
+    // 1. 胜率（仅真实已清仓交易）
+    const winRate = realPairs.length > 0 ? (winTrades.length / realPairs.length) * 100 : 0;
+
+    // 2. 总盈亏（含模拟清仓的浮动盈亏）
     const totalProfit = tradePairs.reduce((sum, p) => sum + p.profit, 0);
 
-    // 3. 盈亏比
-    const avgWin = winTrades.length > 0 
-      ? winTrades.reduce((sum, p) => sum + p.profit, 0) / winTrades.length 
+    // 3. 盈亏比（仅真实已清仓交易）
+    const avgWin = winTrades.length > 0
+      ? winTrades.reduce((sum, p) => sum + p.profit, 0) / winTrades.length
       : 0;
-    const avgLoss = lossTrades.length > 0 
+    const avgLoss = lossTrades.length > 0
       ? Math.abs(lossTrades.reduce((sum, p) => sum + p.profit, 0) / lossTrades.length)
       : 0;
     const profitLossRatio = avgLoss > 0 ? avgWin / avgLoss : 0;
@@ -427,15 +445,15 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
         }
       }
 
-      // 计算指标
+      // 计算指标（此处均为真实配对，不含模拟清仓）
       const winTrades = tradePairs.filter(p => p.profit > 0);
       const lossTrades = tradePairs.filter(p => p.profit < 0);
       const winRate = tradePairs.length > 0 ? (winTrades.length / tradePairs.length) * 100 : 0;
       const totalProfit = tradePairs.reduce((sum, p) => sum + p.profit, 0);
-      const avgWin = winTrades.length > 0 
-        ? winTrades.reduce((sum, p) => sum + p.profit, 0) / winTrades.length 
+      const avgWin = winTrades.length > 0
+        ? winTrades.reduce((sum, p) => sum + p.profit, 0) / winTrades.length
         : 0;
-      const avgLoss = lossTrades.length > 0 
+      const avgLoss = lossTrades.length > 0
         ? Math.abs(lossTrades.reduce((sum, p) => sum + p.profit, 0) / lossTrades.length)
         : 0;
       const profitLossRatio = avgLoss > 0 ? avgWin / avgLoss : 0;
@@ -474,12 +492,22 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
 
     const values = klineData.map(d => [d.open, d.close, d.low, d.high]);
 
+    // 构建日期到复权因子的映射，同时计算最新复权因子
+    const adjFactorMap: Record<string, number> = {};
+    let latestAdjFactor = 1.0;
+    klineData.forEach(d => {
+      if (d.adj_factor && d.adj_factor !== 1.0) {
+        adjFactorMap[d.date] = d.adj_factor;
+        if (d.adj_factor > latestAdjFactor) latestAdjFactor = d.adj_factor;
+      }
+    });
+
     // 准备买卖点数据
     const buyPoints: any[] = [];
     const sellPoints: any[] = [];
     const simulatedSellPoints: any[] = []; // 模拟清仓点
 
-    // 添加实际交易点（使用成交价，与下方交易记录表价格保持一致）
+    // 添加实际交易点（前复权：成交价 × adj_factor / latest_adj_factor）
     filteredTrades.forEach(trade => {
       const tradeDate = trade.date;
       if (!tradeDate || tradeDate.length < 8) return;
@@ -489,19 +517,20 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
       if (dateIndex === -1) return;
 
       const kline = klineData[dateIndex];
-      const price = parseFloat(trade.price || '0');
+      const rawPrice = parseFloat(trade.price || '0');
+      const tradeAdjFactor = adjFactorMap[tradeDate] || 1.0;
+      const fwdRatio = latestAdjFactor > 0 ? tradeAdjFactor / latestAdjFactor : 1.0;
+      const adjPrice = (rawPrice && !Number.isNaN(rawPrice)) ? rawPrice * fwdRatio : 0;
 
       if (trade.direction === 'buy') {
-        // 买入点：优先使用成交价，缺失或为 0 时回退到当日K线最低价
-        const yPosition = (price && !Number.isNaN(price)) ? price : (kline ? kline.low : 0);
+        const yPosition = adjPrice || (kline ? kline.low : 0);
         buyPoints.push({
           xAxis: dateIndex,
           yAxis: yPosition,
           value: trade.amount,
         });
       } else if (trade.direction === 'sell') {
-        // 卖出点：优先使用成交价，缺失或为 0 时回退到当日K线最高价
-        const yPosition = (price && !Number.isNaN(price)) ? price : (kline ? kline.high : 0);
+        const yPosition = adjPrice || (kline ? kline.high : 0);
         sellPoints.push({
           xAxis: dateIndex,
           yAxis: yPosition,
@@ -849,11 +878,20 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
       key: 'direction',
       width: 80,
       align: 'center' as const,
-      render: (direction: string) => (
-        <Tag color={direction === 'buy' ? '#ff4d4f' : '#52c41a'} icon={direction === 'buy' ? <ArrowUpOutlined /> : <ArrowDownOutlined />}>
-          {direction === 'buy' ? '买入' : '卖出'}
-        </Tag>
-      ),
+      render: (direction: string) => {
+        if (direction === 'dividend') {
+          return (
+            <Tag color="#1890ff" icon={<DollarOutlined />}>
+              分红
+            </Tag>
+          );
+        }
+        return (
+          <Tag color={direction === 'buy' ? '#ff4d4f' : '#52c41a'} icon={direction === 'buy' ? <ArrowUpOutlined /> : <ArrowDownOutlined />}>
+            {direction === 'buy' ? '买入' : '卖出'}
+          </Tag>
+        );
+      },
     },
     {
       title: '价格',
@@ -861,7 +899,14 @@ const TradeAnalysis: React.FC<TradeAnalysisProps> = ({
       key: 'price',
       width: 100,
       align: 'center' as const,
-      render: (price: string) => `¥${parseFloat(price).toFixed(2)}`,
+      render: (price: string, record: any) => {
+        if (record.direction === 'dividend') {
+          const val = parseFloat(price);
+          if (!val || val <= 0) return '-';
+          return `¥${val.toFixed(4)}/股`;
+        }
+        return `¥${parseFloat(price).toFixed(2)}`;
+      },
     },
     {
       title: '数量',

@@ -49,6 +49,8 @@ async def backtest_position_get_logic(
                 except Exception:
                     position_ratio = None
 
+            dividend_received = data.get("dividend_received") or 0
+
             mapped_data = {
                 **data,
                 "contract_code": data.get("symbol"),
@@ -58,6 +60,7 @@ async def backtest_position_get_logic(
                 "last_price": data.get("market_price"),
                 "gmt_create": data.get("date") or data.get("created_at"),
                 "position_ratio": position_ratio,
+                "dividend_received": dividend_received,
             }
             validated = BacktestPositionModel.model_validate(mapped_data)
             validated_items.append(validated)

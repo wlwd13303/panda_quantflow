@@ -21,6 +21,7 @@ from panda_server.routes import (
     quotation_routes,
     strategy_routes,
 )
+from fastapi.responses import RedirectResponse
 from starlette.staticfiles import StaticFiles
 from pathlib import Path
 
@@ -114,14 +115,23 @@ app = FastAPI(
 current_dir = Path(__file__).resolve().parent
 # 获取上一级目录
 parent_dir = current_dir.parent
-# 获取上一级目录中的另一个文件夹
-frontend_folder = parent_dir / "panda_web"
-logger.info(f"前端静态资源文件夹路径:{frontend_folder}")
-# 显式设置 .js .css 的 MIME 类型
-mimetypes.add_type("text/css", ".css")
-mimetypes.add_type("application/javascript", ".js")
-app.mount("/quantflow", StaticFiles(directory=frontend_folder, html=True), name="quantflow")
-app.mount("/charts", StaticFiles(directory=frontend_folder, html=True), name="charts")
+# React 前端构建产物目录
+frontend_folder = parent_dir / "panda_web_react" / "dist"
+
+if frontend_folder.exists() and frontend_folder.is_dir():
+    logger.info(f"前端静态资源文件夹路径: {frontend_folder}")
+    # 显式设置 .js .css 的 MIME 类型
+    mimetypes.add_type("text/css", ".css")
+    mimetypes.add_type("application/javascript", ".js")
+    app.mount("/quantflow", StaticFiles(directory=frontend_folder, html=True), name="quantflow")
+else:
+    logger.warning(f"前端构建产物不存在: {frontend_folder}，请先执行 npm run build")
+
+# 根路径重定向到前端首页
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/quantflow/")
+
 
 # Configure CORS
 app.add_middleware(
@@ -154,6 +164,6 @@ if __name__ == "__main__":
         "main:app",
         reload=True,
         host="0.0.0.0",
-        port=8000,
+        port=SERVER_PORT,
         log_config=None,  # Disable Uvicorn default log configuration
     )

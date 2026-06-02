@@ -68,6 +68,7 @@ class BacktestPositionBaseModel(BaseModel):
     profit_rate: Optional[float] = Field(default=None, description="收益率")
     accumulate_profit: Optional[float] = Field(default=None, description="累计盈亏")
     holding_pnl: Optional[float] = Field(default=None, description="持仓盈亏")
+    dividend_received: Optional[float] = Field(default=None, description="累计已收分红（含税后现金分红）")
     position_ratio: Optional[float] = Field(default=None, description="持仓权重百分比")
 
     class Config:

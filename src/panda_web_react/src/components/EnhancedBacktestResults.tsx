@@ -33,6 +33,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   LoadingOutlined,
+  DollarOutlined,
 } from '@ant-design/icons';
 import Editor from '@monaco-editor/react';
 import type {
@@ -117,7 +118,7 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
   tradeAnalysisData,
   positionData,
   positionAnalysisData,
-  accountData,
+  accountData: _accountData,
   dataStats,
   config,
   strategyName,
@@ -126,12 +127,12 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
   strategyId,
   strategyCodeSnapshot,
   currentStrategyCode,
-  onLoadResults,
-  onManualComplete,
-  onConfigChange,
-  onStrategyNameChange,
-  onAutoRefreshChange,
-  onRefreshIntervalChange,
+  onLoadResults: _onLoadResults,
+  onManualComplete: _onManualComplete,
+  onConfigChange: _onConfigChange,
+  onStrategyNameChange: _onStrategyNameChange,
+  onAutoRefreshChange: _onAutoRefreshChange,
+  onRefreshIntervalChange: _onRefreshIntervalChange,
   onEditStrategy,
   onRerunBacktest,
   onCancelBacktest,
@@ -206,13 +207,23 @@ const EnhancedBacktestResults: React.FC<EnhancedBacktestResultsProps> = ({
         filters: [
           { text: '买入', value: 'buy' },
           { text: '卖出', value: 'sell' },
+          { text: '分红', value: 'dividend' },
         ],
         onFilter: (value: any, record: TradeData) => record.direction === value,
-        render: (direction: string) => (
-          <Tag color={direction === 'buy' ? 'red' : 'green'}>
-            {direction === 'buy' ? '买入' : '卖出'}
-          </Tag>
-        ),
+        render: (direction: string) => {
+          if (direction === 'dividend') {
+            return (
+              <Tag color="blue" icon={<DollarOutlined />}>
+                分红
+              </Tag>
+            );
+          }
+          return (
+            <Tag color={direction === 'buy' ? 'red' : 'green'}>
+              {direction === 'buy' ? '买入' : '卖出'}
+            </Tag>
+          );
+        },
       },
       {
         title: '数量',

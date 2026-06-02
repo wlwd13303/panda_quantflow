@@ -26,6 +26,7 @@ import {
   FundOutlined,
   TransactionOutlined,
   BarChartOutlined,
+  DollarOutlined,
 } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import type {
@@ -92,9 +93,15 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
       return String(date).substring(0, 8);
     });
 
-    // 计算净值曲线：净值 = 当前资产 / 初始资金
-    // 初始资金从配置中获取（单位：万），需要转换为元
-    const initialCapital = (config.start_capital || 1000) * 10000;
+    // 用第一个有效数据点的 total_value 作为净值归一化基准
+    const firstValidValue = (() => {
+      for (const item of profitData) {
+        const v = Number(item.total_value ?? item.total_profit ?? item.csi_stock ?? item.strategy_profit ?? 0);
+        if (v > 0 && isFinite(v)) return v;
+      }
+      return 0;
+    })();
+    const initialCapital = firstValidValue > 0 ? firstValidValue : (config.start_capital || 1000) * 10000;
     
     const equity = profitData.map((item) => {
       const totalAsset =
@@ -236,13 +243,23 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
         filters: [
           { text: '买入', value: 'buy' },
           { text: '卖出', value: 'sell' },
+          { text: '分红', value: 'dividend' },
         ],
         onFilter: (value: any, record: TradeData) => record.direction === value,
-        render: (direction: string) => (
-          <Tag color={direction === 'buy' ? 'success' : 'error'}>
-            {direction === 'buy' ? '买入' : '卖出'}
-          </Tag>
-        ),
+        render: (direction: string) => {
+          if (direction === 'dividend') {
+            return (
+              <Tag color="blue" icon={<DollarOutlined />}>
+                分红
+              </Tag>
+            );
+          }
+          return (
+            <Tag color={direction === 'buy' ? 'success' : 'error'}>
+              {direction === 'buy' ? '买入' : '卖出'}
+            </Tag>
+          );
+        },
       },
       {
         title: '数量',
@@ -384,7 +401,14 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
       };
     }
 
-    const initialCapital = (config.start_capital || 1000) * 10000;
+    const firstValidValue = (() => {
+      for (const item of profitData) {
+        const v = Number(item.total_value ?? item.total_profit ?? item.strategy_profit ?? 0);
+        if (v > 0 && isFinite(v)) return v;
+      }
+      return 0;
+    })();
+    const initialCapital = firstValidValue > 0 ? firstValidValue : (config.start_capital || 1000) * 10000;
     const equity = profitData.map((item) => {
       const totalAsset = item.total_value ?? item.total_profit ?? item.strategy_profit ?? 0;
       return Number(totalAsset) || 0;
@@ -433,7 +457,14 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
 
   // 获取回撤曲线数据
   const getDrawdownChartOption = () => {
-    const initialCapital = (config.start_capital || 1000) * 10000;
+    const firstValidValue = (() => {
+      for (const item of profitData) {
+        const v = Number(item.total_value ?? item.total_profit ?? item.strategy_profit ?? 0);
+        if (v > 0 && isFinite(v)) return v;
+      }
+      return 0;
+    })();
+    const initialCapital = firstValidValue > 0 ? firstValidValue : (config.start_capital || 1000) * 10000;
     const equity = profitData.map((item) => {
       const totalAsset = item.total_value ?? item.total_profit ?? item.strategy_profit ?? 0;
       return Number(totalAsset) || initialCapital;
@@ -734,7 +765,7 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
                 dataSource={tradeData}
                     pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
                     size="small"
-                    scroll={{ x: 800 }}
+                    scroll={{ x: 1000 }}
                     rowKey={(_record, index) => `${_record.date}_${_record.code}_${index}` || index?.toString() || '0'}
                   />
                 ) : (
@@ -755,24 +786,14 @@ const BacktestResults: React.FC<BacktestResultsProps> = ({
                   <Table
                     columns={getPositionColumns()}
                     dataSource={positionData}
-                    loading={positionLoading}
                     pagination={{
-                      current: positionPagination.current,
-                      pageSize: positionPagination.pageSize,
+                      pageSize: 20,
                       total: dataStats.positionCount,
                       showSizeChanger: true,
                       showTotal: (total) => `共 ${total} 条`,
-                      onChange: async (page, pageSize) => {
-                        if (onLoadPositionData) {
-                          setPositionLoading(true);
-                          setPositionPagination({ current: page, pageSize: pageSize || 20 });
-                          await onLoadPositionData(page, pageSize || 20);
-                          setPositionLoading(false);
-                        }
-                      },
                     }}
                     size="small"
-                    scroll={{ x: 800 }}
+                    scroll={{ x: 1000 }}
                     rowKey={(_record, index) => `${_record.date}_${_record.symbol}_${index}` || index?.toString() || '0'}
                   />
                 ) : (
